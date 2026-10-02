@@ -9,10 +9,65 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Courier New", monospace;
+  font-size: 5rem;
 }
 
 .landing {
   min-height: 100vh;
   display: grid;
+  align-items: center;
+  justify-items: start;
+  padding: 0 5rem;
+}
+
+#name {
+  white-space: pre-line;
+  text-align: left;
+}
+
+#name::after {
+  content: "_";
+  animation: blink 1s steps(1) infinite;
+}
+
+.menu-btn {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 2;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: var(--bg);
+  display: grid;
   place-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+.menu.offen {
+  opacity: 1;
+  visibility: visible;
+}
+
+.menu ul { list-style: none; text-align: center; }
+.menu a { color: var(--text); text-decoration: none; font-size: 2rem; }
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@font-face {
+  font-family: "Special Elite";
+  src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
+  font-display: swap;
 }

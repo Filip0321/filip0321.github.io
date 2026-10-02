@@ -7,8 +7,19 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+    <nav id="menu" class="menu">
+        <ul>
+            <li><a href="#">Bild & Film</a></li>
+            <li><a href="#">Code</a></li>
+            <li><a href="#">Klang</a></li>
+            <li><a href="#">Basteln</a></li>
+            <li><a href="#">Experimental</a></li>
+            <li><a href="#">About me</a></li>
+        </ul>
+    </nav>
   <main class="landing">
-    <h1 id="name">Filip Winkler</h1>
+    <h1 id="name" aria-label="Filip Winkler"></h1>
   </main>
   <script src="script.js"></script>
 </body>
