@@ -23,6 +23,8 @@ body {
 #name {
   white-space: pre-line;
   text-align: left;
+  font-size: clamp(2rem, 10vw, 6rem);
+  line-height: 1.1;
 }
 
 #name::after {
@@ -60,7 +62,11 @@ body {
 }
 
 .menu ul { list-style: none; text-align: center; }
-.menu a { color: var(--text); text-decoration: none; font-size: 2rem; }
+.menu a { 
+  color: var(--text); 
+  text-decoration: none; 
+  font-size: clamp(1.25rem, 6vw, 2.5rem); 
+}
 
 @keyframes blink {
   50% { opacity: 0; }

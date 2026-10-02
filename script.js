@@ -19,5 +19,5 @@ const menu = document.getElementById("menu");
 btn.addEventListener("click", () => {
   const offen = menu.classList.toggle("offen");
   btn.setAttribute("aria-expanded", offen);
-  btn.textContent = offen ? "Schließen" : "Menü";
+  btn.textContent = offen ? "✖" : "Menü";
 });
