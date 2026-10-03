@@ -76,3 +76,8 @@ body {
   src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
   font-display: swap;
 }
+
+@media (max-width: 600px) {
+  body { font-size: 2rem; }
+  #name { font-size: clamp(3rem, 15vw, 10rem); }
+}
