@@ -78,6 +78,12 @@ body {
 }
 
 @media (max-width: 600px) {
-  body { font-size: 2rem; }
-  #name { font-size: clamp(3rem, 15vw, 10rem); }
+  body { 
+    font-size: 2rem; 
+  }
+  
+  #name {
+    font-size: clamp(2.5rem, 12vw, 6rem);
+    line-height: 1.1;
+  }
 }
