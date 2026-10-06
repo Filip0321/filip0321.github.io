@@ -75,6 +75,15 @@ body {
   object-fit: cover;
 }
 
+.karte img,
+.karte video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
 .karte h2 {
   font-size: 1.5rem;
   margin: 0.75rem 0 0.25rem;
