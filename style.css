@@ -348,6 +348,39 @@ canvas {
   opacity: 0.8;
 }
 
+.doku {
+  margin-top: 4rem;
+}
+
+.doku ul {
+  padding-left: 1.25rem;
+  margin-top: 1rem;
+}
+
+.doku li + li {
+  margin-top: 0.4rem;
+}
+
+.code {
+  margin-top: 2.5rem;
+}
+
+.code summary {
+  font-family: "Special Elite", "Courier New", monospace;
+  cursor: pointer;
+}
+
+pre {
+  margin-top: 1rem;
+  padding: 1rem;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
 /* Landing Styles */
 #name {
   white-space: pre-line;

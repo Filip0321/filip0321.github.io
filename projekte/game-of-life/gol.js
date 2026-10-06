@@ -297,6 +297,22 @@ document.addEventListener("keydown", (e) => {
   setzeLaeuft(!laeuft);
 });
 
+// ---------- Quelltext anzeigen ----------
+
+const codeBox = document.querySelector(".code");
+const quelltext = document.getElementById("quelltext");
+
+codeBox.addEventListener("toggle", () => {
+  fetch("gol.js")
+    .then(antwort => antwort.text())
+    .then(text => {
+      quelltext.textContent = text;
+    })
+    .catch(() => {
+      quelltext.textContent = "Der Code konnte nicht geladen werden.";
+    });
+}, { once: true });
+
 // ---------- Schleife ----------
 
 function schleife(zeit) {
