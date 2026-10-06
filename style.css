@@ -4,9 +4,26 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Courier Prime";
+  src: url("fonts/CourierPrime-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("fonts/CourierPrime-Italic.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   --bg: #111;
   --text: #ddd;
+  color-scheme: dark;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -36,6 +53,7 @@ body {
   margin-bottom: 2rem;
 }
 
+/* Projektübersicht Styles */
 .karten {
   list-style: none;
   display: grid;
@@ -84,6 +102,202 @@ body {
   border: 1px solid currentColor;
   padding: 0.1rem 0.5rem;
   opacity: 0.6;
+}
+
+/* Text Styles */
+.lesetext {
+  max-width: 65ch;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  hyphens: auto;
+}
+
+.lesetext .projekt-kopf {
+  font-family: "Special Elite", "Courier New", monospace;
+  margin-bottom: 2.5rem;
+}
+
+.lesetext p + p {
+  margin-top: 1em;
+}
+
+.lesetext h2 {
+  font-family: "Special Elite", "Courier New", monospace;
+  font-size: 1.4rem;
+  margin: 2.5rem 0 1rem;
+}
+
+.lesetext blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1.25rem;
+  border-left: 2px solid currentColor;
+  opacity: 0.85;
+}
+
+.lesetext blockquote footer {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+.gedicht {
+  white-space: pre-line;
+}
+
+.gedicht p + p {
+  margin-top: 1.75em;
+}
+
+.zurueck {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.zurueck:hover {
+  opacity: 1;
+}
+
+.projekt-kopf .meta {
+  opacity: 0.6;
+  margin-top: 0.25rem;
+}
+
+.text {
+  max-width: 65ch;
+  line-height: 1.6;
+  margin: 2rem 0 3rem;
+}
+
+.text p + p {
+  margin-top: 1em;
+}
+
+/* Foto Styles */
+/* Galerie Styles */
+.galerie {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.galerie img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.galerie figcaption {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 0.5rem;
+}
+
+/* Mosaik Styles */
+.mosaik {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+  grid-auto-rows: 9rem;
+  grid-auto-flow: dense;
+  gap: 0.5rem;
+}
+
+.mosaik a {
+  display: block;
+  height: 100%;
+}
+
+.mosaik img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--fokus, center);
+}
+
+.mosaik .breit { grid-column: span 2; }
+.mosaik .hoch  { grid-row: span 2; }
+.mosaik .gross { grid-column: span 2; grid-row: span 2; }
+
+/* Pinnwand Styles */
+.pinnwand {
+  columns: 3 9rem;
+  column-gap: 0.75rem;
+}
+
+.pinnwand figure {
+  break-inside: avoid;
+  margin-bottom: 0.75rem;
+}
+
+.pinnwand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pinnwand figcaption {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 0.35rem;
+}
+
+/* Cover Styles */
+.cover {
+  max-width: 24rem;
+  margin-bottom: 1.5rem;
+}
+
+.cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Audio Player Styles */
+.player {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.play {
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.play:hover,
+.play:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.zeit {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.zeitleiste {
+  flex: 1;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+/* Game of Life Styles */
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
 }
 
 #name {

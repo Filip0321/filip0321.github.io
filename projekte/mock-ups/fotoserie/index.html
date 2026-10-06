@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Titel der Serie – Filip Winkler</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite">
+    <a class="zurueck" href="/projekte/">← Projekte</a>
+
+    <header class="projekt-kopf">
+      <h1>Titel der Serie</h1>
+      <p class="meta"><time datetime="2025-08">August 2025</time></p>
+      <ul class="tags">
+        <li>fotografie</li>
+      </ul>
+    </header>
+
+    <div class="text">
+      <p>Hier dein Text zur Serie.</p>
+    </div>
+    
+    <!-- Mosaik 
+    <div class="mosaik">
+        <figure class="gross">
+            <a href="001.webp"><img src="001.webp" alt="Beschreibung" width="1224" height="1777"></a>
+        </figure>
+        <figure class="hoch">
+            <a href="002.webp"><img src="002.webp" alt="Beschreibung" width="984" height="2000" loading="lazy"></a>
+        </figure>
+        <figure class="breit">
+            <a href="003.webp"><img src="003.webp" alt="Beschreibung" width="2000" height="1326" loading="lazy"></a>
+        </figure>
+    </div>
+    -->
+
+    <div class="pinnwand">
+        <figure>
+            <a href="001.webp"><img src="001.webp" alt="Beschreibung" width="1224" height="1777"></a>
+            <figcaption>Hier dein Text zu dem Bild.</figcaption>
+        </figure>
+        <figure>
+            <a href="002.webp"><img src="002.webp" alt="Beschreibung" width="984" height="2000" loading="lazy"></a>
+            <figcaption>Hier dein Text zu dem Bild.</figcaption>
+        </figure>
+        <figure>
+            <a href="003.webp"><img src="003.webp" alt="Beschreibung" width="2000" height="1326" loading="lazy"></a>
+            <figcaption>Hier dein Text zu dem Bild.</figcaption>
+        </figure>
+    </div>
+  </main>
+
+  <script src="/script.js"></script>
+</body>
+</html>
