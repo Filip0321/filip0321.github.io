@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Special Elite";
+  src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
 :root {
   --bg: #111;
   --text: #ddd;
@@ -8,8 +14,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "Courier New", monospace;
-  font-size: 3rem;
+  font-family: "Special Elite", "Courier New", monospace;
 }
 
 .landing {
@@ -20,15 +25,81 @@ body {
   padding: 0 5vw;
 }
 
+.seite {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 5rem 1.5rem;
+}
+
+.seite h1 {
+  font-size: clamp(2rem, 8vw, 4rem);
+  margin-bottom: 2rem;
+}
+
+.karten {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 2.5rem 2rem;
+}
+
+.karte a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.karte img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.karte h2 {
+  font-size: 1.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.karte p {
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.karte a:hover h2 {
+  text-decoration: underline;
+}
+
+.tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.tags li {
+  font-size: 0.8rem;
+  border: 1px solid currentColor;
+  padding: 0.1rem 0.5rem;
+  opacity: 0.6;
+}
+
 #name {
   white-space: pre-line;
   text-align: left;
   font-size: clamp(5rem, 15vw, 20rem);
+  line-height: 1.1;
 }
 
 #name::after {
   content: "_";
   animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 .menu-btn {
@@ -40,6 +111,7 @@ body {
   border: none;
   color: var(--text);
   font: inherit;
+  font-size: 1.5rem;
   cursor: pointer;
 }
 
@@ -50,6 +122,8 @@ body {
   background: var(--bg);
   display: grid;
   place-items: center;
+  padding: 4rem 1.5rem;
+  overflow-y: auto;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s, visibility 0.3s;
@@ -60,30 +134,19 @@ body {
   visibility: visible;
 }
 
-.menu ul { list-style: none; text-align: center; }
-.menu a { 
-  color: var(--text); 
-  text-decoration: none; 
-  font-size: clamp(1.25rem, 6vw, 2.5rem); 
+.menu ul {
+  list-style: none;
+  text-align: center;
 }
 
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-@font-face {
-  font-family: "Special Elite";
-  src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
-  font-display: swap;
+.menu a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: clamp(1.25rem, 6vw, 2.5rem);
 }
 
 @media (max-width: 600px) {
-  body { 
-    font-size: 2rem; 
-  }
-  
   #name {
     font-size: clamp(2.5rem, 12vw, 6rem);
-    line-height: 1.1;
   }
 }
