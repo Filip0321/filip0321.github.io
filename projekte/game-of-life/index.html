@@ -21,13 +21,27 @@
     <a class="zurueck" href="/projekte/">← Projekte</a>
 
     <header class="projekt-kopf">
-        <h1>Game of Life</h1>
-        <ul class="tags">
+      <h1>Game of Life</h1>
+      <ul class="tags">
         <li>simulation</li>
-        </ul>
+      </ul>
     </header>
 
     <canvas id="feld"></canvas>
+
+    <div class="steuerung">
+      <button type="button" id="start">Pause</button>
+      <button type="button" id="schritt">Schritt</button>
+      <button type="button" id="leeren">Leeren</button>
+      <button type="button" id="neu">Zufall</button>
+    </div>
+
+    <div class="presets" role="group" aria-label="Muster"></div>
+
+    <details class="preset-info" open>
+      <summary id="preset-name"></summary>
+      <p id="preset-text"></p>
+    </details>
   </main>
 
   <script src="/script.js"></script>

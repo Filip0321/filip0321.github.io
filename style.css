@@ -292,14 +292,63 @@ body {
   cursor: pointer;
 }
 
-/* Game of Life Styles */
+/* Simulation Styles */
 canvas {
   display: block;
   width: 100%;
   height: auto;
   image-rendering: pixelated;
+  touch-action: none;
+  cursor: crosshair;
 }
 
+.steuerung,
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.presets {
+  margin-top: 1.5rem;
+}
+
+.steuerung button,
+.presets button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.steuerung button:hover,
+.steuerung button:focus-visible,
+.presets button:hover,
+.presets button:focus-visible,
+.presets button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.preset-info {
+  margin-top: 1rem;
+  max-width: 65ch;
+}
+
+.preset-info summary {
+  cursor: pointer;
+}
+
+.preset-info p {
+  margin-top: 0.5rem;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+/* Landing Styles */
 #name {
   white-space: pre-line;
   text-align: left;
@@ -316,6 +365,7 @@ canvas {
   50% { opacity: 0; }
 }
 
+/* Menu Styles */
 .menu-btn {
   position: fixed;
   top: 1.5rem;
