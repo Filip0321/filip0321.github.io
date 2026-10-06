@@ -390,6 +390,11 @@ pre {
   tab-size: 2;
 }
 
+.attraktor-feld {
+  aspect-ratio: 1 / 1;
+  image-rendering: auto;
+}
+
 /* Landing Styles */
 #name {
   white-space: pre-line;
