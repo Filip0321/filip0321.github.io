@@ -24,3 +24,23 @@ btn.addEventListener("click", () => {
   btn.setAttribute("aria-expanded", offen);
   btn.textContent = offen ? "✖" : "Menü";
 });
+
+// ---------- Quelltext in details laden ----------
+
+document.querySelectorAll("details[data-quelle]").forEach((box) => {
+  const ziel = box.querySelector("code");
+
+  box.addEventListener("toggle", () => {
+    fetch(box.dataset.quelle)
+      .then((antwort) => {
+        if (!antwort.ok) throw new Error(antwort.status);
+        return antwort.text();
+      })
+      .then((text) => {
+        ziel.textContent = text;
+      })
+      .catch(() => {
+        ziel.textContent = "Der Code konnte nicht geladen werden.";
+      });
+  }, { once: true });
+});
