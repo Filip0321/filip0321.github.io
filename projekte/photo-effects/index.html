@@ -38,18 +38,17 @@
 
     <canvas id="bild" class="bild-feld" hidden></canvas>
 
-    <div class="steuerung nur-bild">
+    <div class="steuerung">
       <label>Pixelgröße
-        <input type="range" id="pixelgroesse" min="1" max="64" value="8">
-        <output id="pixelwert">8</output>
+        <input type="range" id="pixelgroesse" min="1" max="64" value="1">
+        <output id="pixelwert">1</output>
       </label>
-      <button type="button" id="speichern" disabled>Bild speichern</button>
     </div>
 
-    <div class="steuerung nur-bild">
+    <div class="steuerung">
       <label><input type="checkbox" id="dither-an" data-zeigt="dither-regler"> Dithering</label>
     </div>
-    <div class="steuerung nur-bild" id="dither-regler" hidden>
+    <div class="steuerung" id="dither-regler" hidden>
       <label>Stufen
         <input type="range" id="stufen" min="2" max="8" value="2">
         <output id="stufenwert">2</output>
@@ -112,17 +111,49 @@
       </label>
     </div>
 
+    <div class="steuerung nur-bild">
+      <button type="button" id="speichern" disabled>Bild speichern</button>
+    </div>
+
     <div class="steuerung nur-video" hidden>
       <button type="button" id="abspielen">Pause</button>
       <button type="button" id="frame-speichern">Bild speichern</button>
       <button type="button" id="video-speichern">Video speichern</button>
     </div>
 
-    <div class="steuerung export nur-video" hidden></div>
+    <section class="lesetext doku">
+      <h2>Die Effekte</h2>
+      <p>Dein Text.</p>
+
+      <h2>Grafikkarte und Prozessor</h2>
+      <p>Dein Text.</p>
+
+      <h2>Rendern statt Abspielen</h2>
+      <p>Dein Text.</p>
+
+      <h2>Verwendete Bibliothek</h2>
+      <p>Das Rendern von Videos nutzt <a href="https://mediabunny.dev">Mediabunny</a> von Vanilagy, veröffentlicht unter der Mozilla Public License 2.0.</p>
+
+      <details class="code" data-quelle="photo-effects.js">
+        <summary>Der Code: Oberfläche und Effekt-Kette</summary>
+        <pre><code>Wird geladen …</code></pre>
+      </details>
+
+      <details class="code" data-quelle="crt.js">
+        <summary>Der Code: CRT-Shader und WebGL</summary>
+        <pre><code>Wird geladen …</code></pre>
+      </details>
+
+      <details class="code" data-quelle="vhs.js">
+        <summary>Der Code: VHS-Shader</summary>
+        <pre><code>Wird geladen …</code></pre>
+      </details>
+    </section>
   </main>
 
   <script src="/script.js"></script>
   <script src="/export.js"></script>
+  <script src="/lib/mediabunny.cjs"></script>
   <script src="crt.js"></script>
   <script src="vhs.js"></script>
   <script src="photo-effects.js"></script>
