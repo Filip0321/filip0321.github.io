@@ -83,7 +83,7 @@ const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
 
 function passeGroesseAn() {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(canvas.clientHeight * dpr);
 }
@@ -321,22 +321,6 @@ for (const name in felder) {
     zeichne();
   });
 }
-
-// ---------- Quelltext anzeigen ----------
-
-const codeBox = document.querySelector(".code");
-const quelltext = document.getElementById("quelltext");
-
-codeBox.addEventListener("toggle", () => {
-  fetch("attraktor.js")
-    .then(antwort => antwort.text())
-    .then(text => {
-      quelltext.textContent = text;
-    })
-    .catch(() => {
-      quelltext.textContent = "Der Code konnte nicht geladen werden.";
-    });
-}, { once: true });
 
 // ---------- Start ----------
 

@@ -121,7 +121,7 @@ let bild = null;
 let pixel32 = null;
 
 function passeGroesseAn() {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(canvas.clientHeight * dpr);
   bild = ctx.createImageData(canvas.width, canvas.height);
