@@ -13,11 +13,15 @@ const ditherFeld = document.getElementById("dither-an");
 const stufenFeld = document.getElementById("stufen");
 const stufenWert = document.getElementById("stufenwert");
 const grauFeld = document.getElementById("grau");
+
 const crtFeld = document.getElementById("crt-an");
+
 const vergleichFeld = document.getElementById("vergleich");
 const vergleichWert = document.getElementById("vergleichwert");
 const speichernKnopf = document.getElementById("speichern");
 const abspielKnopf = document.getElementById("abspielen");
+
+const vhsFeld = document.getElementById("vhs-an");
 
 // ---------- Zustand ----------
 
@@ -34,11 +38,14 @@ let crtAn = crtFeld.checked;
 let teilung = 0;
 let geplant = false;
 
-const crtWerte = {};
+let vhsAn = vhsFeld.checked;
+const werte = { crt: {}, vhs: {} };
 
 if (!gl) {
   crtFeld.disabled = true;
+  vhsFeld.disabled = true;
   crtFeld.parentElement.title = "Dein Browser unterstützt kein WebGL2.";
+  vhsFeld.parentElement.title = "Dein Browser unterstützt kein WebGL2.";
 }
 
 // ---------- Modus ----------
@@ -139,8 +146,133 @@ function starteVideoSchleife(diesesVideo) {
 
 // ---------- Effekte ----------
 
-// HIER kommen deine unveränderten Funktionen
-// verkleinern, vergroessern und dithern hin.
+function verkleinern(eingabe, groesse) {
+  const w = eingabe.width;
+  const h = eingabe.height;
+  const ein = eingabe.data;
+  const kw = Math.ceil(w / groesse);
+  const kh = Math.ceil(h / groesse);
+  const ausgabe = new ImageData(kw, kh);
+  const aus = ausgabe.data;
+
+  for (let ky = 0; ky < kh; ky++) {
+    for (let kx = 0; kx < kw; kx++) {
+      const startX = kx * groesse;
+      const startY = ky * groesse;
+      const bw = Math.min(groesse, w - startX);
+      const bh = Math.min(groesse, h - startY);
+
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+
+      for (let y = startY; y < startY + bh; y++) {
+        for (let x = startX; x < startX + bw; x++) {
+          const i = (y * w + x) * 4;
+          r += ein[i];
+          g += ein[i + 1];
+          b += ein[i + 2];
+          a += ein[i + 3];
+        }
+      }
+
+      const anzahl = bw * bh;
+      const k = (ky * kw + kx) * 4;
+      aus[k] = r / anzahl;
+      aus[k + 1] = g / anzahl;
+      aus[k + 2] = b / anzahl;
+      aus[k + 3] = a / anzahl;
+    }
+  }
+
+  return ausgabe;
+}
+
+function vergroessern(klein, groesse, w, h) {
+  const ein = klein.data;
+  const kw = klein.width;
+  const ausgabe = new ImageData(w, h);
+  const aus = ausgabe.data;
+
+  for (let y = 0; y < h; y++) {
+    const ky = Math.floor(y / groesse);
+    for (let x = 0; x < w; x++) {
+      const kx = Math.floor(x / groesse);
+      const k = (ky * kw + kx) * 4;
+      const i = (y * w + x) * 4;
+      aus[i] = ein[k];
+      aus[i + 1] = ein[k + 1];
+      aus[i + 2] = ein[k + 2];
+      aus[i + 3] = ein[k + 3];
+    }
+  }
+
+  return ausgabe;
+}
+
+function dithern(eingabe, stufen, grau) {
+  const w = eingabe.width;
+  const h = eingabe.height;
+  const ein = eingabe.data;
+  const kanaele = grau ? 1 : 3;
+  const werteDither = new Float32Array(w * h * kanaele);
+
+  for (let i = 0; i < w * h; i++) {
+    const r = ein[i * 4];
+    const g = ein[i * 4 + 1];
+    const b = ein[i * 4 + 2];
+    if (grau) {
+      werteDither[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    } else {
+      werteDither[i * 3] = r;
+      werteDither[i * 3 + 1] = g;
+      werteDither[i * 3 + 2] = b;
+    }
+  }
+
+  const abstand = 255 / (stufen - 1);
+
+  function verteile(x, y, k, fehler, anteil) {
+    if (x < 0 || x >= w || y >= h) return;
+    werteDither[(y * w + x) * kanaele + k] += fehler * anteil;
+  }
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      for (let k = 0; k < kanaele; k++) {
+        const i = (y * w + x) * kanaele + k;
+        const alt = werteDither[i];
+        const neu = Math.min(255, Math.max(0, Math.round(alt / abstand) * abstand));
+        werteDither[i] = neu;
+
+        const fehler = alt - neu;
+        verteile(x + 1, y, k, fehler, 7 / 16);
+        verteile(x - 1, y + 1, k, fehler, 3 / 16);
+        verteile(x, y + 1, k, fehler, 5 / 16);
+        verteile(x + 1, y + 1, k, fehler, 1 / 16);
+      }
+    }
+  }
+
+  const ausgabe = new ImageData(w, h);
+  const aus = ausgabe.data;
+
+  for (let i = 0; i < w * h; i++) {
+    if (grau) {
+      aus[i * 4] = werteDither[i];
+      aus[i * 4 + 1] = werteDither[i];
+      aus[i * 4 + 2] = werteDither[i];
+    } else {
+      aus[i * 4] = werteDither[i * 3];
+      aus[i * 4 + 1] = werteDither[i * 3 + 1];
+      aus[i * 4 + 2] = werteDither[i * 3 + 2];
+    }
+    aus[i * 4 + 3] = ein[i * 4 + 3];
+  }
+
+  return ausgabe;
+}
 
 // ---------- Anzeigen ----------
 
@@ -153,11 +285,22 @@ function zeichneTrennlinie(x, w, h) {
 function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
+  const zeit = performance.now() / 1000;
+  let gezeichnet = false;
+
+  if (vhsAn && gl) {
+    rendere(vhsProgramm, video, w, h, { ...werte.vhs, zeit });
+    ctx.drawImage(glCanvas, 0, 0);
+    gezeichnet = true;
+  }
 
   if (crtAn && gl) {
-    rendere(video, w, h, { ...crtWerte, zufall: performance.now() / 1000 });
+    rendere(crtProgramm, gezeichnet ? canvas : video, w, h, { ...werte.crt, zufall: zeit });
     ctx.drawImage(glCanvas, 0, 0);
-  } else {
+    gezeichnet = true;
+  }
+
+  if (!gezeichnet) {
     ctx.drawImage(video, 0, 0, w, h);
   }
 
@@ -190,8 +333,12 @@ function wendeAn() {
     bild = vergroessern(bild, pixelgroesse, quelle.width, quelle.height);
   }
 
+  if (vhsAn) {
+    bild = vhs(bild, { ...werte.vhs, zeit: 0 });
+  }
+
   if (crtAn) {
-    bild = crt(bild, { ...crtWerte, zufall: 0 });
+    bild = crt(bild, { ...werte.crt, zufall: 0 });
   }
 
   ergebnis = bild;
@@ -267,18 +414,32 @@ crtFeld.addEventListener("change", () => {
   planeAnwenden();
 });
 
-document.querySelectorAll("[data-crt]").forEach((feld) => {
-  const name = feld.dataset.crt;
+vhsFeld.addEventListener("change", () => {
+  vhsAn = vhsFeld.checked;
+  planeAnwenden();
+});
+
+document.querySelectorAll("[data-regler]").forEach((feld) => {
+  const [effekt, name] = feld.dataset.regler.split(".");
   const anzeige = feld.nextElementSibling;
 
-  crtWerte[name] = Number(feld.value);
+  werte[effekt][name] = Number(feld.value);
   anzeige.textContent = feld.value;
 
   feld.addEventListener("input", () => {
-    crtWerte[name] = Number(feld.value);
+    werte[effekt][name] = Number(feld.value);
     anzeige.textContent = feld.value;
     planeAnwenden();
   });
+});
+
+document.querySelectorAll("[data-zeigt]").forEach((schalter) => {
+  const gruppe = document.getElementById(schalter.dataset.zeigt);
+  const aktualisiere = () => {
+    gruppe.hidden = !schalter.checked;
+  };
+  schalter.addEventListener("change", aktualisiere);
+  aktualisiere();
 });
 
 vergleichFeld.addEventListener("input", () => {
