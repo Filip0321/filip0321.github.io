@@ -257,6 +257,33 @@ body {
   height: auto;
 }
 
+/* Foto bearbeiten */
+.bild-feld {
+  margin-top: 1rem;
+  image-rendering: auto;
+  touch-action: auto;
+  cursor: default;
+}
+
+input[type="file"] {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="file"]::file-selector-button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  padding: 0.4rem 0.9rem;
+  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
+input[type="range"] {
+  accent-color: var(--text);
+}
+
 /* Audio Player Styles */
 .player {
   display: flex;
@@ -439,6 +466,14 @@ pre {
   padding: 0.3rem 0.5rem;
 }
 
+.steuerung input[type="checkbox"],
+.steuerung input[type="range"] {
+  width: auto;
+  border: none;
+  padding: 0;
+  accent-color: var(--text);
+}
+
 .drehbar {
   cursor: grab;
 }
@@ -528,4 +563,8 @@ pre {
   #name {
     font-size: clamp(2.5rem, 12vw, 6rem);
   }
+}
+
+[hidden] {
+  display: none !important;
 }
