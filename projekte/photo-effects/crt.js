@@ -94,12 +94,12 @@ function baueProgramm(vertexQuelle, fragmentQuelle) {
   return programm;
 }
 
-const programm = gl ? baueProgramm(VERTEX_SHADER, FRAGMENT_SHADER) : null;
+const crtProgramm = gl ? baueProgramm(VERTEX_SHADER, FRAGMENT_SHADER) : null;
 const textur = gl ? gl.createTexture() : null;
 
 // ---------- Effekt anwenden ----------
 
-function rendere(quelle, w, h, einstellungen) {
+function rendere(programm, quelle, w, h, einstellungen) {
   if (glCanvas.width !== w || glCanvas.height !== h) {
     glCanvas.width = w;
     glCanvas.height = h;
@@ -125,14 +125,14 @@ function rendere(quelle, w, h, einstellungen) {
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
-function crt(eingabe, einstellungen) {
-  const w = eingabe.width;
-  const h = eingabe.height;
-
-  rendere(eingabe, w, h, einstellungen);
-
+function zurueckholen(w, h) {
   ablage.width = w;
   ablage.height = h;
   ablageCtx.drawImage(glCanvas, 0, 0);
   return ablageCtx.getImageData(0, 0, w, h);
+}
+
+function crt(eingabe, einstellungen) {
+  rendere(crtProgramm, eingabe, eingabe.width, eingabe.height, einstellungen);
+  return zurueckholen(eingabe.width, eingabe.height);
 }
