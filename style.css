@@ -270,13 +270,28 @@ input[type="file"] {
   color: inherit;
 }
 
-input[type="file"]::file-selector-button {
-  font: inherit;
-  color: inherit;
-  background: none;
+.datei-knopf {
+  position: relative;
+  display: inline-block;
   border: 1px solid currentColor;
   padding: 0.4rem 0.9rem;
-  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
+.datei-knopf:hover,
+.datei-knopf:focus-within {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.steuerung .datei-knopf input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: none;
+  padding: 0;
   cursor: pointer;
 }
 

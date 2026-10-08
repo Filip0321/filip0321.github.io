@@ -31,7 +31,9 @@
     <p class="hinweis">Deine Bilder und Videos werden nur in deinem Browser bearbeitet und verlassen nie dein Gerät.</p>
 
     <div class="steuerung">
-      <input type="file" id="datei" accept="image/*,video/*">
+      <label class="datei-knopf">Öffnen
+        <input type="file" id="datei" accept="image/*,video/*">
+      </label>
     </div>
 
     <canvas id="bild" class="bild-feld" hidden></canvas>
@@ -112,6 +114,8 @@
 
     <div class="steuerung nur-video" hidden>
       <button type="button" id="abspielen">Pause</button>
+      <button type="button" id="frame-speichern">Bild speichern</button>
+      <button type="button" id="video-speichern">Video speichern</button>
     </div>
 
     <div class="steuerung export nur-video" hidden></div>
