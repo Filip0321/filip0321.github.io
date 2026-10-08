@@ -1,30 +1,36 @@
+// ---------- Hilfsfunktion ----------
+
+function hole(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Im HTML fehlt ein Element mit id="${id}"`);
+  }
+  return element;
+}
+
 // ---------- Einstellungen ----------
 
 const MAX_KANTE = 2400;
 
 // ---------- Elemente ----------
 
-const canvas = document.getElementById("bild");
-const ctx = canvas.getContext("2d");
-const dateiFeld = document.getElementById("datei");
-const pixelFeld = document.getElementById("pixelgroesse");
-const pixelWert = document.getElementById("pixelwert");
-const ditherFeld = document.getElementById("dither-an");
-const stufenFeld = document.getElementById("stufen");
-const stufenWert = document.getElementById("stufenwert");
-const grauFeld = document.getElementById("grau");
-
-const crtFeld = document.getElementById("crt-an");
-
-const vergleichFeld = document.getElementById("vergleich");
-const vergleichWert = document.getElementById("vergleichwert");
-const speichernKnopf = document.getElementById("speichern");
-const abspielKnopf = document.getElementById("abspielen");
-
-const vhsFeld = document.getElementById("vhs-an");
-
-const frameKnopf = document.getElementById("frame-speichern");
-const videoKnopf = document.getElementById("video-speichern");
+const canvas = hole("bild");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const dateiFeld = hole("datei");
+const pixelFeld = hole("pixelgroesse");
+const pixelWert = hole("pixelwert");
+const ditherFeld = hole("dither-an");
+const stufenFeld = hole("stufen");
+const stufenWert = hole("stufenwert");
+const grauFeld = hole("grau");
+const vhsFeld = hole("vhs-an");
+const crtFeld = hole("crt-an");
+const vergleichFeld = hole("vergleich");
+const vergleichWert = hole("vergleichwert");
+const speichernKnopf = hole("speichern");
+const abspielKnopf = hole("abspielen");
+const frameKnopf = hole("frame-speichern");
+const videoKnopf = hole("video-speichern");
 
 // ---------- Zustand ----------
 
@@ -32,16 +38,17 @@ let quelle = null;
 let ergebnis = null;
 let video = null;
 let videoUrl = null;
+let videoDatei = null;
 
 let pixelgroesse = Number(pixelFeld.value);
 let ditherAn = ditherFeld.checked;
 let stufen = Number(stufenFeld.value);
 let grau = grauFeld.checked;
+let vhsAn = vhsFeld.checked;
 let crtAn = crtFeld.checked;
 let teilung = 0;
 let geplant = false;
 
-let vhsAn = vhsFeld.checked;
 const werte = { crt: {}, vhs: {} };
 
 if (!gl) {
@@ -92,6 +99,7 @@ function ladeVideo(datei) {
   stoppeVideo();
   quelle = null;
   ergebnis = null;
+  videoDatei = datei;
 
   videoUrl = URL.createObjectURL(datei);
   const neuesVideo = document.createElement("video");
@@ -131,6 +139,7 @@ function stoppeVideo() {
     URL.revokeObjectURL(videoUrl);
     videoUrl = null;
   }
+  videoDatei = null;
 }
 
 function starteVideoSchleife(diesesVideo) {
@@ -147,7 +156,7 @@ function starteVideoSchleife(diesesVideo) {
   schritt();
 }
 
-// ---------- Effekte ----------
+// ---------- Effekt: Verkleinern ----------
 
 function verkleinern(eingabe, groesse) {
   const w = eingabe.width;
@@ -192,6 +201,8 @@ function verkleinern(eingabe, groesse) {
   return ausgabe;
 }
 
+// ---------- Effekt: Vergrößern ----------
+
 function vergroessern(klein, groesse, w, h) {
   const ein = klein.data;
   const kw = klein.width;
@@ -213,6 +224,8 @@ function vergroessern(klein, groesse, w, h) {
 
   return ausgabe;
 }
+
+// ---------- Effekt: Dithering (Floyd-Steinberg) ----------
 
 function dithern(eingabe, stufen, grau) {
   const w = eingabe.width;
@@ -277,6 +290,38 @@ function dithern(eingabe, stufen, grau) {
   return ausgabe;
 }
 
+// ---------- Die Effekt-Kette ----------
+
+function cpuEffekteAn() {
+  return pixelgroesse > 1 || ditherAn;
+}
+
+function wendeEffekteAn(eingabe, zeit) {
+  let bild = eingabe;
+
+  if (pixelgroesse > 1) {
+    bild = verkleinern(bild, pixelgroesse);
+  }
+
+  if (ditherAn) {
+    bild = dithern(bild, stufen, grau);
+  }
+
+  if (pixelgroesse > 1) {
+    bild = vergroessern(bild, pixelgroesse, eingabe.width, eingabe.height);
+  }
+
+  if (vhsAn && gl) {
+    bild = vhs(bild, { ...werte.vhs, zeit });
+  }
+
+  if (crtAn && gl) {
+    bild = crt(bild, { ...werte.crt, zufall: zeit });
+  }
+
+  return bild;
+}
+
 // ---------- Anzeigen ----------
 
 function zeichneTrennlinie(x, w, h) {
@@ -288,23 +333,30 @@ function zeichneTrennlinie(x, w, h) {
 function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
-  const zeit = performance.now() / 1000;
-  let gezeichnet = false;
+  const zeit = video.currentTime;
 
-  if (vhsAn && gl) {
-    rendere(vhsProgramm, video, w, h, { ...werte.vhs, zeit });
-    ctx.drawImage(glCanvas, 0, 0);
-    gezeichnet = true;
-  }
-
-  if (crtAn && gl) {
-    rendere(crtProgramm, gezeichnet ? canvas : video, w, h, { ...werte.crt, zufall: zeit });
-    ctx.drawImage(glCanvas, 0, 0);
-    gezeichnet = true;
-  }
-
-  if (!gezeichnet) {
+  if (cpuEffekteAn()) {
     ctx.drawImage(video, 0, 0, w, h);
+    const original = ctx.getImageData(0, 0, w, h);
+    ctx.putImageData(wendeEffekteAn(original, zeit), 0, 0);
+  } else {
+    let gezeichnet = false;
+
+    if (vhsAn && gl) {
+      rendere(vhsProgramm, video, w, h, { ...werte.vhs, zeit });
+      ctx.drawImage(glCanvas, 0, 0);
+      gezeichnet = true;
+    }
+
+    if (crtAn && gl) {
+      rendere(crtProgramm, gezeichnet ? canvas : video, w, h, { ...werte.crt, zufall: zeit });
+      ctx.drawImage(glCanvas, 0, 0);
+      gezeichnet = true;
+    }
+
+    if (!gezeichnet) {
+      ctx.drawImage(video, 0, 0, w, h);
+    }
   }
 
   const x = Math.round(teilung * w);
@@ -322,29 +374,7 @@ function wendeAn() {
 
   if (!quelle) return;
 
-  let bild = quelle;
-
-  if (pixelgroesse > 1) {
-    bild = verkleinern(bild, pixelgroesse);
-  }
-
-  if (ditherAn) {
-    bild = dithern(bild, stufen, grau);
-  }
-
-  if (pixelgroesse > 1) {
-    bild = vergroessern(bild, pixelgroesse, quelle.width, quelle.height);
-  }
-
-  if (vhsAn) {
-    bild = vhs(bild, { ...werte.vhs, zeit: 0 });
-  }
-
-  if (crtAn) {
-    bild = crt(bild, { ...werte.crt, zufall: 0 });
-  }
-
-  ergebnis = bild;
+  ergebnis = wendeEffekteAn(quelle, 0);
   zeige();
 }
 
@@ -375,6 +405,91 @@ function planeAnwenden() {
     geplant = false;
     wendeAn();
   });
+}
+
+// ---------- Video rendern ----------
+
+async function bereiteKonvertierungVor(format, w, h, verarbeite) {
+  const input = new Mediabunny.Input({
+    source: new Mediabunny.BlobSource(videoDatei),
+    formats: Mediabunny.ALL_FORMATS
+  });
+
+  const output = new Mediabunny.Output({
+    format,
+    target: new Mediabunny.BufferTarget()
+  });
+
+  const conversion = await Mediabunny.Conversion.init({
+    input,
+    output,
+    video: {
+      width: w,
+      height: h,
+      fit: "fill",
+      process: verarbeite
+    }
+  });
+
+  return { conversion, output };
+}
+
+async function speichereVideo() {
+  if (!videoDatei) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  videoKnopf.disabled = true;
+  frameKnopf.disabled = true;
+  abspielKnopf.disabled = true;
+  dateiFeld.disabled = true;
+  videoKnopf.textContent = "Wird vorbereitet …";
+  video.pause();
+
+  const arbeit = new OffscreenCanvas(w, h);
+  const arbeitCtx = arbeit.getContext("2d", { willReadFrequently: true });
+
+  const verarbeite = (sample) => {
+    sample.draw(arbeitCtx, 0, 0);
+    const original = arbeitCtx.getImageData(0, 0, w, h);
+    arbeitCtx.putImageData(wendeEffekteAn(original, sample.timestamp), 0, 0);
+    return arbeit;
+  };
+
+  try {
+    let endung = "mp4";
+    let mime = "video/mp4";
+    let { conversion, output } = await bereiteKonvertierungVor(new Mediabunny.Mp4OutputFormat(), w, h, verarbeite);
+
+    if (!conversion.isValid) {
+      endung = "webm";
+      mime = "video/webm";
+      ({ conversion, output } = await bereiteKonvertierungVor(new Mediabunny.WebMOutputFormat(), w, h, verarbeite));
+    }
+
+    if (!conversion.isValid) {
+      alert("Dein Browser kann dieses Video leider nicht umwandeln.");
+      return;
+    }
+
+    conversion.onProgress = (fortschritt) => {
+      videoKnopf.textContent = `Rendern … ${Math.round(fortschritt * 100)} %`;
+    };
+
+    await conversion.execute();
+
+    ladeHerunter(new Blob([output.target.buffer], { type: mime }), `foto-effekte-${zeitstempel()}.${endung}`);
+  } catch (fehler) {
+    console.error(fehler);
+    alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
+  } finally {
+    videoKnopf.textContent = "Video speichern";
+    videoKnopf.disabled = false;
+    frameKnopf.disabled = false;
+    abspielKnopf.disabled = false;
+    dateiFeld.disabled = false;
+  }
 }
 
 // ---------- Steuerung ----------
@@ -412,13 +527,13 @@ grauFeld.addEventListener("change", () => {
   planeAnwenden();
 });
 
-crtFeld.addEventListener("change", () => {
-  crtAn = crtFeld.checked;
+vhsFeld.addEventListener("change", () => {
+  vhsAn = vhsFeld.checked;
   planeAnwenden();
 });
 
-vhsFeld.addEventListener("change", () => {
-  vhsAn = vhsFeld.checked;
+crtFeld.addEventListener("change", () => {
+  crtAn = crtFeld.checked;
   planeAnwenden();
 });
 
@@ -437,7 +552,7 @@ document.querySelectorAll("[data-regler]").forEach((feld) => {
 });
 
 document.querySelectorAll("[data-zeigt]").forEach((schalter) => {
-  const gruppe = document.getElementById(schalter.dataset.zeigt);
+  const gruppe = hole(schalter.dataset.zeigt);
   const aktualisiere = () => {
     gruppe.hidden = !schalter.checked;
   };
@@ -469,7 +584,7 @@ speichernKnopf.addEventListener("click", () => {
   speicher.getContext("2d").putImageData(ergebnis, 0, 0);
 
   speicher.toBlob((blob) => {
-    if (blob) ladeHerunter(blob, `bildmaschine-${zeitstempel()}.png`);
+    if (blob) ladeHerunter(blob, `foto-effekte-${zeitstempel()}.png`);
   }, "image/png");
 });
 
@@ -480,69 +595,6 @@ frameKnopf.addEventListener("click", () => {
 });
 
 videoKnopf.addEventListener("click", speichereVideo);
-
-async function speichereVideo() {
-  if (!video) return;
-
-  const format = waehleVideoformat();
-  if (!format) {
-    alert("Dein Browser kann keine Videos aufnehmen.");
-    return;
-  }
-
-  const alteTeilung = teilung;
-  teilung = 0;
-
-  videoKnopf.disabled = true;
-  frameKnopf.disabled = true;
-  abspielKnopf.disabled = true;
-  dateiFeld.disabled = true;
-
-  video.pause();
-  video.loop = false;
-  video.currentTime = 0;
-  await new Promise((fertig) => video.addEventListener("seeked", fertig, { once: true }));
-
-  const stream = canvas.captureStream(30);
-  const recorder = new MediaRecorder(stream, {
-    mimeType: format.mime,
-    videoBitsPerSecond: 8000000
-  });
-  const teile = [];
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) teile.push(e.data);
-  };
-  const gestoppt = new Promise((fertig) => {
-    recorder.onstop = fertig;
-  });
-
-  const zeigeRest = () => {
-    const rest = Math.ceil(video.duration - video.currentTime);
-    videoKnopf.textContent = `Aufnahme … ${rest} s`;
-  };
-  video.addEventListener("timeupdate", zeigeRest);
-  zeigeRest();
-
-  recorder.start();
-  await video.play();
-  await new Promise((fertig) => video.addEventListener("ended", fertig, { once: true }));
-  recorder.stop();
-  await gestoppt;
-
-  video.removeEventListener("timeupdate", zeigeRest);
-  stream.getTracks().forEach((spur) => spur.stop());
-  ladeHerunter(new Blob(teile, { type: format.mime }), `foto-effekte-${zeitstempel()}.${format.endung}`);
-
-  teilung = alteTeilung;
-  video.loop = true;
-  video.play();
-
-  videoKnopf.textContent = "Video speichern";
-  videoKnopf.disabled = false;
-  frameKnopf.disabled = false;
-  abspielKnopf.disabled = false;
-  dateiFeld.disabled = false;
-}
 
 // ---------- Start ----------
 
