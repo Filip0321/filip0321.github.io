@@ -23,6 +23,9 @@ const abspielKnopf = document.getElementById("abspielen");
 
 const vhsFeld = document.getElementById("vhs-an");
 
+const frameKnopf = document.getElementById("frame-speichern");
+const videoKnopf = document.getElementById("video-speichern");
+
 // ---------- Zustand ----------
 
 let quelle = null;
@@ -470,12 +473,77 @@ speichernKnopf.addEventListener("click", () => {
   }, "image/png");
 });
 
+frameKnopf.addEventListener("click", () => {
+  canvas.toBlob((blob) => {
+    if (blob) ladeHerunter(blob, `foto-effekte-${zeitstempel()}.png`);
+  }, "image/png");
+});
+
+videoKnopf.addEventListener("click", speichereVideo);
+
+async function speichereVideo() {
+  if (!video) return;
+
+  const format = waehleVideoformat();
+  if (!format) {
+    alert("Dein Browser kann keine Videos aufnehmen.");
+    return;
+  }
+
+  const alteTeilung = teilung;
+  teilung = 0;
+
+  videoKnopf.disabled = true;
+  frameKnopf.disabled = true;
+  abspielKnopf.disabled = true;
+  dateiFeld.disabled = true;
+
+  video.pause();
+  video.loop = false;
+  video.currentTime = 0;
+  await new Promise((fertig) => video.addEventListener("seeked", fertig, { once: true }));
+
+  const stream = canvas.captureStream(30);
+  const recorder = new MediaRecorder(stream, {
+    mimeType: format.mime,
+    videoBitsPerSecond: 8000000
+  });
+  const teile = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) teile.push(e.data);
+  };
+  const gestoppt = new Promise((fertig) => {
+    recorder.onstop = fertig;
+  });
+
+  const zeigeRest = () => {
+    const rest = Math.ceil(video.duration - video.currentTime);
+    videoKnopf.textContent = `Aufnahme … ${rest} s`;
+  };
+  video.addEventListener("timeupdate", zeigeRest);
+  zeigeRest();
+
+  recorder.start();
+  await video.play();
+  await new Promise((fertig) => video.addEventListener("ended", fertig, { once: true }));
+  recorder.stop();
+  await gestoppt;
+
+  video.removeEventListener("timeupdate", zeigeRest);
+  stream.getTracks().forEach((spur) => spur.stop());
+  ladeHerunter(new Blob(teile, { type: format.mime }), `foto-effekte-${zeitstempel()}.${format.endung}`);
+
+  teilung = alteTeilung;
+  video.loop = true;
+  video.play();
+
+  videoKnopf.textContent = "Video speichern";
+  videoKnopf.disabled = false;
+  frameKnopf.disabled = false;
+  abspielKnopf.disabled = false;
+  dateiFeld.disabled = false;
+}
+
 // ---------- Start ----------
 
 zeigeModus("bild");
-
-richteExportEin({
-  canvas,
-  ziel: document.querySelector(".export"),
-  name: "bildmaschine"
-});
