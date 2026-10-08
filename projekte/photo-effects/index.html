@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2D-Attraktoren – Filip Winkler</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite">
+    <a class="zurueck" href="/projekte/">← Projekte</a>
+
+    <header class="projekt-kopf">
+      <h1>Foto Effekte</h1>
+      <ul class="tags">
+        <li>werkzeug</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <p class="hinweis">Deine Bilder und Videos werden nur in deinem Browser bearbeitet und verlassen nie dein Gerät.</p>
+
+    <div class="steuerung">
+      <input type="file" id="datei" accept="image/*,video/*">
+    </div>
+
+    <canvas id="bild" class="bild-feld" hidden></canvas>
+
+    <div class="steuerung nur-bild">
+      <label>Pixelgröße
+        <input type="range" id="pixelgroesse" min="1" max="64" value="8">
+        <output id="pixelwert">8</output>
+      </label>
+      <button type="button" id="speichern" disabled>Bild speichern</button>
+    </div>
+
+    <div class="steuerung nur-bild">
+      <label><input type="checkbox" id="dither-an"> Dithering</label>
+      <label>Stufen
+        <input type="range" id="stufen" min="2" max="8" value="2">
+        <output id="stufenwert">2</output>
+      </label>
+      <label><input type="checkbox" id="grau" checked> Schwarzweiß</label>
+    </div>
+
+    <div class="steuerung">
+      <label><input type="checkbox" id="crt-an"> CRT</label>
+      <label>Farbversatz
+        <input type="range" data-crt="versatz" min="0" max="20" step="1" value="4">
+        <output></output>
+      </label>
+      <label>Wölbung
+        <input type="range" data-crt="woelbung" min="0" max="0.3" step="0.01" value="0.08">
+        <output></output>
+      </label>
+      <label>Scanlines
+        <input type="range" data-crt="scanlines" min="0" max="1" step="0.05" value="0.3">
+        <output></output>
+      </label>
+      <label>Vignette
+        <input type="range" data-crt="vignette" min="0" max="1" step="0.05" value="0.4">
+        <output></output>
+      </label>
+      <label>Rauschen
+        <input type="range" data-crt="rauschen" min="0" max="0.3" step="0.01" value="0.05">
+        <output></output>
+      </label>
+    </div>
+
+    <div class="steuerung">
+      <label>Vergleich
+        <input type="range" id="vergleich" min="0" max="100" value="0">
+        <output id="vergleichwert">0 %</output>
+      </label>
+    </div>
+
+    <div class="steuerung nur-video" hidden>
+      <button type="button" id="abspielen">Pause</button>
+    </div>
+
+    <div class="steuerung export nur-video" hidden></div>
+  </main>
+
+  <script src="/script.js"></script>
+  <script src="/export.js"></script>
+  <script src="crt.js"></script>
+  <script src="photo-effects.js"></script>
+</body>
+</html>
