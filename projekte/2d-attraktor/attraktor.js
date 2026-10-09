@@ -25,8 +25,9 @@ const TYPEN = {
     name: "Clifford",
     formel: "x' = sin(a·y) + c·cos(a·x)\ny' = sin(b·x) + d·cos(b·y)",
     parameter: ["a", "b", "c", "d"],
-    start: [0.1, 0.1], // Startwerte für x und y, die nicht ins Unendliche laufen
-    schritt(w, pos) {  // w = Werte, pos = Position
+    start: [0.1, 0.1],  // Startwerte für x und y, sind bei attraktoren egal 
+                        // (bei gumowski führen sie zu unterschiedlichen Bildern)
+    schritt(w, pos) {   // w = Werte, pos = Position
       const x = Math.sin(w.a * pos.y) + w.c * Math.cos(w.a * pos.x);
       const y = Math.sin(w.b * pos.x) + w.d * Math.cos(w.b * pos.y);
       pos.x = x;
@@ -132,7 +133,7 @@ const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
 
 function passeGroesseAn() {
-  const dpr = Math.max(window.devicePixelRatio || 1, 2);  // mindestens 2, damit die Punkte auch auf hochauflösenden Displays scharf aussehen
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);  // bei normalen monitoren mit dpr 1 wird doppelt so fein gerechnet und dann verkleinert
   canvas.width = Math.round(canvas.clientWidth * dpr);    // die Größe des Canvas in CSS-Pixeln * devicePixelRatio = die Größe in echten Pixeln
   canvas.height = Math.round(canvas.clientHeight * dpr);
 }
@@ -170,7 +171,7 @@ function bestimmeAbbildung() {
   for (let i = 0; i < schritte; i++) {
     typ.schritt(werte, probe);
     if (laeuftDavon(probe)) return null;
-    if (i < 100) continue;  // ersten 100 Schritte nicht so wichtig (sparen dadurch minimal Zeit)
+    if (i < 100) continue;  // ersten 100 Schritte sind einpendeln
     if (probe.x < minX) minX = probe.x; // ist der neue Wert kleiner oder größer als der alte
     if (probe.x > maxX) maxX = probe.x;
     if (probe.y < minY) minY = probe.y;
@@ -352,7 +353,7 @@ function baueWerteFelder() {
     const label = document.createElement("label");
     const feld = document.createElement("input");
     feld.type = "number";
-    feld.step = "0.01";
+    feld.step = "any";
     feld.value = werte[name];
 
     feld.addEventListener("change", () => {
@@ -382,7 +383,7 @@ function markiere(i) {
   formelFeld.textContent = typ.formel;
 
   if (i === -1) {
-    presetName.textContent = `${typ.name} – eigene Werte`;
+    presetName.textContent = `${typ.name} - eigene Werte`;
     presetText.textContent = "Du hast die Werte selbst verändert. Schon kleine Änderungen können eine völlig andere Form ergeben.";
   } else {
     presetName.textContent = PRESETS[i].name;

@@ -497,17 +497,25 @@ canvas.addEventListener("wheel", (e) => {
 
 // Drehen lassen
 
-function drehe() {
-  if (dreht) {
-    function drehSchritt() {
-      winkel += 0.002;
-      planeZeichnen();
-      if (dreht) {
-        requestAnimationFrame(drehSchritt);
-      }
-    }
-    drehSchritt();
+let drehId = null;
+
+function stoppeDrehen() {
+  if (drehId !== null) {
+    cancelAnimationFrame(drehId);
+    drehId = null;
   }
+}
+
+function starteDrehen() {
+  stoppeDrehen();  // falls schon eine Schleife läuft, erst die beenden
+
+  function drehSchritt() {
+    winkel += 0.002;
+    planeZeichnen();
+    drehId = requestAnimationFrame(drehSchritt);
+  }
+
+  drehId = requestAnimationFrame(drehSchritt);
 }
 
 
@@ -527,7 +535,11 @@ modusEnstehung.addEventListener("click", () => {
 modusDrehen.addEventListener("click", () => {
   dreht = !dreht;
   modusDrehen.textContent = dreht ? "Drehen stoppen" : "Drehen lassen";
-  drehe();
+  if (dreht) {
+    starteDrehen();
+  } else {
+    stoppeDrehen();
+  }
 });
 
 function leseGanzzahl(feld, min, max, bisher) {
@@ -588,7 +600,7 @@ function baueWerteFelder() {
     const label = document.createElement("label");
     const feld = document.createElement("input");
     feld.type = "number";
-    feld.step = "0.01";
+    feld.step = "any";
     feld.value = werte[schluessel];
 
     feld.addEventListener("change", () => {
