@@ -617,3 +617,7 @@ select option {
 [hidden] {
   display: none !important;
 }
+
+.bild-feld {
+  background: repeating-conic-gradient(#2a2a2a 0 25%, #1a1a1a 0 50%) 0 0 / 20px 20px;
+}

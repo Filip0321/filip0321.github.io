@@ -46,6 +46,10 @@ const formatFeld = hole("format");
 let format = formatFeld.value;
 let bitmap = null;  // das geladene Foto, damit man es bei Formatwechsel neu zuschneiden kann
 
+const hintergrundFeld = hole("hintergrund");
+const transparentFeld = hole("transparent");
+let hintergrund = hintergrundFeld.value;
+let transparent = transparentFeld.checked;
 
 // Variablen und was ich brauch
 
@@ -197,6 +201,31 @@ function berechneRahmen(qw, qh) {
     }
   }
 
+  function baueQuelleNeu() {
+  if (video) {
+    passeCanvasAn(video.videoWidth, video.videoHeight);
+    zeichneVideobild();
+  } else if (bitmap) {
+    bereiteBildVor();
+    wendeAn();
+  }
+}
+
+formatFeld.addEventListener("change", () => {
+  format = formatFeld.value;
+  baueQuelleNeu();
+});
+
+hintergrundFeld.addEventListener("input", () => {
+  hintergrund = hintergrundFeld.value;
+  baueQuelleNeu();
+});
+
+transparentFeld.addEventListener("change", () => {
+  transparent = transparentFeld.checked;
+  baueQuelleNeu();
+});
+
   const faktor = Math.min(1, MAX_KANTE / Math.max(rw, rh));
   const w = Math.round(rw * faktor);
   const h = Math.round(rh * faktor);
@@ -214,8 +243,11 @@ function passeCanvasAn(qw, qh) {
 
 function zeichneQuelle(ziel, quelle, qw, qh) {
   const r = berechneRahmen(qw, qh);
-  ziel.fillStyle = "#000";
-  ziel.fillRect(0, 0, r.w, r.h);  // Hintergrund für die Balken
+  ziel.clearRect(0, 0, r.w, r.h);  // alles löschen, auch das vorige Bild
+  if (!transparent) {
+    ziel.fillStyle = hintergrund;
+    ziel.fillRect(0, 0, r.w, r.h);
+  }
   ziel.drawImage(quelle, r.sx, r.sy, r.sw, r.sh, r.dx, r.dy, r.dw, r.dh);
 }
 
@@ -366,36 +398,65 @@ function dithern(eingabe, stufen, grau) {
 }
 
 
-// Die Effekt-Kette
+// Die Effekte
 
-function cpuEffekteAn() {
-  return pixelgroesse > 1 || ditherAn;
+const EFFEKTE = {
+  pixel: {
+    name: "Pixel & Dithering",
+    gpu: false,
+    an: () => pixelgroesse > 1 || ditherAn,
+    anwenden(bild) {
+      const w = bild.width;
+      const h = bild.height;
+      if (pixelgroesse > 1) bild = verkleinern(bild, pixelgroesse);
+      if (ditherAn) bild = dithern(bild, stufen, grau);
+      if (pixelgroesse > 1) bild = vergroessern(bild, pixelgroesse, w, h);
+      return bild;
+    }
+  },
+  vhs: {
+    name: "VHS",
+    gpu: true,
+    an: () => vhsAn && gl,
+    programm: vhsProgramm,
+    einstellungen: (zeit) => ({ ...werte.vhs, zeit })
+  },
+  crt: {
+    name: "CRT",
+    gpu: true,
+    an: () => crtAn && gl,
+    programm: crtProgramm,
+    einstellungen: (zeit) => ({ ...werte.crt, zufall: zeit })
+  }
+};
+
+
+// Die Kette: Reihenfolge der Effekte, später umsortierbar
+
+let kette = [
+  { typ: "pixel" },
+  { typ: "vhs" },
+  { typ: "crt" }
+];
+
+function aktiveEffekte() {
+  return kette
+    .map((schritt) => EFFEKTE[schritt.typ])
+    .filter((effekt) => effekt.an());
+}
+
+function wendeSchrittAn(effekt, bild, zeit) {
+  if (!effekt.gpu) return effekt.anwenden(bild, zeit);
+
+  rendere(effekt.programm, bild, bild.width, bild.height, effekt.einstellungen(zeit));
+  return zurueckholen(bild.width, bild.height);
 }
 
 function wendeEffekteAn(eingabe, zeit) {
   let bild = eingabe;
-
-  if (pixelgroesse > 1) {
-    bild = verkleinern(bild, pixelgroesse);
+  for (const effekt of aktiveEffekte()) {
+    bild = wendeSchrittAn(effekt, bild, zeit);
   }
-
-  if (ditherAn) {
-    bild = dithern(bild, stufen, grau);
-  } // wenn vor verkleinern dithern, dann wird alles auf grau durchschnittlich berechnet
-    // nach vergrößern kommt ein feines dithermuster in großen Blöcken
-
-  if (pixelgroesse > 1) {
-    bild = vergroessern(bild, pixelgroesse, eingabe.width, eingabe.height);
-  }
-
-  if (vhsAn && gl) {
-    bild = vhs(bild, { ...werte.vhs, zeit });
-  }
-
-  if (crtAn && gl) {
-    bild = crt(bild, { ...werte.crt, zufall: zeit });
-  }
-
   return bild;
 }
 
@@ -412,42 +473,27 @@ function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
   const zeit = video.currentTime;
+  const effekte = aktiveEffekte();
 
-  if (cpuEffekteAn()) {
-    zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
-    const original = ctx.getImageData(0, 0, w, h);
-    ctx.putImageData(wendeEffekteAn(original, zeit), 0, 0); // Video sind nur Bilder mit distinkter Zeit
+  zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);  // Ausgangsbild im richtigen Format
+
+  if (effekte.every((effekt) => effekt.gpu)) {
+    // Abkürzung: nur Shader, also kein getImageData nötig
+    for (const effekt of effekte) {
+      rendere(effekt.programm, canvas, w, h, effekt.einstellungen(zeit));
+      ctx.drawImage(glCanvas, 0, 0);
+    }
   } else {
-    let eingang = video;
-    if (format !== "original") {
-      zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
-      eingang = canvas;  // der Shader bekommt das schon zugeschnittene Bild
-    }
-
-    let gezeichnet = false;
-
-    if (vhsAn && gl) {
-      rendere(vhsProgramm, eingang, w, h, { ...werte.vhs, zeit });
-      ctx.drawImage(glCanvas, 0, 0);
-      gezeichnet = true;
-    }
-
-    if (crtAn && gl) {
-      rendere(crtProgramm, gezeichnet ? canvas : eingang, w, h, { ...werte.crt, zufall: zeit });
-      ctx.drawImage(glCanvas, 0, 0);
-      gezeichnet = true;
-    }
-
-    if (!gezeichnet) {
-      zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
-    }
+    const original = ctx.getImageData(0, 0, w, h);
+    ctx.putImageData(wendeEffekteAn(original, zeit), 0, 0);
   }
+
   const x = Math.round(teilung * w);
   if (x > 0) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, x, h);
-    ctx.clip();  // ab hier wird nur links der Trennlinie gezeichnet
+    ctx.clip();
     zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
     ctx.restore();
     zeichneTrennlinie(x, w, h);
