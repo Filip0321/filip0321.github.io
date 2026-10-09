@@ -1,4 +1,4 @@
-// ---------- Einstellungen ----------
+// Settings
 
 const MAX_PUNKTE = 1000000;
 const BILDER_PRO_ANIMATION = 1500;
@@ -9,21 +9,24 @@ let punkte = 600000;
 let staerke = 15;
 let animiert = true;
 
-// ---------- Hilfsfunktionen für Formeln ----------
+
+// Hilfsfunktion für Gumowski-Mira-Attraktor 
 
 function gmFunktion(x, b) {
   return b * x + (2 * (1 - b) * x * x) / (1 + x * x);
 }
 
-// ---------- Attraktor-Typen ----------
+
+// Attraktor-Typen
+// hab ich von http://www.3d-meier.de/tut19/Seite1.html
 
 const TYPEN = {
   clifford: {
     name: "Clifford",
     formel: "x' = sin(a·y) + c·cos(a·x)\ny' = sin(b·x) + d·cos(b·y)",
     parameter: ["a", "b", "c", "d"],
-    start: [0.1, 0.1],
-    schritt(w, pos) {
+    start: [0.1, 0.1], // Startwerte für x und y, die nicht ins Unendliche laufen
+    schritt(w, pos) {  // w = Werte, pos = Position
       const x = Math.sin(w.a * pos.y) + w.c * Math.cos(w.a * pos.x);
       const y = Math.sin(w.b * pos.x) + w.d * Math.cos(w.b * pos.y);
       pos.x = x;
@@ -32,7 +35,7 @@ const TYPEN = {
   },
   dejong: {
     name: "Peter de Jong",
-    formel: "x' = sin(a·y) − cos(b·x)\ny' = sin(c·x) − cos(d·y)",
+    formel: "x' = sin(a·y) - cos(b·x)\ny' = sin(c·x) - cos(d·y)",
     parameter: ["a", "b", "c", "d"],
     start: [0.1, 0.1],
     schritt(w, pos) {
@@ -44,7 +47,7 @@ const TYPEN = {
   },
   svensson: {
     name: "Svensson",
-    formel: "x' = d·sin(a·x) − sin(b·y)\ny' = c·cos(a·x) + cos(b·y)",
+    formel: "x' = d·sin(a·x) - sin(b·y)\ny' = c·cos(a·x) + cos(b·y)",
     parameter: ["a", "b", "c", "d"],
     start: [0.1, 0.1],
     schritt(w, pos) {
@@ -56,7 +59,7 @@ const TYPEN = {
   },
   hopalong: {
     name: "Hopalong",
-    formel: "x' = y − sign(x)·√|b·x − c|\ny' = a − x",
+    formel: "x' = y - sign(x)·√|b·x - c|\ny' = a - x",
     parameter: ["a", "b", "c"],
     start: [0, 0],
     schritt(w, pos) {
@@ -68,7 +71,7 @@ const TYPEN = {
   },
   gumowskiMira: {
     name: "Gumowski-Mira",
-    formel: "f(x) = b·x + 2·(1 − b)·x² / (1 + x²)\nx' = y + a·(1 − 0.05·y²)·y + f(x)\ny' = −x + f(x')",
+    formel: "f(x) = b·x + 2·(1 - b)·x² / (1 + x²)\nx' = y + a·(1 - 0.05·y²)·y + f(x)\ny' = -x + f(x')",
     parameter: ["a", "b"],
     start: [0.1, 0.1],
     schritt(w, pos) {
@@ -80,7 +83,7 @@ const TYPEN = {
   },
   tinkerbell: {
     name: "Tinkerbell",
-    formel: "x' = x² − y² + a·x + b·y\ny' = 2·x·y + c·x + d·y",
+    formel: "x' = x² - y² + a·x + b·y\ny' = 2·x·y + c·x + d·y",
     parameter: ["a", "b", "c", "d"],
     start: [-0.72, -0.64],
     schritt(w, pos) {
@@ -92,11 +95,11 @@ const TYPEN = {
   },
   ikeda: {
     name: "Ikeda",
-    formel: "t = 0.4 − 6 / (1 + x² + y²)\nx' = 1 + u·(x·cos t − y·sin t)\ny' = u·(x·sin t + y·cos t)",
-    parameter: ["u"],
+    formel: "t = c - 6 / (1 + x² + y²)\nx' = 1 + u·(x·cos t - y·sin t)\ny' = u·(x·sin t + y·cos t)",
+    parameter: ["c", "u"],
     start: [0.1, 0.1],
     schritt(w, pos) {
-      const t = 0.4 - 6 / (1 + pos.x * pos.x + pos.y * pos.y);
+      const t = w.c - 6 / (1 + pos.x * pos.x + pos.y * pos.y);
       const x = 1 + w.u * (pos.x * Math.cos(t) - pos.y * Math.sin(t));
       const y = w.u * (pos.x * Math.sin(t) + pos.y * Math.cos(t));
       pos.x = x;
@@ -105,7 +108,8 @@ const TYPEN = {
   },
 };
 
-// ---------- Presets ----------
+
+// Die Presets und ihre initialen Werte
 
 const PRESETS = [
   { name: "Clifford I", typ: "clifford", werte: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 }, text: "Platzhalter." },
@@ -118,43 +122,46 @@ const PRESETS = [
   { name: "Gumowski-Mira I", typ: "gumowskiMira", werte: { a: 0.008, b: -0.9 }, text: "Platzhalter." },
   { name: "Gumowski-Mira II", typ: "gumowskiMira", werte: { a: 0.0, b: -0.31 }, start: [0.0, 0.5], text: "Platzhalter." },
   { name: "Tinkerbell", typ: "tinkerbell", werte: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5 }, text: "Platzhalter." },
-  { name: "Ikeda", typ: "ikeda", werte: { u: 0.9 }, text: "Platzhalter." },
+  { name: "Ikeda", typ: "ikeda", werte: { c: 0.00, u: 0.97 }, text: "Platzhalter." },
 ];
 
-// ---------- Canvas ----------
+
+// Canvas als Zeichenfläche
 
 const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
 
 function passeGroesseAn() {
-  const dpr = Math.max(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(canvas.clientWidth * dpr);
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);  // mindestens 2, damit die Punkte auch auf hochauflösenden Displays scharf aussehen
+  canvas.width = Math.round(canvas.clientWidth * dpr);    // die Größe des Canvas in CSS-Pixeln * devicePixelRatio = die Größe in echten Pixeln
   canvas.height = Math.round(canvas.clientHeight * dpr);
 }
 
-// ---------- Zustand ----------
 
-let typ = TYPEN.clifford;
+// Zustände  
+
+let typ = TYPEN.clifford;   // Starttyp
 let werte = {};
-let start = typ.start;
-const pos = { x: 0.1, y: 0.1 };
+let start = typ.start; 
+const pos = { x: start[0], y: start[1] };  // Startposition des Attraktors
 
 let bild = null;
 let abbildung = null;
 let gezeichnet = 0;
 let animationsId = null;
 
-// ---------- Rechnen ----------
+
+// Berechnung
 
 function laeuftDavon(p) {
-  return !Number.isFinite(p.x + p.y)
+  return !Number.isFinite(p.x + p.y) // läuft davon wenn nicht finite
     || Math.abs(p.x) > GRENZE
     || Math.abs(p.y) > GRENZE;
-}
+} // läuft der Punkt ins Unendliche?
 
 function bestimmeAbbildung() {
   const probe = { x: start[0], y: start[1] };
-  let minX = Infinity;
+  let minX = Infinity;  // der neue wert (min) soll ja sicher kleiner sein
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
@@ -163,24 +170,25 @@ function bestimmeAbbildung() {
   for (let i = 0; i < schritte; i++) {
     typ.schritt(werte, probe);
     if (laeuftDavon(probe)) return null;
-    if (i < 100) continue;
-    if (probe.x < minX) minX = probe.x;
+    if (i < 100) continue;  // ersten 100 Schritte nicht so wichtig (sparen dadurch minimal Zeit)
+    if (probe.x < minX) minX = probe.x; // ist der neue Wert kleiner oder größer als der alte
     if (probe.x > maxX) maxX = probe.x;
     if (probe.y < minY) minY = probe.y;
     if (probe.y > maxY) maxY = probe.y;
   }
 
-  const breite = Math.max(maxX - minX, 1e-9);
+  const breite = Math.max(maxX - minX, 1e-9);   // die breite der entstandenen Figur
   const hoehe = Math.max(maxY - minY, 1e-9);
 
   return {
     massstab: Math.min(canvas.width / breite, canvas.height / hoehe) * 0.9,
     mitteX: (minX + maxX) / 2,
     mitteY: (minY + maxY) / 2
-  };
+  };  // Figur zentrieren durch die in der Probe gewonnenen Infos
 }
 
-// ---------- Zeichnen ----------
+
+// Attraktor malen
 
 const hinweis = document.getElementById("hinweis");
 
@@ -201,7 +209,7 @@ function neuesBild() {
   hinweis.textContent = abbildung
     ? ""
     : "Mit diesen Werten läuft der Punkt ins Unendliche. Probier andere Zahlen.";
-}
+} // das Bild initialisieren
 
 function punkteHinzufuegen(anzahl) {
   if (!abbildung) {
@@ -225,8 +233,8 @@ function punkteHinzufuegen(anzahl) {
 
     if (gezeichnet < 100) continue;
 
-    const px = Math.floor(w / 2 + (pos.x - mitteX) * massstab);
-    const py = Math.floor(h / 2 + (pos.y - mitteY) * massstab);
+    const px = Math.floor(w / 2 + (pos.x - mitteX) * massstab); // die Punkte korrekt bezogen 
+    const py = Math.floor(h / 2 + (pos.y - mitteY) * massstab); // auf die neue Mitte setzen
     if (px < 0 || px >= w || py < 0 || py >= h) continue;
 
     const stelle = (py * w + px) * 4;
@@ -280,7 +288,8 @@ function zeichne() {
   }
 }
 
-// ---------- Steuerung ----------
+
+// Buttons
 
 const modusEnstehung = document.getElementById("toggle-animiert-sofort");
 const punkteFeld = document.getElementById("punkte");
@@ -319,7 +328,8 @@ staerkeFeld.addEventListener("change", () => {
 punkteFeld.value = punkte;
 staerkeFeld.value = staerke;
 
-// ---------- Presets und Werte ----------
+
+// Presets in HTML
 
 const presetBox = document.querySelector(".presets");
 const werteBox = document.querySelector(".werte");
@@ -390,7 +400,8 @@ function waehlePreset(i) {
   zeichne();
 }
 
-// ---------- Start ----------
+
+// Start
 
 window.addEventListener("resize", () => {
   passeGroesseAn();
