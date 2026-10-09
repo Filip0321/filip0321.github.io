@@ -263,6 +263,7 @@ body {
   image-rendering: auto;
   touch-action: auto;
   cursor: default;
+  background: repeating-conic-gradient(#2a2a2a 0 25%, #1a1a1a 0 50%) 0 0 / 20px 20px;
 }
 
 input[type="file"] {
@@ -420,17 +421,16 @@ pre {
   image-rendering: auto;
 }
 
+.gol-feld {
+  aspect-ratio: 4 / 3;
+  image-rendering: auto;
+}
+
 .werte {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
   margin-top: 1rem;
-}
-
-.werte label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
 }
 
 .werte input {
@@ -614,10 +614,27 @@ select option {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  #name::after { animation: none; }
+}
+
 [hidden] {
   display: none !important;
 }
 
-.bild-feld {
-  background: repeating-conic-gradient(#2a2a2a 0 25%, #1a1a1a 0 50%) 0 0 / 20px 20px;
+#feld {
+  width: 100%;
+  height: auto;
+}
+
+address {
+  font-style: normal;
+}
+
+.fuss {
+  display: flex;
+  gap: 1.5em;
+  padding: 2em 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
 }

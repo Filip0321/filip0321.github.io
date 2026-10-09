@@ -1,9 +1,33 @@
-// Konstanten - Spielfeld
-const SPALTEN = 80;
-const ZEILEN = 60;
-const ZELLE = 8;
-const INTERVALL = 100;  // ms zwischen den Generationen
+// Konstanten - Spielfeld (das Modell, immer gleich)
+const INTERVALL = 100;   // ms zwischen den Generationen
 
+const stufenWert = hole("stufenwert");
+const stufenFeld = hole("stufen");
+
+let stufen = Number(stufenFeld.value);
+
+let zelle = 1
+let SPALTEN = 40 * stufen;
+let ZEILEN = 30 * stufen;
+let LUECKE = SPALTEN / ZEILEN / 10 / stufen;
+
+// Zustände der Zellen (erstmal zwei leere Arrays) 
+
+let gitter = new Uint8Array(SPALTEN * ZEILEN);
+let naechstes = new Uint8Array(SPALTEN * ZEILEN);
+let laeuft = true;
+let letzteZeit = 0;
+
+
+// Größe einer Zelle in Canvas-Pixeln (die Ansicht, wird berechnet)
+
+function aktualisiere() {
+  SPALTEN = 40 * stufen;
+  ZEILEN = 30 * stufen;
+  LUECKE = SPALTEN / ZEILEN / 10 / stufen;     // Abstand zwischen Zellen als Anteil der Zellgröße
+  gitter = new Uint8Array(SPALTEN * ZEILEN);
+  naechstes = new Uint8Array(SPALTEN * ZEILEN);
+}
 
 // Bekannte Muster
 // O = lebende Zelle, . = tote Zelle
@@ -79,16 +103,13 @@ const MUSTER = [
 const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
 
-canvas.width = SPALTEN * ZELLE;
-canvas.height = ZEILEN * ZELLE;
-
-
-// Zustände der Zellen (erstmal zwei leere Arrays) 
-
-let gitter = new Uint8Array(SPALTEN * ZEILEN);
-let naechstes = new Uint8Array(SPALTEN * ZEILEN);
-let laeuft = true;
-let letzteZeit = 0;
+function passeGroesseAn() {
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(canvas.clientWidth * dpr);
+  canvas.height = Math.round(canvas.width / 4 * 3);  // Seitenverhältnis des Spielfelds
+  zelle = canvas.width / SPALTEN; 
+  // console.log(canvas.width, canvas.height, SPALTEN, ZEILEN)                              
+}
 
 
 // Simulation
@@ -157,11 +178,18 @@ function zeichne() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "#DDDDDD";
+  const luecke = Math.max(1, Math.round(zelle * LUECKE));
+
   for (let y = 0; y < ZEILEN; y++) {
+    const oben = Math.round(y * zelle);
+    const unten = Math.round((y + 1) * zelle);
+
     for (let x = 0; x < SPALTEN; x++) {
-      if (gitter[index(x, y)]) {
-        ctx.fillRect(x * ZELLE, y * ZELLE, ZELLE - 1, ZELLE - 1); // -1 für einen kleinen Abstand zwischen den Zellen
-      }
+      if (!gitter[index(x, y)]) continue;
+
+      const links = Math.round(x * zelle);
+      const rechts = Math.round((x + 1) * zelle);
+      ctx.fillRect(links, oben, rechts - links - luecke, unten - oben - luecke);
     }
   }
 }
@@ -311,6 +339,19 @@ document.addEventListener("keydown", (e) => {
 });
 
 
+// Steuerung
+
+stufenFeld.addEventListener("input", () => {
+  stufen = Number(stufenFeld.value);
+  stufenWert.textContent = stufen;
+  aktualisiere();
+  passeGroesseAn();
+  zufall(0.25);
+  markiere(-1);
+  zeichne();
+});
+
+
 // Animation
 
 function schleife(zeit) {
@@ -324,6 +365,12 @@ function schleife(zeit) {
 
 // Startwerte setzen und Animation starten
 
+window.addEventListener("resize", () => {
+  passeGroesseAn();
+  zeichne();
+});
+
+passeGroesseAn();
 zufall(0.25);
 markiere(-1);
 zeichne();

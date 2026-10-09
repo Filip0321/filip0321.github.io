@@ -528,7 +528,7 @@ const modusDrehen = document.getElementById("toggle-drehen");
 
 modusEnstehung.addEventListener("click", () => {
   animiert = !animiert;
-  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Enstehen lassen";
+  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Entstehen lassen";
   darstellen();
 });
 

@@ -155,8 +155,3 @@ function zurueckholen(w, h) {
   ablageCtx.drawImage(glCanvas, 0, 0);
   return ablageCtx.getImageData(0, 0, w, h);
 }
-
-function crt(eingabe, einstellungen) {
-  rendere(crtProgramm, eingabe, eingabe.width, eingabe.height, einstellungen);
-  return zurueckholen(eingabe.width, eingabe.height);
-}
