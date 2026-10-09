@@ -1,4 +1,4 @@
-// ---------- Einstellungen ----------
+// Settings, Startwerte
 
 const MAX_PUNKTE = 1000000;
 const BILDER_PRO_ANIMATION = 1500;
@@ -17,19 +17,20 @@ let staerke = 15;
 let animiert = true;
 let dreht = false;
 
-// ---------- Attraktor-Typen ----------
+
+// Attraktor-Typen
 
 const TYPEN = {
   lorenz: {
     name: "Lorenz",
-    formel: "x' = σ·(y − x)\ny' = x·(ρ − z) − y\nz' = x·y − β·z",
-    parameter: [["sigma", "σ"], ["rho", "ρ"], ["beta", "β"]],
+    formel: "x' = a·(y - x)\ny' = x·(b - z) - y\nz' = x·y - c·z",
+    parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
     dt: 0.005,
     start: [0.1, 0, 0],
     schritt(w, p, dt) {
-      const dx = w.sigma * (p.y - p.x);
-      const dy = p.x * (w.rho - p.z) - p.y;
-      const dz = p.x * p.y - w.beta * p.z;
+      const dx = w.a * (p.y - p.x);
+      const dy = p.x * (w.b - p.z) - p.y;
+      const dz = p.x * p.y - w.c * p.z;
       p.x += dx * dt;
       p.y += dy * dt;
       p.z += dz * dt;
@@ -37,7 +38,7 @@ const TYPEN = {
   },
   aizawa: {
     name: "Aizawa",
-    formel: "x' = (z − b)·x − d·y\ny' = d·x + (z − b)·y\nz' = c + a·z − z³/3 − (x² + y²)·(1 + e·z) + f·z·x³",
+    formel: "x' = (z - b)·x - d·y\ny' = d·x + (z - b)·y\nz' = c + a·z - z³/3 - (x² + y²)·(1 + e·z) + f·z·x³",
     parameter: [["a", "a"], ["b", "b"], ["c", "c"], ["d", "d"], ["e", "e"], ["f", "f"]],
     dt: 0.01,
     start: [0.1, 0, 0],
@@ -54,7 +55,7 @@ const TYPEN = {
   },
   thomas: {
     name: "Thomas",
-    formel: "x' = sin(y) − b·x\ny' = sin(z) − b·y\nz' = sin(x) − b·z",
+    formel: "x' = sin(y) - b·x\ny' = sin(z) - b·y\nz' = sin(x) - b·z",
     parameter: [["b", "b"]],
     dt: 0.05,
     start: [1.1, 1.1, -0.01],
@@ -69,7 +70,7 @@ const TYPEN = {
   },
   halvorsen: {
     name: "Halvorsen",
-    formel: "x' = −a·x − 4y − 4z − y²\ny' = −a·y − 4z − 4x − z²\nz' = −a·z − 4x − 4y − x²",
+    formel: "x' = -a·x - 4y - 4z - y²\ny' = -a·y - 4z - 4x - z²\nz' = -a·z - 4x - 4y - x²",
     parameter: [["a", "a"]],
     dt: 0.005,
     start: [-1.48, -1.51, 2.04],
@@ -84,7 +85,7 @@ const TYPEN = {
   },
   arneodo: {
     name: "Arneodo",
-    formel: "x' = y\ny' = z\nz' = −a·x − b·y − z + c·x³",
+    formel: "x' = y\ny' = z\nz' = -a·x - b·y - z + c·x³",
     parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
     dt: 0.01,
     start: [0.2, 0.2, -0.75],
@@ -99,7 +100,7 @@ const TYPEN = {
   },
   burkeShaw: {
     name: "Burke-Shaw",
-    formel: "x' = −s·(x + y)\ny' = −y − s·x·z\nz' = s·x·y + v",
+    formel: "x' = -s·(x + y)\ny' = -y - s·x·z\nz' = s·x·y + v",
     parameter: [["s", "s"], ["v", "v"]],
     dt: 0.005,
     start: [0.6, 0, 0],
@@ -114,7 +115,7 @@ const TYPEN = {
   },
   chenLee: {
     name: "Chen-Lee",
-    formel: "x' = a·x − y·z\ny' = b·y + x·z\nz' = c·z + x·y / 3",
+    formel: "x' = a·x - y·z\ny' = b·y + x·z\nz' = c·z + x·y / 3",
     parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
     dt: 0.003,
     start: [1, 0, 4.5],
@@ -129,7 +130,7 @@ const TYPEN = {
   },
   dadras: {
     name: "Dadras",
-    formel: "x' = y − a·x + b·y·z\ny' = c·y − x·z + z\nz' = d·x·y − e·z",
+    formel: "x' = y - a·x + b·y·z\ny' = c·y - x·z + z\nz' = d·x·y - e·z",
     parameter: [["a", "a"], ["b", "b"], ["c", "c"], ["d", "d"], ["e", "e"]],
     dt: 0.005,
     start: [1, 1, 1],
@@ -144,7 +145,7 @@ const TYPEN = {
   },
   fourWing: {
     name: "Four-Wing",
-    formel: "x' = a·x + y·z\ny' = b·x + c·y − x·z\nz' = −z − x·y",
+    formel: "x' = a·x + y·z\ny' = b·x + c·y - x·z\nz' = -z - x·y",
     parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
     dt: 0.05,
     start: [1.3, -0.18, 0.01],
@@ -159,7 +160,7 @@ const TYPEN = {
   },
   newtonLeipnik: {
     name: "Newton-Leipnik",
-    formel: "x' = −a·x + y + 10·y·z\ny' = −x − 0.4·y + 5·x·z\nz' = b·z − 5·x·y",
+    formel: "x' = -a·x + y + 10·y·z\ny' = -x - 0.4·y + 5·x·z\nz' = b·z - 5·x·y",
     parameter: [["a", "a"], ["b", "b"]],
     dt: 0.01,
     start: [0.349, 0, -0.16],
@@ -174,7 +175,7 @@ const TYPEN = {
   },
   noseHoover: {
     name: "Nose-Hoover",
-    formel: "x' = y\ny' = −x + y·z\nz' = a − y²",
+    formel: "x' = y\ny' = -x + y·z\nz' = a - y²",
     parameter: [["a", "a"]],
     dt: 0.01,
     start: [1, 0, 0],
@@ -189,7 +190,7 @@ const TYPEN = {
   },
   rucklidge: {
     name: "Rucklidge",
-    formel: "x' = −k·x + a·y − y·z\ny' = x\nz' = −z + y²",
+    formel: "x' = -k·x + a·y - y·z\ny' = x\nz' = -z + y²",
     parameter: [["k", "k"], ["a", "a"]],
     dt: 0.01,
     start: [1, 0, 4.5],
@@ -204,10 +205,11 @@ const TYPEN = {
   }
 };
 
-// ---------- Presets ----------
+
+// Presets mit ihren Startwerten 
 
 const PRESETS = [
-  { name: "Lorenz", typ: "lorenz", werte: { sigma: 10, rho: 28, beta: 2.6667 }, text: "Platzhalter." },
+  { name: "Lorenz", typ: "lorenz", werte: { a: 10, b: 28, c: 2.6667 }, text: "Platzhalter." },
   { name: "Aizawa", typ: "aizawa", werte: { a: 0.95, b: 0.7, c: 0.6, d: 3.5, e: 0.25, f: 0.1 }, text: "Platzhalter." },
   { name: "Thomas I", typ: "thomas", werte: { b: 0.208186 }, text: "Platzhalter." },
   { name: "Thomas II", typ: "thomas", werte: { b: 0.192 }, text: "Platzhalter." },
@@ -223,7 +225,8 @@ const PRESETS = [
   { name: "Rucklidge", typ: "rucklidge", werte: { k: 2, a: 6.7 }, text: "Platzhalter." }
 ];
 
-// ---------- Canvas ----------
+
+// Canvas als Quelle für das Bild
 
 const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
@@ -237,11 +240,12 @@ function passeGroesseAn() {
   canvas.height = Math.round(canvas.clientHeight * dpr);
   bild = ctx.createImageData(canvas.width, canvas.height);
   pixel32 = new Uint32Array(bild.data.buffer);
-}
+} // siehe 2d-Attraktor dateien
 
-// ---------- Zustand ----------
 
-let typ = TYPEN.lorenz;
+// Variablen und start
+
+let typ = TYPEN.lorenz; // erster Attraktor
 let werte = {};
 
 const daten = new Float32Array(MAX_PUNKTE * 3);
@@ -254,7 +258,8 @@ let abstand = START_ABSTAND;
 let animationsId = null;
 let geplant = false;
 
-// ---------- Punkte berechnen ----------
+
+// Punkte berechnen
 
 function laeuftDavon(p) {
   return !Number.isFinite(p.x + p.y + p.z)
@@ -317,7 +322,8 @@ function normalisiere() {
   }
 }
 
-// ---------- Zeichnen ----------
+
+// Zeichnen
 
 function zeichne() {
   const w = canvas.width;
@@ -426,7 +432,8 @@ function neuBerechnen() {
   darstellen();
 }
 
-// ---------- Ziehen und Zoomen ----------
+
+// Drehen und Zoomen 
 
 const zeiger = new Map();
 let letzterFingerAbstand = 0;
@@ -503,7 +510,8 @@ function drehe() {
   }
 }
 
-// ---------- Steuerung ----------
+
+// Buttons
 
 const modusEnstehung = document.getElementById("toggle-animiert-sofort");
 const punkteFeld = document.getElementById("punkte");
@@ -556,7 +564,8 @@ document.getElementById("zuruecksetzen").addEventListener("click", () => {
   planeZeichnen();
 });
 
-// ---------- Presets und Werte ----------
+
+// Presets und Werte
 
 const presetBox = document.querySelector(".presets");
 const werteBox = document.querySelector(".werte");
@@ -609,7 +618,7 @@ function markiere(i) {
   formelFeld.textContent = typ.formel;
 
   if (i === -1) {
-    presetName.textContent = `${typ.name} – eigene Werte`;
+    presetName.textContent = `${typ.name} - eigene Werte`;
     presetText.textContent = "Du hast die Werte selbst verändert. Manche Zahlen lassen den Attraktor zerfallen, andere lassen ihn zu einem Punkt oder einer Schleife zusammenschrumpfen.";
   } else {
     presetName.textContent = PRESETS[i].name;
@@ -626,7 +635,8 @@ function waehlePreset(i) {
   neuBerechnen();
 }
 
-// ---------- Start ----------
+
+// Start 
 
 window.addEventListener("resize", () => {
   passeGroesseAn();
