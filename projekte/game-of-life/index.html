@@ -27,13 +27,20 @@
       </ul>
     </header>
 
-    <canvas id="feld"></canvas>
+    <canvas id="feld" class="gol-feld"></canvas>
 
     <div class="steuerung">
       <button type="button" id="start">Pause</button>
       <button type="button" id="schritt">Schritt</button>
       <button type="button" id="leeren">Leeren</button>
       <button type="button" id="neu">Zufall</button>
+    </div>
+
+    <div class="steuerung">
+      <label>Größe
+        <input type="range" id="stufen" min="1" max="8" value="2">
+        <output id="stufenwert">2</output>
+      </label>
     </div>
 
     <div class="steuerung export"></div>
@@ -67,6 +74,11 @@
     </section>
     -->
   </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
 
   <script src="/script.js"></script>
   <script src="/export.js"></script>

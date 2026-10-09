@@ -178,8 +178,3 @@ void main() {
 // WebGL-Programm (rendere und zurueckholen in crt.js)
 
 const vhsProgramm = gl ? baueProgramm(VERTEX_SHADER, VHS_SHADER) : null;
-
-function vhs(eingabe, einstellungen) {
-  rendere(vhsProgramm, eingabe, eingabe.width, eingabe.height, einstellungen);
-  return zurueckholen(eingabe.width, eingabe.height);
-}

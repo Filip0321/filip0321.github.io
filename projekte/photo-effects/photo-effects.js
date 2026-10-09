@@ -1,14 +1,3 @@
-// Hilfsfunktion einfach um zu schauen ob ichs im HTML hab und dann zurückzugeben
-
-function hole(id) {
-  const element = document.getElementById(id);
-  if (!element) {
-    throw new Error(`Im HTML fehlt ein Element mit id="${id}"`);
-  }
-  return element;
-}
-
-
 // Bilder müssen limitiert werden, um nicht ewig zu rechnen
 
 const MAX_KANTE = 2400;
@@ -200,31 +189,6 @@ function berechneRahmen(qw, qh) {
       rw = qh * 4 / 3;       // Balken links und rechts
     }
   }
-
-  function baueQuelleNeu() {
-  if (video) {
-    passeCanvasAn(video.videoWidth, video.videoHeight);
-    zeichneVideobild();
-  } else if (bitmap) {
-    bereiteBildVor();
-    wendeAn();
-  }
-}
-
-formatFeld.addEventListener("change", () => {
-  format = formatFeld.value;
-  baueQuelleNeu();
-});
-
-hintergrundFeld.addEventListener("input", () => {
-  hintergrund = hintergrundFeld.value;
-  baueQuelleNeu();
-});
-
-transparentFeld.addEventListener("change", () => {
-  transparent = transparentFeld.checked;
-  baueQuelleNeu();
-});
 
   const faktor = Math.min(1, MAX_KANTE / Math.max(rw, rh));
   const w = Math.round(rw * faktor);
@@ -632,6 +596,31 @@ async function speichereVideo() {
 
 
 // Buttons
+
+function baueQuelleNeu() {
+  if (video) {
+    passeCanvasAn(video.videoWidth, video.videoHeight);
+    zeichneVideobild();
+  } else if (bitmap) {
+    bereiteBildVor();
+    wendeAn();
+  }
+}
+
+formatFeld.addEventListener("change", () => {
+  format = formatFeld.value;
+  baueQuelleNeu();
+});
+
+hintergrundFeld.addEventListener("input", () => {
+  hintergrund = hintergrundFeld.value;
+  baueQuelleNeu();
+});
+
+transparentFeld.addEventListener("change", () => {
+  transparent = transparentFeld.checked;
+  baueQuelleNeu();
+});
 
 dateiFeld.addEventListener("change", () => {
   const datei = dateiFeld.files[0];

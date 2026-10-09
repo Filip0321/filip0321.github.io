@@ -1,3 +1,5 @@
+const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
+
 const el = document.getElementById("name");
 
 if (el) {
@@ -13,7 +15,11 @@ if (el) {
     }
   }
 
-  tippe();
+  if (wenigBewegung.matches) {
+    el.textContent = text;
+  } else {
+    tippe();
+  }
 } // Typewriter effect
 
 const btn = document.querySelector(".menu-btn");
@@ -44,3 +50,27 @@ document.querySelectorAll("details[data-quelle]").forEach((box) => {
       });
   }, { once: true });
 });
+
+
+// Hilfsfunktion
+
+function hole(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Im HTML fehlt ein Element mit id="${id}"`);
+  }
+  return element;
+}
+
+
+function stelleVideosEin() {
+  document.querySelectorAll(".karte video").forEach((video) => {
+    if (wenigBewegung.matches) {
+      video.load();
+    } else {
+      video.play().catch(() => {});
+    }
+  });
+}
+stelleVideosEin();
+wenigBewegung.addEventListener("change", stelleVideosEin);
