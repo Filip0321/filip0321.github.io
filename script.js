@@ -14,7 +14,7 @@ if (el) {
   }
 
   tippe();
-}
+} // Typewriter effect
 
 const btn = document.querySelector(".menu-btn");
 const menu = document.getElementById("menu");
@@ -25,7 +25,7 @@ btn.addEventListener("click", () => {
   btn.textContent = offen ? "✖" : "Menü";
 });
 
-// ---------- Quelltext in details laden ----------
+// den Code in den Details-Boxen erst laden, wenn sie geöffnet werden
 
 document.querySelectorAll("details[data-quelle]").forEach((box) => {
   const ziel = box.querySelector("code");

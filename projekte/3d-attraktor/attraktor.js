@@ -2,7 +2,7 @@
 
 const MAX_PUNKTE = 1000000;
 const BILDER_PRO_ANIMATION = 1500;
-const START_ABSTAND = 3;
+const START_ABSTAND = 2.5;
 const BRENNWEITE = 2;
 const MIN_ABSTAND = 0.2;
 const MAX_ABSTAND = 20;
@@ -12,9 +12,10 @@ const START_WINKEL = 0.6;
 const START_NEIGUNG = 0.35;
 const GRENZE = 1e6;
 
-let punkte = 150000;
+let punkte = 600000;
 let staerke = 15;
 let animiert = true;
+let dreht = false;
 
 // ---------- Attraktor-Typen ----------
 
@@ -80,36 +81,146 @@ const TYPEN = {
       p.y += dy * dt;
       p.z += dz * dt;
     }
+  },
+  arneodo: {
+    name: "Arneodo",
+    formel: "x' = y\ny' = z\nz' = −a·x − b·y − z + c·x³",
+    parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
+    dt: 0.01,
+    start: [0.2, 0.2, -0.75],
+    schritt(w, p, dt) {
+      const dx = p.y;
+      const dy = p.z;
+      const dz = -w.a * p.x - w.b * p.y - p.z + w.c * p.x * p.x * p.x;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  burkeShaw: {
+    name: "Burke-Shaw",
+    formel: "x' = −s·(x + y)\ny' = −y − s·x·z\nz' = s·x·y + v",
+    parameter: [["s", "s"], ["v", "v"]],
+    dt: 0.005,
+    start: [0.6, 0, 0],
+    schritt(w, p, dt) {
+      const dx = -w.s * (p.x + p.y);
+      const dy = -p.y - w.s * p.x * p.z;
+      const dz = w.s * p.x * p.y + w.v;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  chenLee: {
+    name: "Chen-Lee",
+    formel: "x' = a·x − y·z\ny' = b·y + x·z\nz' = c·z + x·y / 3",
+    parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
+    dt: 0.003,
+    start: [1, 0, 4.5],
+    schritt(w, p, dt) {
+      const dx = w.a * p.x - p.y * p.z;
+      const dy = w.b * p.y + p.x * p.z;
+      const dz = w.c * p.z + (p.x * p.y) / 3;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  dadras: {
+    name: "Dadras",
+    formel: "x' = y − a·x + b·y·z\ny' = c·y − x·z + z\nz' = d·x·y − e·z",
+    parameter: [["a", "a"], ["b", "b"], ["c", "c"], ["d", "d"], ["e", "e"]],
+    dt: 0.005,
+    start: [1, 1, 1],
+    schritt(w, p, dt) {
+      const dx = p.y - w.a * p.x + w.b * p.y * p.z;
+      const dy = w.c * p.y - p.x * p.z + p.z;
+      const dz = w.d * p.x * p.y - w.e * p.z;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  fourWing: {
+    name: "Four-Wing",
+    formel: "x' = a·x + y·z\ny' = b·x + c·y − x·z\nz' = −z − x·y",
+    parameter: [["a", "a"], ["b", "b"], ["c", "c"]],
+    dt: 0.05,
+    start: [1.3, -0.18, 0.01],
+    schritt(w, p, dt) {
+      const dx = w.a * p.x + p.y * p.z;
+      const dy = w.b * p.x + w.c * p.y - p.x * p.z;
+      const dz = -p.z - p.x * p.y;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  newtonLeipnik: {
+    name: "Newton-Leipnik",
+    formel: "x' = −a·x + y + 10·y·z\ny' = −x − 0.4·y + 5·x·z\nz' = b·z − 5·x·y",
+    parameter: [["a", "a"], ["b", "b"]],
+    dt: 0.01,
+    start: [0.349, 0, -0.16],
+    schritt(w, p, dt) {
+      const dx = -w.a * p.x + p.y + 10 * p.y * p.z;
+      const dy = -p.x - 0.4 * p.y + 5 * p.x * p.z;
+      const dz = w.b * p.z - 5 * p.x * p.y;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  noseHoover: {
+    name: "Nose-Hoover",
+    formel: "x' = y\ny' = −x + y·z\nz' = a − y²",
+    parameter: [["a", "a"]],
+    dt: 0.01,
+    start: [1, 0, 0],
+    schritt(w, p, dt) {
+      const dx = p.y;
+      const dy = -p.x + p.y * p.z;
+      const dz = w.a - p.y * p.y;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
+  },
+  rucklidge: {
+    name: "Rucklidge",
+    formel: "x' = −k·x + a·y − y·z\ny' = x\nz' = −z + y²",
+    parameter: [["k", "k"], ["a", "a"]],
+    dt: 0.01,
+    start: [1, 0, 4.5],
+    schritt(w, p, dt) {
+      const dx = -w.k * p.x + w.a * p.y - p.y * p.z;
+      const dy = p.x;
+      const dz = -p.z + p.y * p.y;
+      p.x += dx * dt;
+      p.y += dy * dt;
+      p.z += dz * dt;
+    }
   }
 };
 
 // ---------- Presets ----------
 
 const PRESETS = [
-  {
-    name: "Lorenz",
-    typ: "lorenz",
-    werte: { sigma: 10, rho: 28, beta: 2.6667 },
-    text: "Platzhalter: beschreib hier in eigenen Worten, was du siehst."
-  },
-  {
-    name: "Aizawa",
-    typ: "aizawa",
-    werte: { a: 0.95, b: 0.7, c: 0.6, d: 3.5, e: 0.25, f: 0.1 },
-    text: "Platzhalter."
-  },
-  {
-    name: "Thomas",
-    typ: "thomas",
-    werte: { b: 0.208186 },
-    text: "Platzhalter."
-  },
-  {
-    name: "Halvorsen",
-    typ: "halvorsen",
-    werte: { a: 1.89 },
-    text: "Platzhalter."
-  }
+  { name: "Lorenz", typ: "lorenz", werte: { sigma: 10, rho: 28, beta: 2.6667 }, text: "Platzhalter." },
+  { name: "Aizawa", typ: "aizawa", werte: { a: 0.95, b: 0.7, c: 0.6, d: 3.5, e: 0.25, f: 0.1 }, text: "Platzhalter." },
+  { name: "Thomas I", typ: "thomas", werte: { b: 0.208186 }, text: "Platzhalter." },
+  { name: "Thomas II", typ: "thomas", werte: { b: 0.192 }, text: "Platzhalter." },
+  { name: "Thomas III", typ: "thomas", werte: { b: 0.092 }, text: "Platzhalter." },
+  { name: "Halvorsen", typ: "halvorsen", werte: { a: 1.4 }, text: "Platzhalter." },
+  { name: "Arneodo", typ: "arneodo", werte: { a: -5, b: 3.5, c: -1 }, text: "Platzhalter." },
+  { name: "Burke-Shaw", typ: "burkeShaw", werte: { s: 10, v: 4.272 }, text: "Platzhalter." },
+  { name: "Chen-Lee", typ: "chenLee", werte: { a: 5, b: -10, c: -0.38 }, text: "Platzhalter." },
+  { name: "Dadras", typ: "dadras", werte: { a: 3, b: 2.7, c: 1.7, d: 2, e: 9 }, text: "Platzhalter." },
+  { name: "Four-Wing", typ: "fourWing", werte: { a: 0.2, b: 0.01, c: -0.4 }, text: "Platzhalter." },
+  { name: "Newton-Leipnik", typ: "newtonLeipnik", werte: { a: 0.4, b: 0.175 }, text: "Platzhalter." },
+  { name: "Nose-Hoover", typ: "noseHoover", werte: { a: 1.5 }, text: "Platzhalter." },
+  { name: "Rucklidge", typ: "rucklidge", werte: { k: 2, a: 6.7 }, text: "Platzhalter." }
 ];
 
 // ---------- Canvas ----------
@@ -376,21 +487,40 @@ canvas.addEventListener("wheel", (e) => {
   setzeAbstand(abstand * Math.exp(delta * ZOOM_EMPFINDLICHKEIT));
 }, { passive: false });
 
-// ---------- Steuerung ----------
 
-const modusAnimiert = document.getElementById("modus-animiert");
-const modusSofort = document.getElementById("modus-sofort");
-const punkteFeld = document.getElementById("punkte");
-const staerkeFeld = document.getElementById("staerke");
+// Drehen lassen
 
-function setzeModus(wert) {
-  animiert = wert;
-  modusAnimiert.setAttribute("aria-pressed", wert);
-  modusSofort.setAttribute("aria-pressed", !wert);
+function drehe() {
+  if (dreht) {
+    function drehSchritt() {
+      winkel += 0.002;
+      planeZeichnen();
+      if (dreht) {
+        requestAnimationFrame(drehSchritt);
+      }
+    }
+    drehSchritt();
+  }
 }
 
-modusAnimiert.addEventListener("click", () => setzeModus(true));
-modusSofort.addEventListener("click", () => setzeModus(false));
+// ---------- Steuerung ----------
+
+const modusEnstehung = document.getElementById("toggle-animiert-sofort");
+const punkteFeld = document.getElementById("punkte");
+const staerkeFeld = document.getElementById("staerke");
+const modusDrehen = document.getElementById("toggle-drehen");
+
+modusEnstehung.addEventListener("click", () => {
+  animiert = !animiert;
+  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Enstehen lassen";
+  darstellen();
+});
+
+modusDrehen.addEventListener("click", () => {
+  dreht = !dreht;
+  modusDrehen.textContent = dreht ? "Drehen stoppen" : "Drehen lassen";
+  drehe();
+});
 
 function leseGanzzahl(feld, min, max, bisher) {
   const eingabe = feld.value.trim();
@@ -449,7 +579,7 @@ function baueWerteFelder() {
     const label = document.createElement("label");
     const feld = document.createElement("input");
     feld.type = "number";
-    feld.step = "any";
+    feld.step = "0.01";
     feld.value = werte[schluessel];
 
     feld.addEventListener("change", () => {

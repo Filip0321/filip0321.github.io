@@ -32,8 +32,7 @@
 
     <div class="steuerung">
       <div class="modus" role="group" aria-label="Darstellung">
-        <button type="button" id="modus-animiert" aria-pressed="true">Entstehen lassen</button>
-        <button type="button" id="modus-sofort" aria-pressed="false">Sofort zeigen</button>
+        <button type="button" id="toggle-animiert-sofort">Sofort anzeigen</button>
       </div>
       <label>Punkte <input type="number" id="punkte" min="1000" max="1000000" step="1000"></label>
       <label>Stärke <input type="number" id="staerke" min="1" max="255" step="1"></label>
@@ -43,12 +42,11 @@
 
     <div class="presets" role="group" aria-label="Presets"></div>
 
-    <div class="werte">
-      <label>a <input type="number" id="wert-a" step="0.01"></label>
-      <label>b <input type="number" id="wert-b" step="0.01"></label>
-      <label>c <input type="number" id="wert-c" step="0.01"></label>
-      <label>d <input type="number" id="wert-d" step="0.01"></label>
-    </div>
+    <p class="hinweis" id="hinweis"></p>
+
+    <div class="presets" role="group" aria-label="Presets"></div>
+
+    <div class="werte"></div>
 
     <details class="preset-info" open>
       <summary id="preset-name"></summary>

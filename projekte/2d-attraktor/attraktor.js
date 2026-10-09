@@ -2,10 +2,18 @@
 
 const MAX_PUNKTE = 1000000;
 const BILDER_PRO_ANIMATION = 1500;
+const MAX_PROBE = 200000;
+const GRENZE = 1e6;
 
 let punkte = 600000;
 let staerke = 15;
 let animiert = true;
+
+// ---------- Hilfsfunktionen für Formeln ----------
+
+function gmFunktion(x, b) {
+  return b * x + (2 * (1 - b) * x * x) / (1 + x * x);
+}
 
 // ---------- Attraktor-Typen ----------
 
@@ -13,6 +21,8 @@ const TYPEN = {
   clifford: {
     name: "Clifford",
     formel: "x' = sin(a·y) + c·cos(a·x)\ny' = sin(b·x) + d·cos(b·y)",
+    parameter: ["a", "b", "c", "d"],
+    start: [0.1, 0.1],
     schritt(w, pos) {
       const x = Math.sin(w.a * pos.y) + w.c * Math.cos(w.a * pos.x);
       const y = Math.sin(w.b * pos.x) + w.d * Math.cos(w.b * pos.y);
@@ -23,6 +33,8 @@ const TYPEN = {
   dejong: {
     name: "Peter de Jong",
     formel: "x' = sin(a·y) − cos(b·x)\ny' = sin(c·x) − cos(d·y)",
+    parameter: ["a", "b", "c", "d"],
+    start: [0.1, 0.1],
     schritt(w, pos) {
       const x = Math.sin(w.a * pos.y) - Math.cos(w.b * pos.x);
       const y = Math.sin(w.c * pos.x) - Math.cos(w.d * pos.y);
@@ -33,48 +45,80 @@ const TYPEN = {
   svensson: {
     name: "Svensson",
     formel: "x' = d·sin(a·x) − sin(b·y)\ny' = c·cos(a·x) + cos(b·y)",
+    parameter: ["a", "b", "c", "d"],
+    start: [0.1, 0.1],
     schritt(w, pos) {
       const x = w.d * Math.sin(w.a * pos.x) - Math.sin(w.b * pos.y);
       const y = w.c * Math.cos(w.a * pos.x) + Math.cos(w.b * pos.y);
       pos.x = x;
       pos.y = y;
     }
-  }
+  },
+  hopalong: {
+    name: "Hopalong",
+    formel: "x' = y − sign(x)·√|b·x − c|\ny' = a − x",
+    parameter: ["a", "b", "c"],
+    start: [0, 0],
+    schritt(w, pos) {
+      const x = pos.y - Math.sign(pos.x) * Math.sqrt(Math.abs(w.b * pos.x - w.c));
+      const y = w.a - pos.x;
+      pos.x = x;
+      pos.y = y;
+    }
+  },
+  gumowskiMira: {
+    name: "Gumowski-Mira",
+    formel: "f(x) = b·x + 2·(1 − b)·x² / (1 + x²)\nx' = y + a·(1 − 0.05·y²)·y + f(x)\ny' = −x + f(x')",
+    parameter: ["a", "b"],
+    start: [0.1, 0.1],
+    schritt(w, pos) {
+      const x = pos.y + w.a * (1 - 0.05 * pos.y * pos.y) * pos.y + gmFunktion(pos.x, w.b);
+      const y = -pos.x + gmFunktion(x, w.b);
+      pos.x = x;
+      pos.y = y;
+    }
+  },
+  tinkerbell: {
+    name: "Tinkerbell",
+    formel: "x' = x² − y² + a·x + b·y\ny' = 2·x·y + c·x + d·y",
+    parameter: ["a", "b", "c", "d"],
+    start: [-0.72, -0.64],
+    schritt(w, pos) {
+      const x = pos.x * pos.x - pos.y * pos.y + w.a * pos.x + w.b * pos.y;
+      const y = 2 * pos.x * pos.y + w.c * pos.x + w.d * pos.y;
+      pos.x = x;
+      pos.y = y;
+    }
+  },
+  ikeda: {
+    name: "Ikeda",
+    formel: "t = 0.4 − 6 / (1 + x² + y²)\nx' = 1 + u·(x·cos t − y·sin t)\ny' = u·(x·sin t + y·cos t)",
+    parameter: ["u"],
+    start: [0.1, 0.1],
+    schritt(w, pos) {
+      const t = 0.4 - 6 / (1 + pos.x * pos.x + pos.y * pos.y);
+      const x = 1 + w.u * (pos.x * Math.cos(t) - pos.y * Math.sin(t));
+      const y = w.u * (pos.x * Math.sin(t) + pos.y * Math.cos(t));
+      pos.x = x;
+      pos.y = y;
+    }
+  },
 };
 
 // ---------- Presets ----------
 
 const PRESETS = [
-  {
-    name: "Clifford I",
-    typ: "clifford",
-    werte: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
-    text: "Platzhalter: beschreib hier in eigenen Worten, was du siehst."
-  },
-  {
-    name: "Clifford II",
-    typ: "clifford",
-    werte: { a: 1.7, b: 1.7, c: 0.6, d: 1.2 },
-    text: "Platzhalter."
-  },
-  {
-    name: "De Jong I",
-    typ: "dejong",
-    werte: { a: 1.4, b: -2.3, c: 2.4, d: -2.1 },
-    text: "Platzhalter."
-  },
-  {
-    name: "De Jong II",
-    typ: "dejong",
-    werte: { a: -2.7, b: -0.09, c: -0.86, d: -2.2 },
-    text: "Platzhalter."
-  },
-  {
-    name: "Svensson",
-    typ: "svensson",
-    werte: { a: 1.4, b: 1.56, c: 1.4, d: -6.56 },
-    text: "Platzhalter."
-  }
+  { name: "Clifford I", typ: "clifford", werte: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 }, text: "Platzhalter." },
+  { name: "Clifford II", typ: "clifford", werte: { a: 1.7, b: 1.7, c: 0.6, d: 1.2 }, text: "Platzhalter." },
+  { name: "De Jong I", typ: "dejong", werte: { a: 1.4, b: -2.3, c: 2.4, d: -2.1 }, text: "Platzhalter." },
+  { name: "De Jong II", typ: "dejong", werte: { a: -2.7, b: -0.09, c: -0.86, d: -2.2 }, text: "Platzhalter." },
+  { name: "Svensson", typ: "svensson", werte: { a: 1.4, b: 1.56, c: 1.4, d: -6.56 }, text: "Platzhalter." },
+  { name: "Hopalong I", typ: "hopalong", werte: { a: 0.4, b: 1.0, c: 0.0 }, text: "Platzhalter." },
+  { name: "Hopalong II", typ: "hopalong", werte: { a: 0.5, b: -0.3, c: 0.7 }, text: "Platzhalter." },
+  { name: "Gumowski-Mira I", typ: "gumowskiMira", werte: { a: 0.008, b: -0.9 }, text: "Platzhalter." },
+  { name: "Gumowski-Mira II", typ: "gumowskiMira", werte: { a: 0.0, b: -0.31 }, start: [0.0, 0.5], text: "Platzhalter." },
+  { name: "Tinkerbell", typ: "tinkerbell", werte: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5 }, text: "Platzhalter." },
+  { name: "Ikeda", typ: "ikeda", werte: { u: 0.9 }, text: "Platzhalter." },
 ];
 
 // ---------- Canvas ----------
@@ -91,7 +135,8 @@ function passeGroesseAn() {
 // ---------- Zustand ----------
 
 let typ = TYPEN.clifford;
-const werte = { a: 0, b: 0, c: 0, d: 0 };
+let werte = {};
+let start = typ.start;
 const pos = { x: 0.1, y: 0.1 };
 
 let bild = null;
@@ -101,15 +146,23 @@ let animationsId = null;
 
 // ---------- Rechnen ----------
 
+function laeuftDavon(p) {
+  return !Number.isFinite(p.x + p.y)
+    || Math.abs(p.x) > GRENZE
+    || Math.abs(p.y) > GRENZE;
+}
+
 function bestimmeAbbildung() {
-  const probe = { x: 0.1, y: 0.1 };
+  const probe = { x: start[0], y: start[1] };
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
+  const schritte = Math.min(punkte, MAX_PROBE);
 
-  for (let i = 0; i < 20000; i++) {
+  for (let i = 0; i < schritte; i++) {
     typ.schritt(werte, probe);
+    if (laeuftDavon(probe)) return null;
     if (i < 100) continue;
     if (probe.x < minX) minX = probe.x;
     if (probe.x > maxX) maxX = probe.x;
@@ -129,6 +182,8 @@ function bestimmeAbbildung() {
 
 // ---------- Zeichnen ----------
 
+const hinweis = document.getElementById("hinweis");
+
 function neuesBild() {
   bild = ctx.createImageData(canvas.width, canvas.height);
   const pixel = bild.data;
@@ -138,13 +193,22 @@ function neuesBild() {
     pixel[i + 2] = 17;
     pixel[i + 3] = 255;
   }
-  pos.x = 0.1;
-  pos.y = 0.1;
+  pos.x = start[0];
+  pos.y = start[1];
   gezeichnet = 0;
   abbildung = bestimmeAbbildung();
+
+  hinweis.textContent = abbildung
+    ? ""
+    : "Mit diesen Werten läuft der Punkt ins Unendliche. Probier andere Zahlen.";
 }
 
 function punkteHinzufuegen(anzahl) {
+  if (!abbildung) {
+    gezeichnet = punkte;
+    return;
+  }
+
   const w = bild.width;
   const h = bild.height;
   const pixel = bild.data;
@@ -153,6 +217,12 @@ function punkteHinzufuegen(anzahl) {
 
   for (; gezeichnet < ende; gezeichnet++) {
     typ.schritt(werte, pos);
+
+    if (laeuftDavon(pos)) {
+      gezeichnet = punkte;
+      return;
+    }
+
     if (gezeichnet < 100) continue;
 
     const px = Math.floor(w / 2 + (pos.x - mitteX) * massstab);
@@ -212,19 +282,15 @@ function zeichne() {
 
 // ---------- Steuerung ----------
 
-const modusAnimiert = document.getElementById("modus-animiert");
-const modusSofort = document.getElementById("modus-sofort");
+const modusEnstehung = document.getElementById("toggle-animiert-sofort");
 const punkteFeld = document.getElementById("punkte");
 const staerkeFeld = document.getElementById("staerke");
 
-function setzeModus(wert) {
-  animiert = wert;
-  modusAnimiert.setAttribute("aria-pressed", wert);
-  modusSofort.setAttribute("aria-pressed", !wert);
-}
-
-modusAnimiert.addEventListener("click", () => setzeModus(true));
-modusSofort.addEventListener("click", () => setzeModus(false));
+modusEnstehung.addEventListener("click", () => {
+  animiert = !animiert;
+  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Entstehen lassen";
+  zeichne();
+});
 
 function leseGanzzahl(feld, min, max, bisher) {
   const eingabe = feld.value.trim();
@@ -256,16 +322,10 @@ staerkeFeld.value = staerke;
 // ---------- Presets und Werte ----------
 
 const presetBox = document.querySelector(".presets");
+const werteBox = document.querySelector(".werte");
 const presetName = document.getElementById("preset-name");
 const presetText = document.getElementById("preset-text");
 const formelFeld = document.getElementById("formel");
-
-const felder = {
-  a: document.getElementById("wert-a"),
-  b: document.getElementById("wert-b"),
-  c: document.getElementById("wert-c"),
-  d: document.getElementById("wert-d")
-};
 
 PRESETS.forEach((preset, i) => {
   const knopf = document.createElement("button");
@@ -275,9 +335,32 @@ PRESETS.forEach((preset, i) => {
   presetBox.append(knopf);
 });
 
-function zeigeWerte() {
-  for (const name in felder) {
-    felder[name].value = werte[name];
+function baueWerteFelder() {
+  werteBox.replaceChildren();
+
+  for (const name of typ.parameter) {
+    const label = document.createElement("label");
+    const feld = document.createElement("input");
+    feld.type = "number";
+    feld.step = "0.01";
+    feld.value = werte[name];
+
+    feld.addEventListener("change", () => {
+      const eingabe = feld.value.trim();
+      const zahl = Number(eingabe);
+
+      if (eingabe === "" || !Number.isFinite(zahl)) {
+        feld.value = werte[name];
+        return;
+      }
+
+      werte[name] = zahl;
+      markiere(-1);
+      zeichne();
+    });
+
+    label.append(`${name} `, feld);
+    werteBox.append(label);
   }
 }
 
@@ -300,26 +383,11 @@ function markiere(i) {
 function waehlePreset(i) {
   const preset = PRESETS[i];
   typ = TYPEN[preset.typ];
-  Object.assign(werte, preset.werte);
-  zeigeWerte();
+  werte = { ...preset.werte };
+  start = preset.start || typ.start;
+  baueWerteFelder();
   markiere(i);
   zeichne();
-}
-
-for (const name in felder) {
-  felder[name].addEventListener("change", () => {
-    const eingabe = felder[name].value.trim();
-    const zahl = Number(eingabe);
-
-    if (eingabe === "" || !Number.isFinite(zahl)) {
-      felder[name].value = werte[name];
-      return;
-    }
-
-    werte[name] = zahl;
-    markiere(-1);
-    zeichne();
-  });
 }
 
 // ---------- Start ----------

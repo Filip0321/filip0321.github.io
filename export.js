@@ -1,6 +1,6 @@
-// ---------- Export: Bild und Video aus einem Canvas ----------
+// Exportfunktion für Bilder und Videos
 
-const MAX_SEKUNDEN = 30;
+const MAX_SEKUNDEN = 30; // länger wäre komisch
 
 function ladeHerunter(blob, dateiname) {
   const url = URL.createObjectURL(blob);
@@ -29,7 +29,7 @@ function waehleVideoformat() {
   ];
 
   return kandidaten.find(k => MediaRecorder.isTypeSupported(k.mime)) || null;
-}
+} // das erste was funktioniert, wird genommen
 
 function richteExportEin({ canvas, ziel, name }) {
   const dateiname = () => {
@@ -76,7 +76,7 @@ function richteExportEin({ canvas, ziel, name }) {
     sekunden = Math.min(Math.max(sekunden, 1), MAX_SEKUNDEN);
     sekundenFeld.value = sekunden;
 
-    const stream = canvas.captureStream(30);
+    const stream = canvas.captureStream(30); // 30 fps (nimmt aber live auf, also nicht exakt)
     const recorder = new MediaRecorder(stream, {
       mimeType: format.mime,
       videoBitsPerSecond: 8000000

@@ -1,17 +1,17 @@
-// ---------- Einstellungen ----------
-
+// Konstanten - Spielfeld
 const SPALTEN = 80;
 const ZEILEN = 60;
 const ZELLE = 8;
-const INTERVALL = 100;
+const INTERVALL = 100;  // ms zwischen den Generationen
 
-// ---------- Muster ----------
+
+// Bekannte Muster
 // O = lebende Zelle, . = tote Zelle
 
 const MUSTER = [
   {
-    name: "Gleiter",
-    text: "Das kleinste Raumschiff: fünf Zellen, die alle vier Generationen um ein Feld schräg weiterwandern.",
+    name: "Glider",
+    text: "Das bekannteste Muster in Conway's Game of Life. Fliegt diagonal ewig über das Feld.",
     zellen: [
       ".O.",
       "..O",
@@ -19,8 +19,8 @@ const MUSTER = [
     ]
   },
   {
-    name: "Raumschiff",
-    text: "Ein leichtes Raumschiff, das waagerecht über das Feld fliegt.",
+    name: "Spaceship",
+    text: "Wie der Glider, aber schneller und horizontal.",
     zellen: [
       ".O..O",
       "O....",
@@ -49,7 +49,7 @@ const MUSTER = [
   },
   {
     name: "R-Pentomino",
-    text: "Nur fünf Zellen, aus denen sehr lange Chaos entsteht, bevor Ruhe einkehrt.",
+    text: "Klein, aber sehr langlebig. Über 1100 Generationen, bevor es sich auflöst.",
     zellen: [
       ".OO",
       "OO.",
@@ -57,8 +57,8 @@ const MUSTER = [
     ]
   },
   {
-    name: "Gleiterkanone",
-    text: "Bill Gospers Gleiterkanone von 1970 erzeugt alle 30 Generationen einen neuen Gleiter.",
+    name: "Glider Gun",
+    text: "Bill Gospers Glider Gun von 1970 erzeugt alle 30 Generationen einen neuen Gleiter.",
     zellen: [
       "........................O...........",
       "......................O.O...........",
@@ -73,7 +73,8 @@ const MUSTER = [
   }
 ];
 
-// ---------- Canvas ----------
+
+// Spielfeld-Canvas initialisieren
 
 const canvas = document.getElementById("feld");
 const ctx = canvas.getContext("2d");
@@ -81,26 +82,31 @@ const ctx = canvas.getContext("2d");
 canvas.width = SPALTEN * ZELLE;
 canvas.height = ZEILEN * ZELLE;
 
-// ---------- Zustand ----------
+
+// Zustände der Zellen (erstmal zwei leere Arrays) 
 
 let gitter = new Uint8Array(SPALTEN * ZEILEN);
 let naechstes = new Uint8Array(SPALTEN * ZEILEN);
 let laeuft = true;
 let letzteZeit = 0;
 
-// ---------- Simulation ----------
 
+// Simulation
+ 
 function index(x, y) {
-  return y * SPALTEN + x;
-}
+  return y * SPALTEN + x; // der Index in einem eindimensionalen Array für die Zelle (x, y)
+                          // ich könnte genauso gut (y + ZEILEN * x), aber müsste es dann überall ändern
+                          // weil dies sagt wie die Zellen im Array gespeichert sind
+                          
+} 
 
 function nachbarn(x, y) {
   let anzahl = 0;
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       if (dx === 0 && dy === 0) continue;
-      const nx = (x + dx + SPALTEN) % SPALTEN;
-      const ny = (y + dy + ZEILEN) % ZEILEN;
+      const nx = (x + dx + SPALTEN) % SPALTEN; // Wrap around horizontally
+      const ny = (y + dy + ZEILEN) % ZEILEN;   // Wrap around vertically
       anzahl += gitter[index(nx, ny)];
     }
   }
@@ -111,12 +117,14 @@ function schritt() {
   for (let y = 0; y < ZEILEN; y++) {
     for (let x = 0; x < SPALTEN; x++) {
       const n = nachbarn(x, y);
-      const lebt = gitter[index(x, y)];
-      const lebtWeiter = lebt ? (n === 2 || n === 3) : n === 3;
+      const lebt = gitter[index(x, y)]; // Array enthält 1 für lebende Zellen und 0 für tote Zellen
+      const lebtWeiter = lebt ? (n === 2 || n === 3) : n === 3; // Regeln: 
+                                                                // Lebende Zelle mit 2 oder 3 Nachbarn lebt weiter, 
+                                                                // tote Zelle mit genau 3 Nachbarn wird lebendig
       naechstes[index(x, y)] = lebtWeiter ? 1 : 0;
     }
   }
-  [gitter, naechstes] = [naechstes, gitter];
+  [gitter, naechstes] = [naechstes, gitter]; // die neue array wird zur aktuellen generation
 }
 
 function zufall(dichte) {
@@ -141,7 +149,8 @@ function platziere(muster) {
   });
 }
 
-// ---------- Zeichnen ----------
+
+// Die Simulation darstellen 
 
 function zeichne() {
   ctx.fillStyle = "#111111";
@@ -151,13 +160,14 @@ function zeichne() {
   for (let y = 0; y < ZEILEN; y++) {
     for (let x = 0; x < SPALTEN; x++) {
       if (gitter[index(x, y)]) {
-        ctx.fillRect(x * ZELLE, y * ZELLE, ZELLE - 1, ZELLE - 1);
+        ctx.fillRect(x * ZELLE, y * ZELLE, ZELLE - 1, ZELLE - 1); // -1 für einen kleinen Abstand zwischen den Zellen
       }
     }
   }
 }
 
-// ---------- Steuerung ----------
+
+// Buttons zum kontrollieren der Simulation
 
 const startKnopf = document.getElementById("start");
 const schrittKnopf = document.getElementById("schritt");
@@ -170,7 +180,7 @@ function setzeLaeuft(wert) {
 }
 
 startKnopf.addEventListener("click", () => {
-  setzeLaeuft(!laeuft);
+  setzeLaeuft(!laeuft); // Toggle the running state
 });
 
 schrittKnopf.addEventListener("click", () => {
@@ -192,7 +202,8 @@ neuKnopf.addEventListener("click", () => {
   zeichne();
 });
 
-// ---------- Muster-Tasten ----------
+
+// Presets
 
 const presetBox = document.querySelector(".presets");
 const presetName = document.getElementById("preset-name");
@@ -227,7 +238,8 @@ function waehleMuster(i) {
   zeichne();
 }
 
-// ---------- Malen ----------
+
+// selber malen 
 
 let malt = false;
 let malWert = 1;
@@ -267,7 +279,7 @@ canvas.addEventListener("pointerdown", (e) => {
   setzeLinie(zelle, zelle);
   letzteZelle = zelle;
   zeichne();
-});
+}); 
 
 canvas.addEventListener("pointermove", (e) => {
   if (!malt) return;
@@ -280,7 +292,8 @@ canvas.addEventListener("pointermove", (e) => {
 canvas.addEventListener("pointerup", hoereAufZuMalen);
 canvas.addEventListener("pointercancel", hoereAufZuMalen);
 
-// ---------- Tastatur ----------
+
+// Start/Pause mit Leertaste
 
 document.addEventListener("keydown", (e) => {
   if (e.code !== "Space" || e.repeat) return;
@@ -291,13 +304,14 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
 
   if (document.activeElement instanceof HTMLElement) {
-    document.activeElement.blur();
+    document.activeElement.blur(); 
   }
 
   setzeLaeuft(!laeuft);
 });
 
-// ---------- Schleife ----------
+
+// Animation
 
 function schleife(zeit) {
   if (laeuft && zeit - letzteZeit >= INTERVALL) {
@@ -308,12 +322,15 @@ function schleife(zeit) {
   requestAnimationFrame(schleife);
 }
 
-// ---------- Start ----------
+// Startwerte setzen und Animation starten
 
 zufall(0.25);
 markiere(-1);
 zeichne();
 requestAnimationFrame(schleife);
+
+
+// Exportfunktion (sieht export.js)
 
 richteExportEin({
   canvas,
