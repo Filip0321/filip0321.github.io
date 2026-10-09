@@ -489,6 +489,40 @@ pre {
   accent-color: var(--text);
 }
 
+select {
+  font: inherit;
+  color: inherit;
+  background-color: transparent;
+  border: 1px solid currentColor;
+  border-radius: 0;
+  padding: 0.3em 2em 0.3em 0.5em;
+  cursor: pointer;
+
+  appearance: none;  /* den Pfeil des Betriebssystems entfernen */
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right 0.9em center,
+    right 0.6em center;
+  background-size: 0.3em 0.3em;
+  background-repeat: no-repeat;
+}
+
+select option {
+  background: #111;
+  color: #ddd;
+}
+
+.regler-gruppe {
+  margin: 0.5em 0 0.5em 1em;
+}
+
+.regler-gruppe > summary {
+  cursor: pointer;
+  margin-bottom: 0.4em;
+}
+
 .drehbar {
   cursor: grab;
 }
