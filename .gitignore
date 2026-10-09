@@ -1,0 +1,13 @@
+projekte/mock-ups/
+
+*.env
+node_modules/
+
+# Linux
+
+# Windows
+desktop.ini
+Thumbs.db
+
+# Mac
+*.DS_Store
