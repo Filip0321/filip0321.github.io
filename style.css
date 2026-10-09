@@ -359,7 +359,8 @@ canvas {
 }
 
 .steuerung button,
-.presets button {
+.presets button,
+.kette button {
   font: inherit;
   color: inherit;
   background: none;
@@ -451,7 +452,10 @@ pre {
 .steuerung button[aria-pressed="true"],
 .presets button:hover,
 .presets button:focus-visible,
-.presets button[aria-pressed="true"] {
+.presets button[aria-pressed="true"],
+.kette button:hover,
+.kette button:focus-visible,
+.kette button[aria-pressed="true"] {
   background: var(--text);
   color: var(--bg);
 }
@@ -487,6 +491,32 @@ pre {
   border: none;
   padding: 0;
   accent-color: var(--text);
+}
+
+.steuerung input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 2.5rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 1px solid currentColor;   /* Regel 2 */
+  background: none;
+  cursor: pointer;
+}
+
+/* Chrome und Safari */
+.steuerung input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.steuerung input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 0;   /* keine Rundungen, Regel 2 */
+}
+
+/* Firefox */
+.steuerung input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 0;
 }
 
 select {
@@ -638,3 +668,42 @@ address {
   font-size: 0.85em;
   opacity: 0.6;
 }
+
+.kette {
+  list-style: none;
+  counter-reset: schritt;   /* Zähler anlegen, startet bei 0 */
+  margin-top: 1rem;
+}
+
+.kette li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  counter-increment: schritt;   /* jedes li zählt eins hoch */
+}
+
+.kette li::before {
+  content: counter(schritt) ".";
+  min-width: 1.5em;
+  opacity: 0.6;   /* Nebensache, Regel 4 */
+}
+
+.kette .aus {
+  opacity: 0.4;   /* ausgeschaltet, Regel 4 */
+}
+
+.kette button {
+  padding: 0.1rem 0.5rem;
+  line-height: 1;
+}
+
+/*
+Regel	
+
+1. Nur zwei Farben: --bg und --text
+2. Rahmen immer 1px solid currentColor, keine Rundungen
+3. Aktiv oder darüber: Farben tauschen
+4. Unwichtiges über Deckkraft: 0,4 aus, 0,6 Nebensache, 0,8 Text
+5. Schrift erben mit font: inherit
+*/

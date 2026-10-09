@@ -403,6 +403,53 @@ let kette = [
   { typ: "crt" }
 ];
 
+// Kette anzeigen
+
+const ketteListe = hole("kette");
+
+function zeigeKette() {
+  ketteListe.replaceChildren(); // liste leeren
+  kette.forEach((schritt, i) => { // schritt ist in dem fall das gleiche wie kette[i]
+    const effekt = EFFEKTE[schritt.typ];
+    const name = effekt.name ?? schritt.typ.toUpperCase();
+
+    const li = document.createElement("li");
+    li.textContent = name;
+
+    if(!effekt.an()) {
+      li.classList.add("aus");
+    }
+
+    const hoch = document.createElement("button");
+    hoch.textContent = "↑";
+    hoch.setAttribute("aria-label", `${name} nach oben`);
+    hoch.disabled = i === 0;
+    hoch.addEventListener("click", () => verschiebe(i, -1));
+
+    const runter = document.createElement("button");
+    runter.textContent = "↓";
+    runter.setAttribute("aria-label", `${name} nach unten`);
+    runter.disabled = i === kette.length - 1;
+    runter.addEventListener("click", () => verschiebe(i, 1));
+
+    li.append(hoch, runter);
+    ketteListe.appendChild(li);
+  });
+}
+
+function verschiebe(i, richtung) {
+  const j = i + richtung;
+
+  if (j < 0 || j >= kette.length) return;
+
+  [kette[i], kette[j]] = [kette[j], kette[i]];  // tauschen
+
+  zeigeKette();
+  planeAnwenden();
+}
+
+zeigeKette();
+
 function aktiveEffekte() {
   return kette
     .map((schritt) => EFFEKTE[schritt.typ])
@@ -636,11 +683,13 @@ dateiFeld.addEventListener("change", () => {
 pixelFeld.addEventListener("input", () => {
   pixelgroesse = Number(pixelFeld.value);
   pixelWert.textContent = pixelgroesse;
+  zeigeKette();
   planeAnwenden();
 });
 
 ditherFeld.addEventListener("change", () => {
   ditherAn = ditherFeld.checked;
+  zeigeKette();
   planeAnwenden();
 });
 
@@ -657,11 +706,13 @@ grauFeld.addEventListener("change", () => {
 
 vhsFeld.addEventListener("change", () => {
   vhsAn = vhsFeld.checked;
+  zeigeKette();
   planeAnwenden();
 });
 
 crtFeld.addEventListener("change", () => {
   crtAn = crtFeld.checked;
+  zeigeKette();
   planeAnwenden();
 }); 
 
