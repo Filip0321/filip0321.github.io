@@ -1,6 +1,6 @@
 // CRT-Shader
 
-const VERTEX_SHADER = `#version 300 es  
+const VERTEX_SHADER = /* glsl */ `#version 300 es  
                       // GLSL ES 3.00 - die version die WebGL2 verwendet
 out vec2 uv;
 // 2-dimensionale ausgabe (wird an den FRAGMENT_SHADER abgegeben)
@@ -21,7 +21,8 @@ void main() {
 }`;
 // Funktion wird für jede Vertex ausgeführt
 
-const CRT_SHADER = `#version 300 es
+
+const CRT_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 // für Genauigkeit bei Kommazahlen (gibt es bei shadern nicht standard)
 

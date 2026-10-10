@@ -4,7 +4,7 @@
 
 // auf einer VHS kasette bekam Helligkeit viel mehr Platz als die Farben selber
 
-const VHS_SHADER = `#version 300 es
+const VHS_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 
 in vec2 uv;
