@@ -1,3 +1,7 @@
+/*
+Fonts
+*/
+
 @font-face {
   font-family: "Special Elite";
   src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
@@ -20,19 +24,97 @@
   font-display: swap;
 }
 
+/*
+Für überall auf der Page
+*/
+
 :root {
   --bg: #111111;
-  --text: #DDDDDD;
+  --text: #dddddd;
   color-scheme: dark;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: "Special Elite", "Courier New", monospace;
 }
+
+[hidden] {
+  display: none !important;
+}
+
+address {
+  font-style: normal;
+}
+
+.fuss {
+  justify-content: center;
+  display: flex;
+  gap: 1.5em;
+  padding: 2em 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+
+/*
+Menu Styles
+*/
+
+.menu-btn {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 2;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  padding: 4rem 1.5rem;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s,
+    visibility 0.3s;
+}
+
+.menu.offen {
+  opacity: 1;
+  visibility: visible;
+}
+
+.menu ul {
+  list-style: none;
+  text-align: center;
+}
+
+.menu a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: clamp(1.25rem, 6vw, 2.5rem);
+}
+
+/*
+Startseite
+*/
 
 .landing {
   min-height: 100vh;
@@ -41,6 +123,28 @@ body {
   justify-items: start;
   padding: 0 5vw;
 }
+
+#name {
+  white-space: pre-line;
+  text-align: left;
+  font-size: clamp(5rem, 15vw, 20rem);
+  line-height: 1.1;
+}
+
+#name::after {
+  content: "_";
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/*
+Alle anderen Seiten
+*/
 
 .seite {
   max-width: 60rem;
@@ -53,7 +157,10 @@ body {
   margin-bottom: 2rem;
 }
 
-/* Projektübersicht Styles */
+/* 
+Projektübersicht mit Projekten als Karten im Grid
+*/
+
 .karten {
   list-style: none;
   display: grid;
@@ -90,6 +197,10 @@ body {
   text-decoration: underline;
 }
 
+/*
+Auf Übersicht und Projektseite
+*/
+
 .tags {
   list-style: none;
   display: flex;
@@ -105,7 +216,31 @@ body {
   opacity: 0.6;
 }
 
-/* Text Styles */
+/* 
+Andere Seiten
+*/
+
+.zurueck {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.zurueck:hover {
+  opacity: 1;
+}
+
+.projekt-kopf .meta {
+  opacity: 0.6;
+  margin-top: 0.25rem;
+}
+
+/*
+Einstellungen sollte der Text auch lesbar sein
+*/
+
 .lesetext {
   max-width: 65ch;
   font-family: "Courier Prime", "Courier New", monospace;
@@ -142,6 +277,10 @@ body {
   opacity: 0.7;
 }
 
+/*
+besondere Formatierung für Gedichte
+*/
+
 .gedicht {
   white-space: pre-line;
 }
@@ -150,22 +289,9 @@ body {
   margin-top: 1.75em;
 }
 
-.zurueck {
-  display: inline-block;
-  margin-bottom: 2rem;
-  color: inherit;
-  text-decoration: none;
-  opacity: 0.7;
-}
-
-.zurueck:hover {
-  opacity: 1;
-}
-
-.projekt-kopf .meta {
-  opacity: 0.6;
-  margin-top: 0.25rem;
-}
+/*
+Anderer Text
+*/
 
 .text {
   max-width: 65ch;
@@ -177,8 +303,14 @@ body {
   margin-top: 1em;
 }
 
-/* Foto Styles */
-/* Galerie Styles */
+/* 
+Foto Serien Darstellen
+*/
+
+/* 
+Galerie Style 
+*/
+
 .galerie {
   display: grid;
   gap: 1.5rem;
@@ -196,7 +328,10 @@ body {
   margin-top: 0.5rem;
 }
 
-/* Mosaik Styles */
+/* 
+Mosaik Styles 
+*/
+
 .mosaik {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
@@ -218,11 +353,22 @@ body {
   object-position: var(--fokus, center);
 }
 
-.mosaik .breit { grid-column: span 2; }
-.mosaik .hoch  { grid-row: span 2; }
-.mosaik .gross { grid-column: span 2; grid-row: span 2; }
+/* selber bestimmen wie ein Bild ist */
+.mosaik .breit {
+  grid-column: span 2;
+}
+.mosaik .hoch {
+  grid-row: span 2;
+}
+.mosaik .gross {
+  grid-column: span 2;
+  grid-row: span 2;
+}
 
-/* Pinnwand Styles */
+/* 
+Pinnwand Style (siehe Pinterest - in Spalten) 
+*/
+
 .pinnwand {
   columns: 3 9rem;
   column-gap: 0.75rem;
@@ -245,7 +391,10 @@ body {
   margin-top: 0.35rem;
 }
 
-/* Cover Styles */
+/* 
+Cover Style für Tracks 
+*/
+
 .cover {
   max-width: 24rem;
   margin-bottom: 1.5rem;
@@ -257,13 +406,15 @@ body {
   height: auto;
 }
 
-/* Foto bearbeiten */
+/* 
+Foto bearbeiten 
+*/
+
 .bild-feld {
   margin-top: 1rem;
   image-rendering: auto;
   touch-action: auto;
   cursor: default;
-  background: repeating-conic-gradient(#2a2a2a 0 25%, #1a1a1a 0 50%) 0 0 / 20px 20px;
 }
 
 input[type="file"] {
@@ -300,7 +451,10 @@ input[type="range"] {
   accent-color: var(--text);
 }
 
-/* Audio Player Styles */
+/* 
+Audio Player Styles 
+*/
+
 .player {
   display: flex;
   align-items: center;
@@ -336,7 +490,10 @@ input[type="range"] {
   cursor: pointer;
 }
 
-/* Simulation Styles */
+/* 
+Simulation Style 
+*/
+
 canvas {
   display: block;
   width: 100%;
@@ -344,6 +501,16 @@ canvas {
   image-rendering: pixelated;
   touch-action: none;
   cursor: crosshair;
+}
+
+.attraktor-feld {
+  aspect-ratio: 1 / 1;
+  image-rendering: auto;
+}
+
+.gol-feld {
+  aspect-ratio: 4 / 3;
+  image-rendering: auto;
 }
 
 .steuerung,
@@ -384,6 +551,10 @@ canvas {
   opacity: 0.8;
 }
 
+/* 
+Dokumentation 
+*/
+
 .doku {
   margin-top: 4rem;
 }
@@ -415,16 +586,6 @@ pre {
   font-size: 0.8rem;
   line-height: 1.5;
   tab-size: 2;
-}
-
-.attraktor-feld {
-  aspect-ratio: 1 / 1;
-  image-rendering: auto;
-}
-
-.gol-feld {
-  aspect-ratio: 4 / 3;
-  image-rendering: auto;
 }
 
 .werte {
@@ -499,24 +660,9 @@ pre {
   width: 2.5rem;
   height: 1.8rem;
   padding: 0;
-  border: 1px solid currentColor;   /* Regel 2 */
+  border: 1px solid currentColor;
   background: none;
   cursor: pointer;
-}
-
-/* Chrome und Safari */
-.steuerung input[type="color"]::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-.steuerung input[type="color"]::-webkit-color-swatch {
-  border: none;
-  border-radius: 0;   /* keine Rundungen, Regel 2 */
-}
-
-/* Firefox */
-.steuerung input[type="color"]::-moz-color-swatch {
-  border: none;
-  border-radius: 0;
 }
 
 select {
@@ -528,7 +674,7 @@ select {
   padding: 0.3em 2em 0.3em 0.5em;
   cursor: pointer;
 
-  appearance: none;  /* den Pfeil des Betriebssystems entfernen */
+  appearance: none; /* den Pfeil des Betriebssystems entfernen */
   background-image:
     linear-gradient(45deg, transparent 50%, currentColor 50%),
     linear-gradient(135deg, currentColor 50%, transparent 50%);
@@ -577,101 +723,14 @@ select option {
   pointer-events: none;
 }
 
-/* Landing Styles */
-#name {
-  white-space: pre-line;
-  text-align: left;
-  font-size: clamp(5rem, 15vw, 20rem);
-  line-height: 1.1;
-}
-
-#name::after {
-  content: "_";
-  animation: blink 1s steps(1) infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-/* Menu Styles */
-.menu-btn {
-  position: fixed;
-  top: 1.5rem;
-  right: 1.5rem;
-  z-index: 2;
-  background: none;
-  border: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
-.menu {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  background: var(--bg);
-  display: grid;
-  place-items: center;
-  padding: 4rem 1.5rem;
-  overflow-y: auto;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s, visibility 0.3s;
-}
-
-.menu.offen {
-  opacity: 1;
-  visibility: visible;
-}
-
-.menu ul {
-  list-style: none;
-  text-align: center;
-}
-
-.menu a {
-  color: var(--text);
-  text-decoration: none;
-  font-size: clamp(1.25rem, 6vw, 2.5rem);
-}
-
-@media (max-width: 600px) {
-  #name {
-    font-size: clamp(2.5rem, 12vw, 6rem);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #name::after { animation: none; }
-}
-
-[hidden] {
-  display: none !important;
-}
-
 #feld {
   width: 100%;
   height: auto;
 }
 
-address {
-  font-style: normal;
-}
-
-.fuss {
-  display: flex;
-  gap: 1.5em;
-  padding: 2em 1em;
-  font-size: 0.85em;
-  opacity: 0.6;
-}
-
 .kette {
   list-style: none;
-  counter-reset: schritt;   /* Zähler anlegen, startet bei 0 */
+  counter-reset: schritt; /* Zähler anlegen, startet bei 0 */
   margin-top: 1rem;
 }
 
@@ -680,17 +739,17 @@ address {
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.4rem;
-  counter-increment: schritt;   /* jedes li zählt eins hoch */
+  counter-increment: schritt; /* jedes li zählt eins hoch */
 }
 
 .kette li::before {
   content: counter(schritt) ".";
   min-width: 1.5em;
-  opacity: 0.6;   /* Nebensache, Regel 4 */
+  opacity: 0.6; /* Nebensache, Regel 4 */
 }
 
 .kette .aus {
-  opacity: 0.4;   /* ausgeschaltet, Regel 4 */
+  opacity: 0.4; /* ausgeschaltet, Regel 4 */
 }
 
 .kette button {
@@ -707,3 +766,16 @@ Regel
 4. Unwichtiges über Deckkraft: 0,4 aus, 0,6 Nebensache, 0,8 Text
 5. Schrift erben mit font: inherit
 */
+
+@media (max-width: 600px) {
+  #name {
+    font-size: clamp(2.5rem, 12vw, 6rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #name::after {
+    animation: none;
+  }
+}
+
