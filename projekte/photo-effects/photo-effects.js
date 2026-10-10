@@ -7,6 +7,9 @@ const MAX_KANTE = 2400;
 
 const canvas = hole("bild");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+const overlayCanvas = document.createElement("canvas");
+const overlayCtx = overlayCanvas.getContext("2d", { willReadFrequently: true });
 // read frequently macht dass der canvas nicht auf die Grafikkarte gelegt wird,
 // da er auch permanent verändert wird
 
@@ -391,6 +394,31 @@ const EFFEKTE = {
     an: () => crtAn && gl,
     programm: crtProgramm,
     einstellungen: (zeit) => ({ ...werte.crt, zufall: zeit })
+  },
+  overlay: {
+    name: "Overlay",
+    gpu: false,
+    an: () => true,
+    anwenden(bild, zeit, schritt) {
+      // 1. Hilfs-Canvas so groß wie das Foto, Foto hineinlegen
+      overlayCanvas.width = bild.width;
+      overlayCanvas.height = bild.height;
+      overlayCtx.putImageData(bild, 0, 0);
+
+      // 2. Größe des Overlays in Pixeln, Seitenverhältnis der Grafik bleibt
+      const breite = bild.width * schritt.groesse;
+      const hoehe = breite * schritt.grafik.height / schritt.grafik.width;
+
+      // 3. aus dem Mittelpunkt (0 bis 1) die linke obere Ecke in Pixeln
+      const links = schritt.x * bild.width - breite / 2;
+      const oben = schritt.y * bild.height - hoehe / 2;
+
+      // 4. Overlay darüber zeichnen, Transparenz bleibt erhalten
+      overlayCtx.drawImage(schritt.grafik, links, oben, breite, hoehe);
+
+      // 5. zurück als ImageData
+      return overlayCtx.getImageData(0, 0, bild.width, bild.height);
+    }
   }
 };
 
@@ -450,14 +478,13 @@ function verschiebe(i, richtung) {
 
 zeigeKette();
 
-function aktiveEffekte() {
-  return kette
-    .map((schritt) => EFFEKTE[schritt.typ])
-    .filter((effekt) => effekt.an());
+function aktiveSchritte() {
+  return kette.filter((schritt) => EFFEKTE[schritt.typ].an());
 }
 
-function wendeSchrittAn(effekt, bild, zeit) {
-  if (!effekt.gpu) return effekt.anwenden(bild, zeit);
+function wendeSchrittAn(schritt, bild, zeit) {
+  const effekt = EFFEKTE[schritt.typ];
+  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt);
 
   rendere(effekt.programm, bild, bild.width, bild.height, effekt.einstellungen(zeit));
   return zurueckholen(bild.width, bild.height);
@@ -465,8 +492,8 @@ function wendeSchrittAn(effekt, bild, zeit) {
 
 function wendeEffekteAn(eingabe, zeit) {
   let bild = eingabe;
-  for (const effekt of aktiveEffekte()) {
-    bild = wendeSchrittAn(effekt, bild, zeit);
+  for (const schritt of aktiveSchritte()) {
+    bild = wendeSchrittAn(schritt, bild, zeit);
   }
   return bild;
 }
@@ -484,13 +511,15 @@ function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
   const zeit = video.currentTime;
-  const effekte = aktiveEffekte();
+  const effekte = aktiveSchritte();
 
-  zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);  // Ausgangsbild im richtigen Format
+  const schritte = aktiveSchritte();
 
-  if (effekte.every((effekt) => effekt.gpu)) {
-    // Abkürzung: nur Shader, also kein getImageData nötig
-    for (const effekt of effekte) {
+  zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
+
+  if (schritte.every((schritt) => EFFEKTE[schritt.typ].gpu)) {
+    for (const schritt of schritte) {
+      const effekt = EFFEKTE[schritt.typ];
       rendere(effekt.programm, canvas, w, h, effekt.einstellungen(zeit));
       ctx.drawImage(glCanvas, 0, 0);
     }
@@ -653,6 +682,28 @@ function baueQuelleNeu() {
     wendeAn();
   }
 }
+
+const overlayFeld = hole("overlay-datei");
+
+overlayFeld.addEventListener("change", async () => {
+  const datei = overlayFeld.files[0];
+  if (!datei) return;
+
+  const grafik = await createImageBitmap(datei);   // einmal laden, nicht bei jedem Bild
+
+  kette.push({
+    typ: "overlay",      
+    name: datei.name,    // für die Anzeige in der Liste
+    grafik,              
+    x: 0.5,              // Mitte, waagerecht
+    y: 0.5,              // Mitte, senkrecht
+    groesse: 0.3         // 30 % der Bildbreite
+  }); // Mitte ist wichtig zum späteren skalieren und rotieren
+
+  overlayFeld.value = "";
+  zeigeKette();
+  planeAnwenden();
+});
 
 formatFeld.addEventListener("change", () => {
   format = formatFeld.value;
