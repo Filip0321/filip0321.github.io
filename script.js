@@ -63,6 +63,16 @@ function hole(id) {
 }
 
 
+// bei for Each ist "schalter" und "feld" indexvariable (nimmt jeden wert einmal an)
+document.querySelectorAll("[data-zeigt]").forEach((schalter) => {
+  const gruppe = hole(schalter.dataset.zeigt);
+  const aktualisiere = () => {
+    gruppe.hidden = !schalter.checked;
+  }; // wenn Schalter soll data-zeigt gruppe gezeigt werden
+  schalter.addEventListener("change", aktualisiere);
+  aktualisiere();
+});
+
 function stelleVideosEin() {
   document.querySelectorAll(".karte video").forEach((video) => {
     if (wenigBewegung.matches) {

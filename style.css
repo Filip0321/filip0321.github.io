@@ -717,7 +717,8 @@ select option {
   display: none;
 }
 
-.steuerung button:disabled {
+.steuerung button:disabled, 
+.kette button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;

@@ -14,6 +14,7 @@ const overlayFeld = hole("overlay-datei");
 // read frequently macht dass der canvas nicht auf die Grafikkarte gelegt wird,
 // da er auch permanent verändert wird
 
+// Die ganzen HTML Elemente schonmal holen dass ich sie einfach nutzen kann
 const dateiFeld = hole("datei"); // upload Feld
 
 const pixelFeld = hole("pixelgroesse"); // verpixeln
@@ -83,12 +84,69 @@ function zeigeModus(modus) {
   });
 }
 
+// Format: welcher Ausschnitt der Quelle landet wo auf dem Canvas
+
+function berechneRahmen(qw, qh) {
+  let sx = 0,
+    sy = 0,
+    sw = qw,
+    sh = qh; // Ausschnitt aus der Quelle, erst mal alles
+  let rw = qw,
+    rh = qh; // Größe des Ergebnisses, noch ohne MAX_KANTE
+
+  if (format === "4:3") {
+    if (qw / qh > 4 / 3) {
+      // Quelle breiter als 4:3: links und rechts abschneiden
+      sw = (qh * 4) / 3;
+      sx = (qw - sw) / 2; // hälfte differenz, weil einfach später
+      // bei späterem x anfangen zu malen
+    } else {
+      // Quelle höher als 4:3: oben und unten abschneiden
+      sh = (qw * 3) / 4;
+      sy = (qh - sh) / 2;
+    }
+    rw = sw;
+    rh = sh;
+  } else if (format === "balken") {
+    if (qw / qh > 4 / 3) {
+      rh = (qw * 3) / 4; // Balken oben und unten
+    } else {
+      rw = (qh * 4) / 3; // Balken links und rechts
+    }
+  }
+
+  const faktor = Math.min(1, MAX_KANTE / Math.max(rw, rh));
+  const w = Math.round(rw * faktor);
+  const h = Math.round(rh * faktor);
+  const dw = Math.round(sw * faktor);
+  const dh = Math.round(sh * faktor);
+
+  return {
+    w,
+    h,
+    sx, // wo angefangen wird mit malen
+    sy,
+    sw, // bezieht sich auf die Originalgröße
+    sh, // bzw. veränderung bei dem Original
+    dx: Math.round((w - dw) / 2),
+    dy: Math.round((h - dh) / 2),
+    dw, // angepasst auf die MAX_KANTE
+    dh,
+  };
+}
+
+function passeCanvasAn(qw, qh) {
+  const r = berechneRahmen(qw, qh);
+  canvas.width = r.w;
+  canvas.height = r.h;
+}
+
 // Bild laden
 
 async function ladeBild(datei) {
-  stoppeVideo();
-  if (bitmap) bitmap.close();
-  bitmap = await createImageBitmap(datei);
+  stoppeVideo(); // falls ein Video schon spielt
+  if (bitmap) bitmap.close(); // falls ein Bild schon existiert
+  bitmap = await createImageBitmap(datei); // neues Bild laden
 
   bereiteBildVor();
 
@@ -170,70 +228,25 @@ function starteVideoSchleife(diesesVideo) {
   schritt();
 }
 
-// Format: welcher Ausschnitt der Quelle landet wo auf dem Canvas
-
-function berechneRahmen(qw, qh) {
-  let sx = 0,
-    sy = 0,
-    sw = qw,
-    sh = qh; // Ausschnitt aus der Quelle, erst mal alles
-  let rw = qw,
-    rh = qh; // Größe des Ergebnisses, noch ohne MAX_KANTE
-
-  if (format === "4:3") {
-    if (qw / qh > 4 / 3) {
-      // Quelle breiter als 4:3: links und rechts abschneiden
-      sw = (qh * 4) / 3;
-      sx = (qw - sw) / 2;
-    } else {
-      // Quelle höher als 4:3: oben und unten abschneiden
-      sh = (qw * 3) / 4;
-      sy = (qh - sh) / 2;
-    }
-    rw = sw;
-    rh = sh;
-  } else if (format === "balken") {
-    if (qw / qh > 4 / 3) {
-      rh = (qw * 3) / 4; // Balken oben und unten
-    } else {
-      rw = (qh * 4) / 3; // Balken links und rechts
-    }
-  }
-
-  const faktor = Math.min(1, MAX_KANTE / Math.max(rw, rh));
-  const w = Math.round(rw * faktor);
-  const h = Math.round(rh * faktor);
-  const dw = Math.round(sw * faktor);
-  const dh = Math.round(sh * faktor);
-
-  return {
-    w,
-    h,
-    sx,
-    sy,
-    sw,
-    sh,
-    dx: Math.round((w - dw) / 2),
-    dy: Math.round((h - dh) / 2),
-    dw,
-    dh,
-  };
-}
-
-function passeCanvasAn(qw, qh) {
-  const r = berechneRahmen(qw, qh);
-  canvas.width = r.w;
-  canvas.height = r.h;
-}
-
 function zeichneQuelle(ziel, quelle, qw, qh) {
   const r = berechneRahmen(qw, qh);
+  // console.log(r);
   ziel.clearRect(0, 0, r.w, r.h); // alles löschen, auch das vorige Bild
   if (!transparent) {
     ziel.fillStyle = hintergrund;
     ziel.fillRect(0, 0, r.w, r.h);
   }
   ziel.drawImage(quelle, r.sx, r.sy, r.sw, r.sh, r.dx, r.dy, r.dw, r.dh);
+}
+
+function baueQuelleNeu() {
+  if (video) {
+    passeCanvasAn(video.videoWidth, video.videoHeight);
+    zeichneVideobild();
+  } else if (bitmap) {
+    bereiteBildVor();
+    wendeAn();
+  }
 }
 
 // beim verpixeln braucht es zwei Schritte
@@ -441,7 +454,7 @@ const EFFEKTE = {
 };
 
 // Die Kette: Reihenfolge der Effekte, später umsortierbar
-
+// overlay kommt mit kette.push() erst beim laden
 let kette = [{ typ: "pixel" }, { typ: "vhs" }, { typ: "crt" }];
 
 // Kette anzeigen
@@ -453,7 +466,7 @@ function zeigeKette() {
   kette.forEach((schritt, i) => {
     // schritt ist in dem fall das gleiche wie kette[i]
     const effekt = EFFEKTE[schritt.typ];
-    const name = effekt.name ?? schritt.typ.toUpperCase();
+    const name = schritt.name ?? schritt.typ.toUpperCase();
 
     const li = document.createElement("li");
     li.textContent = name;
@@ -492,13 +505,10 @@ function verschiebe(i, richtung) {
 
 zeigeKette();
 
-function aktiveSchritte() {
-  return kette.filter((schritt) => EFFEKTE[schritt.typ].an());
-}
-
 function wendeSchrittAn(schritt, bild, zeit) {
   const effekt = EFFEKTE[schritt.typ];
-  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt);
+  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt); 
+  // ohne gpu, normale anwenden Funktion in EFFEKTE, die andern haben shader
 
   rendere(
     effekt.programm,
@@ -508,6 +518,12 @@ function wendeSchrittAn(schritt, bild, zeit) {
     effekt.einstellungen(zeit),
   );
   return zurueckholen(bild.width, bild.height);
+}
+
+// gibt die Effekte zurück, dessen "an" Funktion "true" zurückgibt
+// geht kette durch und nimmt string von typ um in EFFEKTE zu suchen
+function aktiveSchritte() {
+  return kette.filter((schritt) => EFFEKTE[schritt.typ].an());
 }
 
 function wendeEffekteAn(eingabe, zeit) {
@@ -530,12 +546,13 @@ function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
   const zeit = video.currentTime;
-  const effekte = aktiveSchritte();
 
   const schritte = aktiveSchritte();
 
   zeichneQuelle(ctx, video, video.videoWidth, video.videoHeight);
 
+  // wenn alle effekte gpu sind kann man einfach über diese rendere() aufrufen
+  // sonst muss man schleife mit wendeSchrittAn()
   if (schritte.every((schritt) => EFFEKTE[schritt.typ].gpu)) {
     for (const schritt of schritte) {
       const effekt = EFFEKTE[schritt.typ];
@@ -702,17 +719,6 @@ async function speichereVideo() {
 }
 
 // Buttons
-
-function baueQuelleNeu() {
-  if (video) {
-    passeCanvasAn(video.videoWidth, video.videoHeight);
-    zeichneVideobild();
-  } else if (bitmap) {
-    bereiteBildVor();
-    wendeAn();
-  }
-}
-
 // Listener
 
 overlayFeld.addEventListener("change", async () => {
@@ -721,6 +727,7 @@ overlayFeld.addEventListener("change", async () => {
 
   const grafik = await createImageBitmap(datei); // einmal laden, nicht bei jedem Bild
 
+  // packe es hinten an die Kette dran
   kette.push({
     typ: "overlay",
     name: datei.name, // für die Anzeige in der Liste
@@ -797,22 +804,14 @@ crtFeld.addEventListener("change", () => {
   planeAnwenden();
 });
 
-formatFeld.addEventListener("change", () => {
-  format = formatFeld.value;
-  if (video) {
-    passeCanvasAn(video.videoWidth, video.videoHeight);
-    zeichneVideobild();
-  } else if (bitmap) {
-    bereiteBildVor();
-    wendeAn();
-  }
-});
 // auf Änderungen im HTML reagieren
 
 document.querySelectorAll("[data-regler]").forEach((feld) => {
   const [effekt, name] = feld.dataset.regler.split(".");
   const anzeige = feld.nextElementSibling;
+  // console.log([effekt, name]);
 
+  // Werte aus reglern übergeben
   werte[effekt][name] = Number(feld.value);
   anzeige.textContent = feld.value;
 
@@ -821,15 +820,6 @@ document.querySelectorAll("[data-regler]").forEach((feld) => {
     anzeige.textContent = feld.value;
     planeAnwenden();
   });
-});
-
-document.querySelectorAll("[data-zeigt]").forEach((schalter) => {
-  const gruppe = hole(schalter.dataset.zeigt);
-  const aktualisiere = () => {
-    gruppe.hidden = !schalter.checked;
-  };
-  schalter.addEventListener("change", aktualisiere);
-  aktualisiere();
 });
 
 vergleichFeld.addEventListener("input", () => {
@@ -872,4 +862,3 @@ videoKnopf.addEventListener("click", speichereVideo);
 // Start
 
 zeigeModus("bild"); // starte mit Bild, wenn Video wird es auch geändert
-
