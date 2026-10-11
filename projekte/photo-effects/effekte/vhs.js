@@ -1,6 +1,4 @@
-// VHS-Shader
-
-// VERTEX_SHADER in crt.js
+import { gl, baueProgramm, VERTEX_SHADER } from "../webgl.js";
 
 // auf einer VHS kasette bekam Helligkeit viel mehr Platz als die Farben selber
 
@@ -185,4 +183,4 @@ void main() {
 
 // WebGL-Programm (rendere und zurueckholen in crt.js)
 
-const vhsProgramm = gl ? baueProgramm(VERTEX_SHADER, VHS_SHADER) : null;
+export const vhsProgramm = gl ? baueProgramm(VERTEX_SHADER, VHS_SHADER) : null;
