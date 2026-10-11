@@ -413,7 +413,7 @@ Foto bearbeiten
 .bild-feld {
   margin-top: 1rem;
   image-rendering: auto;
-  touch-action: auto;
+  touch-action: none;
   cursor: default;
 }
 

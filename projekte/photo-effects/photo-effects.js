@@ -664,7 +664,6 @@ const EFFEKTE = {
 
       // Fenster mittig, mit einem einzigen Schatten
       rahmenCtx.save();
-      rahmenCtx.save();
       setzeSchatten(rahmenCtx, w);
       rahmenCtx.drawImage(fenster, (w - fenster.width) / 2, (h - fenster.height) / 2);
       rahmenCtx.restore();      
@@ -701,7 +700,6 @@ function zeigeKette() {
     const name = schritt.name ?? schritt.typ.toUpperCase();
 
     const li = document.createElement("li");
-    li.textContent = name;
 
     if (!effekt.an()) {
       li.classList.add("aus");
@@ -719,9 +717,6 @@ function zeigeKette() {
     runter.disabled = i === kette.length - 1;
     runter.addEventListener("click", () => verschiebe(i, 1));
 
-    li.append(hoch, runter);
-    ketteListe.appendChild(li);
-
     if (schritt.typ === "overlay") {
       const waehlen = document.createElement("button");
       waehlen.textContent = name;
@@ -735,6 +730,9 @@ function zeigeKette() {
     } else {
       li.append(name);
     }
+    
+    li.append(hoch, runter);
+    ketteListe.appendChild(li);
   });
 }
 
@@ -773,6 +771,7 @@ overlayFeld.addEventListener("change", async () => {
   ausgewaehlt = schritt;
 
   overlayFeld.value = "";
+  zeigeAuswahl();
   zeigeKette();
   planeAnwenden();
 });
