@@ -35,7 +35,7 @@
         <input type="file" id="datei" accept="image/*,video/*">
       </label>
       <label class="datei-knopf">Overlay hinzufügen
-        <input type="file" id="overlay-datei" accept="image/*">
+        <input type="file" id="overlay-datei" accept="image/*,video/*">
       </label>
       <button type="button" id="fenster-neu">Leeres Fenster</button>
       <label>Format
@@ -284,6 +284,34 @@
         <label id="overlay-verhaeltnis-feld">Höhe
           <input type="range" id="overlay-verhaeltnis" min="0.2" max="2" step="0.01">
           <output id="overlay-verhaeltnis-wert"></output>
+        </label>
+        <label>Deckkraft
+          <input type="range" id="overlay-deckkraft" min="0" max="1" step="0.01">
+          <output id="overlay-deckkraft-wert"></output>
+        </label>
+        <label>Mischmodus
+          <select id="overlay-mischmodus">
+            <option value="source-over">Normal</option>
+            <option value="multiply">Multiplizieren</option>
+            <option value="screen">Negativ multiplizieren</option>
+            <option value="lighter">Addieren</option>
+            <option value="overlay">Ineinanderkopieren</option>
+            <option value="soft-light">Weiches Licht</option>
+            <option value="hard-light">Hartes Licht</option>
+            <option value="darken">Abdunkeln</option>
+            <option value="lighten">Aufhellen</option>
+            <option value="color-dodge">Farbig abwedeln</option>
+            <option value="color-burn">Farbig nachbelichten</option>
+            <option value="difference">Differenz</option>
+            <option value="exclusion">Ausschluss</option>
+            <option value="hue">Farbton</option>
+            <option value="saturation">Sättigung</option>
+            <option value="color">Farbe</option>
+            <option value="luminosity">Luminanz</option>
+          </select>
+        </label>
+        <label id="overlay-versatz-feld">Start bei
+          <input type="number" id="overlay-versatz" min="0" step="0.1" value="0"> s
         </label>
       </div>
     </div>

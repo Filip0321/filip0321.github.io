@@ -97,3 +97,7 @@ export function tausche(i, j) {
     [kette[i], kette[j]] = [kette[j], kette[i]]; // tauschen
     return true;
 }
+
+export function istZeitabhaengig(schritt) {
+  return Boolean(EFFEKTE[schritt.typ].zeitabhaengig || schritt.folge);
+}
