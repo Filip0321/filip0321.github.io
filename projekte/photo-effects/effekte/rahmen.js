@@ -17,8 +17,8 @@ export const RAHMEN = {
   knoepfe: [
     // von links nach rechts
     ladeGrafik("rahmen/kleiner.png"),
-    ladeGrafik("rahmen/groesser.png"),
-    ladeGrafik("rahmen/schluss_normal.png"),
+    ladeGrafik("rahmen/kleiner.png"),
+    ladeGrafik("rahmen/kleiner.png"),
   ],
   knopfGroesse: 160,
   knopfAbstand: 16, // zwischen den Knöpfen

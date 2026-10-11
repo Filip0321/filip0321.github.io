@@ -1,14 +1,10 @@
-import { gl, glCanvas, rendere, zurueckholen } from "./webgl.js";
-import { crtProgramm } from "./effekte/crt.js";
-import { vhsProgramm } from "./effekte/vhs.js";
-import { verkleinern, vergroessern, dithern } from "./effekte/pixel.js";
+import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
-import { beiGeladen, fensterUmsBild } from "./effekte/rahmen.js"
-import { zeichneOverlay, neuesOverlay, trifft } from "./effekte/overlay.js";
-
-// Bilder müssen limitiert werden, um nicht ewig zu rechnen
-
-const MAX_KANTE = 2400;
+import { beiGeladen } from "./effekte/rahmen.js"
+import { neuesOverlay, trifft } from "./effekte/overlay.js";
+import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche } from "./kette.js";
+import { renderVideo } from "./export-video.js";
+import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 
 // die ganzen HTML Elemente für die basic Einstellungen
 
@@ -99,57 +95,6 @@ function zeigeModus(modus) {
   document.querySelectorAll(".nur-video").forEach((element) => {
     element.hidden = modus !== "video";
   });
-}
-
-// zustand.format: welcher Ausschnitt der Quelle landet wo auf dem Canvas
-
-function berechneRahmen(qw, qh) {
-  let sx = 0,
-    sy = 0,
-    sw = qw,
-    sh = qh; // Ausschnitt aus der Quelle, erst mal alles
-  let rw = qw,
-    rh = qh; // Größe des Ergebnisses, noch ohne MAX_KANTE
-
-  if (zustand.format === "4:3") {
-    if (qw / qh > 4 / 3) {
-      // Quelle breiter als 4:3: links und rechts abschneiden
-      sw = (qh * 4) / 3;
-      sx = (qw - sw) / 2; // hälfte differenz, weil einfach später
-      // bei späterem x anfangen zu malen
-    } else {
-      // Quelle höher als 4:3: oben und unten abschneiden
-      sh = (qw * 3) / 4;
-      sy = (qh - sh) / 2;
-    }
-    rw = sw;
-    rh = sh;
-  } else if (zustand.format === "balken") {
-    if (qw / qh > 4 / 3) {
-      rh = (qw * 3) / 4; // Balken oben und unten
-    } else {
-      rw = (qh * 4) / 3; // Balken links und rechts
-    }
-  }
-
-  const faktor = Math.min(1, MAX_KANTE / Math.max(rw, rh));
-  const w = Math.round(rw * faktor);
-  const h = Math.round(rh * faktor);
-  const dw = Math.round(sw * faktor);
-  const dh = Math.round(sh * faktor);
-
-  return {
-    w,
-    h,
-    sx, // wo angefangen wird mit malen
-    sy,
-    sw, // bezieht sich auf die Originalgröße
-    sh, // bzw. veränderung bei dem Original
-    dx: Math.round((w - dw) / 2),
-    dy: Math.round((h - dh) / 2),
-    dw, // angepasst auf die MAX_KANTE
-    dh,
-  };
 }
 
 function passeCanvasAn(qw, qh) {
@@ -245,17 +190,6 @@ function starteVideoSchleife(diesesVideo) {
   schritt();
 }
 
-function zeichneQuelle(ziel, quelle, qw, qh) {
-  const r = berechneRahmen(qw, qh);
-  // console.log(r);
-  ziel.clearRect(0, 0, r.w, r.h); // alles löschen, auch das vorige Bild
-  if (!zustand.transparent) {
-    ziel.fillStyle = zustand.hintergrund;
-    ziel.fillRect(0, 0, r.w, r.h);
-  }
-  ziel.drawImage(quelle, r.sx, r.sy, r.sw, r.sh, r.dx, r.dy, r.dw, r.dh);
-}
-
 function baueQuelleNeu() {
   if (video) {
     passeCanvasAn(video.videoWidth, video.videoHeight);
@@ -265,63 +199,6 @@ function baueQuelleNeu() {
     wendeAn();
   }
 }
-
-// Die Effekte
-
-const EFFEKTE = {
-  pixel: {
-    name: "Pixel & Dithering",
-    gpu: false,
-    an: () => zustand.pixelgroesse > 1 || zustand.ditherAn,
-    anwenden(bild) {
-      const w = bild.width;
-      const h = bild.height;
-      if (zustand.pixelgroesse > 1) bild = verkleinern(bild, zustand.pixelgroesse);
-      if (zustand.ditherAn) bild = dithern(bild, zustand.stufen, zustand.grau);
-      if (zustand.pixelgroesse > 1) bild = vergroessern(bild, zustand.pixelgroesse, w, h);
-      return bild;
-    },
-  },
-  vhs: {
-    name: "VHS",
-    gpu: true,
-    an: () => zustand.vhsAn && gl,
-    programm: vhsProgramm,
-    einstellungen: (zeit) => ({ ...zustand.werte.vhs, zeit }),
-  },
-  crt: {
-    name: "CRT",
-    gpu: true,
-    an: () => zustand.crtAn && gl,
-    programm: crtProgramm,
-    einstellungen: (zeit) => ({ ...zustand.werte.crt, zufall: zeit }),
-  },
-  overlay: {
-    name: "Overlay",
-    gpu: false,
-    an: () => true,
-    anwenden(bild, zeit, schritt) {
-      return zeichneOverlay(bild, schritt);
-    },  
-  },
-  rahmen: {
-    name: "Fenster",
-    gpu: false,
-    an: () => zustand.rahmenAn,
-    anwenden(bild) {
-      return fensterUmsBild(bild, zustand.rahmenTitel);
-    },
-  },
-};
-
-// Die Kette: Reihenfolge der Effekte, später umsortierbar
-// overlay kommt mit kette.push() erst beim laden
-let kette = [
-  { typ: "pixel" },
-  { typ: "vhs" },
-  { typ: "rahmen" },
-  { typ: "crt" },
-];
 
 // Kette anzeigen
 
@@ -372,12 +249,7 @@ function zeigeKette() {
 }
 
 function verschiebe(i, richtung) {
-  const j = i + richtung;
-
-  if (j < 0 || j >= kette.length) return;
-
-  [kette[i], kette[j]] = [kette[j], kette[i]]; // tauschen
-
+  if (!tausche(i, i + richtung)) return;
   zeigeKette();
   planeAnwenden();
 }
@@ -455,35 +327,6 @@ function lassLos() {
 
 canvas.addEventListener("pointerup", lassLos);
 canvas.addEventListener("pointercancel", lassLos);
-
-function wendeSchrittAn(schritt, bild, zeit) {
-  const effekt = EFFEKTE[schritt.typ];
-  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt);
-  // ohne gpu, normale anwenden Funktion in EFFEKTE, die andern haben shader
-
-  rendere(
-    effekt.programm,
-    bild,
-    bild.width,
-    bild.height,
-    effekt.einstellungen(zeit),
-  );
-  return zurueckholen(bild.width, bild.height);
-}
-
-// gibt die Effekte zurück, dessen "an" Funktion "true" zurückgibt
-// geht kette durch und nimmt string von typ um in EFFEKTE zu suchen
-function aktiveSchritte() {
-  return kette.filter((schritt) => EFFEKTE[schritt.typ].an());
-}
-
-function wendeEffekteAn(eingabe, zeit) {
-  let bild = eingabe;
-  for (const schritt of aktiveSchritte()) {
-    bild = wendeSchrittAn(schritt, bild, zeit);
-  }
-  return bild;
-}
 
 // Canvas zeichnen
 
@@ -571,33 +414,6 @@ function planeAnwenden() {
 // Mediabunny kann im Browser videos rendern - im zustand.hintergrund
 // also wartet auch jedes Bild ab
 
-// Video rendern
-
-async function bereiteKonvertierungVor(ausgabeFormat, w, h, verarbeite) {
-  const input = new Mediabunny.Input({
-    source: new Mediabunny.BlobSource(videoDatei),
-    formats: Mediabunny.ALL_FORMATS,
-  });
-
-  const output = new Mediabunny.Output({
-    format: ausgabeFormat,
-    target: new Mediabunny.BufferTarget(),
-  });
-
-  const conversion = await Mediabunny.Conversion.init({
-    input,
-    output,
-    video: {
-      width: w,
-      height: h,
-      fit: { original: "fill", "4:3": "cover", balken: "contain" }[zustand.format],
-      process: verarbeite,
-    },
-  });
-
-  return { conversion, output };
-}
-
 async function speichereVideo() {
   if (!videoDatei) return;
 
@@ -622,41 +438,15 @@ async function speichereVideo() {
   };
 
   try {
-    let endung = "mp4";
-    let mime = "video/mp4";
-    let { conversion, output } = await bereiteKonvertierungVor(
-      new Mediabunny.Mp4OutputFormat(),
-      w,
-      h,
-      verarbeite,
+    const fit = { original: "fill", "4:3": "cover", balken: "contain" }[zustand.format];
+
+    const { blob, endung } = await renderVideo(
+      videoDatei, w, h, fit, verarbeite,
+      (anteil) => {
+        videoKnopf.textContent = `Rendern … ${Math.round(anteil * 100)} %`;
+      },
     );
-
-    if (!conversion.isValid) {
-      endung = "webm";
-      mime = "video/webm";
-      ({ conversion, output } = await bereiteKonvertierungVor(
-        new Mediabunny.WebMOutputFormat(),
-        w,
-        h,
-        verarbeite,
-      ));
-    }
-
-    if (!conversion.isValid) {
-      alert("Dein Browser kann dieses Video leider nicht umwandeln.");
-      return;
-    }
-
-    conversion.onProgress = (fortschritt) => {
-      videoKnopf.textContent = `Rendern … ${Math.round(fortschritt * 100)} %`;
-    };
-
-    await conversion.execute();
-
-    ladeHerunter(
-      new Blob([output.target.buffer], { type: mime }),
-      `foto-effekte-${zeitstempel()}.${endung}`,
-    );
+    ladeHerunter(blob, `foto-effekte-${zeitstempel()}.${endung}`);
   } catch (fehler) {
     console.error(fehler);
     alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
@@ -671,7 +461,7 @@ async function speichereVideo() {
 
 // Buttons
 // Listener
-//
+
 formatFeld.addEventListener("change", () => {
   zustand.format = formatFeld.value;
   baueQuelleNeu();
