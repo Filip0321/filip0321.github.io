@@ -1,4 +1,5 @@
 import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+import { richteExportEin } from "/export.js";
 
 // Settings
 

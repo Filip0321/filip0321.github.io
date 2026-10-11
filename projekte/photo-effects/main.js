@@ -1,12 +1,11 @@
 import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
-import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche } from "./kette.js";
+import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig } from "./kette.js";
 import { renderVideo } from "./export-video.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { ladeHerunter, zeitstempel, neueAufnahme, FPS, warte } from "/export.js";
-import { neuesOverlay, neuesFenster, trifft } from "./effekte/overlay.js";
-
+import { neuesOverlay,farbFlaeche, neuesFenster, trifft, stelleOverlaysAuf, stelleOverlaysZurueck, synchronisiere, gibOverlayFrei } from "./effekte/overlay.js";
 // die ganzen HTML Elemente für die basic Einstellungen
 
 const canvas = hole("bild");
@@ -47,6 +46,14 @@ const overlaySchattenFeld = hole("overlay-schatten");
 const overlayVerhaeltnisLabel = hole("overlay-verhaeltnis-feld");
 const overlayVerhaeltnisFeld = hole("overlay-verhaeltnis");
 const overlayVerhaeltnisWert = hole("overlay-verhaeltnis-wert");
+const overlayVersatzLabel = hole("overlay-versatz-feld");
+const overlayVersatzFeld = hole("overlay-versatz");
+const overlayDeckkraftFeld = hole("overlay-deckkraft");
+const overlayDeckkraftWert = hole("overlay-deckkraft-wert");
+const overlayMischmodusFeld = hole("overlay-mischmodus");
+const overlayFuellungLabel = hole("overlay-fuellung-feld");
+const overlayGefuelltFeld = hole("overlay-gefuellt");
+const overlayFarbeFeld = hole("overlay-farbe");
 
 let fensterNummer = 1;
 
@@ -282,15 +289,19 @@ overlayFeld.addEventListener("change", async () => {
   const datei = overlayFeld.files[0];
   if (!datei) return;
 
-  const schritt = await neuesOverlay(datei);  
-  
-  kette.push(schritt);
-  ausgewaehlt = schritt;
-
-  overlayFeld.value = "";
-  zeigeAuswahl();
-  zeigeKette();
-  planeAnwenden();
+  try {
+    const schritt = await neuesOverlay(datei);
+    kette.push(schritt);
+    ausgewaehlt = schritt;
+    zeigeAuswahl();
+    zeigeKette();
+    planeAnwenden();
+  } catch (fehler) {
+    console.error(fehler);
+    alert(fehler.message);
+  } finally {
+    overlayFeld.value = "";
+  }
 });
 
 // Overlays ziehen
@@ -362,6 +373,10 @@ function zeichneVideobild() {
   const w = canvas.width;
   const h = canvas.height;
   const zeit = video.currentTime;
+  
+  for (const schritt of kette) {
+    if (schritt.video) synchronisiere(schritt, zeit);
+  }
 
   const schritte = aktiveSchritte();
 
@@ -391,6 +406,12 @@ function zeichneVideobild() {
     zeichneTrennlinie(x, w, h);
   }
 }
+
+function overlayVideoSchleife() {
+  requestAnimationFrame(overlayVideoSchleife);
+  if (!video && quelle && kette.some((schritt) => schritt.folge)) wendeAn();
+}
+requestAnimationFrame(overlayVideoSchleife);
 
 function wendeAn() {
   if (video) {
@@ -452,7 +473,8 @@ async function speichereVideo() {
   const arbeit = new OffscreenCanvas(w, h); // das rendern wird nicht gezeigt (neuer Canvas)
   const arbeitCtx = arbeit.getContext("2d", { willReadFrequently: true });
 
-  const verarbeite = (sample) => {
+  const verarbeite = async (sample) => {
+    await stelleOverlaysAuf(kette, sample.timestamp);
     sample.draw(arbeitCtx, 0, 0);
     const original = arbeitCtx.getImageData(0, 0, w, h);
     arbeitCtx.putImageData(wendeEffekteAn(original, sample.timestamp), 0, 0);
@@ -473,6 +495,7 @@ async function speichereVideo() {
     console.error(fehler);
     alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
   } finally {
+    stelleOverlaysZurueck(kette);
     videoKnopf.textContent = "Video speichern";
     videoKnopf.disabled = false;
     frameKnopf.disabled = false;
@@ -497,7 +520,7 @@ async function speichereBildAlsVideo() {
 
   // alles bis zum ersten zeitabhängigen Effekt nur einmal rechnen
   const schritte = aktiveSchritte();
-  let erster = schritte.findIndex((schritt) => EFFEKTE[schritt.typ].zeitabhaengig);
+  let erster = schritte.findIndex(istZeitabhaengig);
   if (erster === -1) erster = schritte.length;
   const fest = wendeEffekteAn(quelle, 0, schritte.slice(0, erster));
   const bewegt = schritte.slice(erster);
@@ -511,6 +534,7 @@ async function speichereBildAlsVideo() {
 
     for (let i = 0; i < n; i++) {
       const t = i / FPS;
+      await stelleOverlaysAuf(kette, t);
       arbeitCtx.putImageData(wendeEffekteAn(fest, t, bewegt), 0, 0);
       await aufnahme.bild(arbeit, t, 1 / FPS);
       bildVideoKnopf.textContent = `Rendern … ${Math.round(((i + 1) / n) * 100)} %`;
@@ -524,6 +548,7 @@ async function speichereBildAlsVideo() {
     await aufnahme?.abbrechen();
     alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
   } finally {
+    stelleOverlaysZurueck(kette);
     bildVideoKnopf.textContent = "Als Video speichern";
     bedienung.forEach((element) => { element.disabled = false; });
   }
@@ -625,6 +650,14 @@ function zeigeAuswahl() {
   overlayVerhaeltnisLabel.hidden = ausgewaehlt.grafik !== null;
   overlayVerhaeltnisFeld.value = ausgewaehlt.verhaeltnis;
   overlayVerhaeltnisWert.textContent = ausgewaehlt.verhaeltnis;
+  overlayVerhaeltnisLabel.hidden = !ausgewaehlt.leer;
+  overlayFuellungLabel.hidden = !ausgewaehlt.leer;
+  overlayGefuelltFeld.checked = Boolean(ausgewaehlt.fuellung);
+  if (ausgewaehlt.fuellung) overlayFarbeFeld.value = ausgewaehlt.fuellung;
+  overlayVersatzFeld.value = ausgewaehlt.versatz ?? 0;
+  overlayDeckkraftFeld.value = ausgewaehlt.deckkraft;
+  overlayDeckkraftWert.textContent = ausgewaehlt.deckkraft;
+  overlayMischmodusFeld.value = ausgewaehlt.mischmodus;
 }
 
 overlayGroesseFeld.addEventListener("input", () => {
@@ -644,6 +677,7 @@ overlayTitelFeld.addEventListener("input", () => {
 });
 
 overlayEntfernenKnopf.addEventListener("click", () => {
+  gibOverlayFrei(ausgewaehlt);
   kette.splice(kette.indexOf(ausgewaehlt), 1);   // genau diesen Zettel aus der Kette nehmen
   ausgewaehlt = null;
   zeigeAuswahl();
@@ -666,6 +700,38 @@ overlayVerhaeltnisFeld.addEventListener("input", () => {
   ausgewaehlt.verhaeltnis = Number(overlayVerhaeltnisFeld.value);
   overlayVerhaeltnisWert.textContent = overlayVerhaeltnisFeld.value;
   planeAnwenden();
+});
+
+overlayVersatzFeld.addEventListener("input", () => {
+  const zahl = Number(overlayVersatzFeld.value);
+  if (!Number.isFinite(zahl) || zahl < 0) return;
+  ausgewaehlt.versatz = zahl;
+  // Vorschau ohne Hauptvideo: einmal auf die neue Startstelle springen
+  if (!video) ausgewaehlt.video.currentTime = zahl % ausgewaehlt.dauer;
+  planeAnwenden();
+});
+
+overlayDeckkraftFeld.addEventListener("input", () => {
+  ausgewaehlt.deckkraft = Number(overlayDeckkraftFeld.value);
+  overlayDeckkraftWert.textContent = overlayDeckkraftFeld.value;
+  planeAnwenden();
+});
+
+overlayMischmodusFeld.addEventListener("change", () => {
+  ausgewaehlt.mischmodus = overlayMischmodusFeld.value;
+  planeAnwenden();
+});
+
+function setzeFuellung() {
+  ausgewaehlt.fuellung = overlayGefuelltFeld.checked ? overlayFarbeFeld.value : null;
+  ausgewaehlt.grafik = ausgewaehlt.fuellung ? farbFlaeche(ausgewaehlt.fuellung) : null;
+  planeAnwenden();
+}
+
+overlayGefuelltFeld.addEventListener("change", setzeFuellung);
+overlayFarbeFeld.addEventListener("input", () => {
+  overlayGefuelltFeld.checked = true; // Farbe wählen heißt füllen
+  setzeFuellung();
 });
 
 // auf Änderungen im HTML reagieren

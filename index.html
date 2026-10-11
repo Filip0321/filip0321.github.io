@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Filip Winkler</title>
   <link rel="stylesheet" href="/style.css">
+  <script>
+    try {
+      if (localStorage.getItem("fenster-stil") === "schlicht") {
+        document.documentElement.classList.add("schlicht");
+      }
+    } catch {}
+  </script>
+  <link rel="preload" as="image" href="/bilder/fenster/schluss_hover.png">
+  <link rel="preload" as="image" href="/bilder/fenster/schluss_pressed.png">
 </head>
 <body>
   <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
@@ -16,8 +25,56 @@
     </ul>
   </nav>
 
-  <main class="landing">
-    <h1 id="name" aria-label="Filip Winkler"></h1>
+  <main>
+    <section class="landing">
+      <h1 id="name" aria-label="Filip Winkler"></h1>
+      <span class="weiter-hinweis" aria-hidden="true">↓</span>
+    </section>
+
+    <!-- später: der Körper; jetzt Symbole, die Fenster öffnen -->
+    <section class="buehne" id="buehne" aria-label="Fenster">
+      <ul class="symbole">
+        <li><button type="button" data-oeffnet="fenster-projekte">Projekte</button></li>
+        <li><button type="button" data-oeffnet="fenster-about">About</button></li>
+        <li><button type="button" id="stil-wechsel" aria-pressed="true">Schlichte Fenster</button></li>
+      </ul>
+
+      <article class="fenster" id="fenster-projekte" aria-labelledby="fenster-projekte-titel" style="left: 12%; top: 3rem;">
+        <header class="fenster-leiste">
+          <h2 class="fenster-titel" id="fenster-projekte-titel">Projekte</h2>
+          <div class="fenster-knoepfe">
+            <span class="fenster-knopf deko" aria-hidden="true"></span>
+            <span class="fenster-knopf deko2" aria-hidden="true"></span>
+            <button type="button" class="fenster-knopf schliessen" aria-label="Fenster schließen"></button>
+          </div>
+        </header>
+        <div class="fenster-inhalt">
+          <ul>
+            <li><a href="/projekte/game-of-life/">Game of Life</a></li>
+            <li><a href="/projekte/2d-attraktor/">2D-Attraktor</a></li>
+            <li><a href="/projekte/3d-attraktor/">3D-Attraktor</a></li>
+            <li><a href="/projekte/photo-effects/">Foto-Effekte</a></li>
+            <li><a href="/projekte/leuna_im_nebel/">Leuna im Nebel</a></li>
+          </ul>
+          <p><a href="/projekte/">Alle Projekte →</a></p>
+        </div>
+      </article>
+
+      <article class="fenster" id="fenster-about" aria-labelledby="fenster-about-titel" style="left: 40%; top: 14rem;" hidden>
+        <header class="fenster-leiste">
+          <h2 class="fenster-titel" id="fenster-about-titel">About</h2>
+          <div class="fenster-knoepfe">
+            <span class="fenster-knopf deko" aria-hidden="true"></span>
+            <span class="fenster-knopf deko2" aria-hidden="true"></span>
+            <button type="button" class="fenster-knopf schliessen" aria-label="Fenster schließen"></button>
+          </div>
+        </header>
+        <div class="fenster-inhalt">
+          <p>Platzhalter.</p>
+          <p><a href="/about/">Mehr →</a></p>
+        </div>
+      </article>
+    </section>
   </main>
 
   <footer class="fuss">
@@ -26,5 +83,10 @@
   </footer>
 
   <script src="/script.js"></script>
+  <script type="module">
+    import { richteFensterEin, richteStilWechselEin } from "/fenster.js";
+    richteFensterEin(document.getElementById("buehne"));
+    richteStilWechselEin(document.getElementById("stil-wechsel"));
+  </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+import { richteExportEin } from "/export.js";
 
 // Konstanten - Spielfeld (das Modell, immer gleich)
 const INTERVALL = 100;   // ms zwischen den Generationen
