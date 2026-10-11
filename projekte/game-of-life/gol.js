@@ -1,3 +1,5 @@
+import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+
 // Konstanten - Spielfeld (das Modell, immer gleich)
 const INTERVALL = 100;   // ms zwischen den Generationen
 
@@ -379,8 +381,34 @@ requestAnimationFrame(schleife);
 
 // Exportfunktion (sieht export.js)
 
+let warLaeuft = false;
+let renderGeneration = 0;
+
+const render = {
+  start() {
+    warLaeuft = laeuft;
+    setzeLaeuft(false);          // die normale Schleife hält still
+    renderGeneration = 0;
+  },
+  bild(i, dt) {
+    // so viele Generationen, wie bis zu diesem Bild in Echtzeit vergangen wären
+    const soll = Math.floor((i * dt * 1000) / INTERVALL);
+    while (renderGeneration < soll) {
+      schritt();
+      renderGeneration++;
+    }
+    zeichne();
+  },
+  ende() {
+    setzeLaeuft(warLaeuft);
+  },
+};
+
 richteExportEin({
   canvas,
   ziel: document.querySelector(".export"),
-  name: "game-of-life"
+  name: "game-of-life",
+  anzeige: sichtbaresBild,
+  endbild,
+  render,
 });

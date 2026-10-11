@@ -1,3 +1,5 @@
+import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+
 // Settings, Startwerte
 
 const MAX_PUNKTE = 1000000;
@@ -11,6 +13,7 @@ const EMPFINDLICHKEIT = 0.01;
 const START_WINKEL = 0.6;
 const START_NEIGUNG = 0.35;
 const GRENZE = 1e6;
+const DREH_PRO_SEKUNDE = 0.12; // war 0.002 pro Bild bei 60 fps
 
 let punkte = 600000;
 let staerke = 15;
@@ -507,10 +510,14 @@ function stoppeDrehen() {
 }
 
 function starteDrehen() {
-  stoppeDrehen();  // falls schon eine Schleife läuft, erst die beenden
+  stoppeDrehen();
+  let letzte = null;
 
-  function drehSchritt() {
-    winkel += 0.002;
+  function drehSchritt(zeitpunkt) {
+    if (letzte !== null) {
+      winkel += DREH_PRO_SEKUNDE * (zeitpunkt - letzte) / 1000;
+    }
+    letzte = zeitpunkt;
     planeZeichnen();
     drehId = requestAnimationFrame(drehSchritt);
   }
@@ -658,8 +665,37 @@ window.addEventListener("resize", () => {
 passeGroesseAn();
 waehlePreset(0);
 
+let renderProBild = 0;
+
+const render = {
+  start(n) {
+    stoppeAnimation();
+    stoppeDrehen();
+    if (animiert) {
+      sichtbar = 0;
+      renderProBild = Math.max(1, Math.ceil(anzahl / n));
+    } else {
+      sichtbar = anzahl;
+      renderProBild = 0;
+    }
+  },
+  bild(i, dt) {
+    sichtbar = Math.min(sichtbar + renderProBild, anzahl);
+    if (dreht) winkel += DREH_PRO_SEKUNDE * dt;
+    zeichne();
+  },
+  ende() {
+    sichtbar = anzahl;
+    zeichne();
+    if (dreht) starteDrehen();
+  },
+};
+
 richteExportEin({
   canvas,
   ziel: document.querySelector(".export"),
-  name: () => typ.name.toLowerCase().replace(/\s+/g, "-")
+  name: () => typ.name.toLowerCase().replace(/\s+/g, "-"),
+  anzeige: sichtbaresBild,
+  endbild,
+  render,
 });

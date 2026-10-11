@@ -3,12 +3,12 @@ import { RAHMEN, rahmenGeladen, fensterMassstab, baueFenster, setzeSchatten } fr
 const overlayCanvas = document.createElement("canvas");
 const overlayCtx = overlayCanvas.getContext("2d", { willReadFrequently: true });
 
-// Größe eines Overlays auf einem Bild der Breite w 
-// breite, hoehe: nur die Grafik
+// Größe eines Overlays auf einem Bild der Breite w
+// breite, hoehe: nur der Inhalt (Grafik oder leere Fläche)
 // gesamtB, gesamtH: mit Fenster drumherum, falls es eins hat
 export function overlayMasse(schritt, w) {
   const breite = w * schritt.groesse;
-  const hoehe = (breite * schritt.grafik.height) / schritt.grafik.width;
+  const hoehe = breite * schritt.verhaeltnis; // Höhe / Breite, beim Laden aus der Grafik bestimmt
 
   if (!schritt.fenster || !rahmenGeladen()) {
     return { breite, hoehe, gesamtB: breite, gesamtH: hoehe, s: 0 };
@@ -26,56 +26,89 @@ export function overlayMasse(schritt, w) {
 export function zeichneOverlay(bild, schritt) {
   const w = bild.width;
   const h = bild.height;
+  const m = overlayMasse(schritt, w);
+
+  // was gezeichnet wird: entweder das fertige Fenster oder nur die Grafik
+  let quelle;
+  if (m.s > 0) {
+    quelle = baueFenster(schritt.grafik, m.breite, m.hoehe, m.s, schritt.titel);
+  } else {
+    quelle = schritt.grafik;
+  }
+  if (!quelle) return bild; // leeres Overlay ohne Fenster: nichts zu sehen
 
   overlayCanvas.width = w;
   overlayCanvas.height = h;
   overlayCtx.putImageData(bild, 0, 0);
 
-  const m = overlayMasse(schritt, w);
-  const links = schritt.x * w - m.gesamtB / 2;   // Mitte → linke Kante
-  const oben = schritt.y * h - m.gesamtH / 2;
+  overlayCtx.save();
+  if (schritt.schatten) setzeSchatten(overlayCtx, w);
 
-  if (m.s > 0) {
-    // mit Fenster: bauen, dann einmal mit Schatten zeichnen
-    const fenster = baueFenster(schritt.grafik, m.breite, m.hoehe, m.s, schritt.titel);
-    overlayCtx.save();
-    setzeSchatten(overlayCtx, w);
-    overlayCtx.drawImage(fenster, links, oben);
-    overlayCtx.restore();
-  } else {
-    overlayCtx.drawImage(schritt.grafik, links, oben, m.breite, m.hoehe);
-  }
+  // Ursprung in die Mitte des Overlays legen, dort drehen
+  // die Schattenrichtung wird von translate/rotate NICHT erfasst,
+  // dadurch fällt das Licht immer von derselben Seite
+  overlayCtx.translate(schritt.x * w, schritt.y * h);
+  overlayCtx.rotate((schritt.winkel * Math.PI) / 180);
+  overlayCtx.drawImage(quelle, -m.gesamtB / 2, -m.gesamtH / 2, m.gesamtB, m.gesamtH);
+
+  overlayCtx.restore();
 
   return overlayCtx.getImageData(0, 0, w, h);
+}
+
+function grundZettel() {
+  return {
+    typ: "overlay",
+    x: 0.5, // Mitte, waagerecht (Anteil der Bildbreite)
+    y: 0.5, // Mitte, senkrecht (Anteil der Bildhöhe)
+    groesse: 0.3, // 30 % der Bildbreite
+    winkel: 0, // Grad, im Uhrzeigersinn
+    schatten: true,
+  };
 }
 
 export async function neuesOverlay(datei) {
   const grafik = await createImageBitmap(datei); // einmal laden, nicht bei jedem Bild
 
-  // packe es hinten an die Kette dran
   return {
-    typ: "overlay",
-    name: datei.name, // für die Anzeige in der Liste
+    ...grundZettel(),
+    name: datei.name,
     grafik,
-    x: 0.5, // Mitte, waagerecht
-    y: 0.5, // Mitte, senkrecht
-    groesse: 0.3, // 30 % der ganzen Bildbreite (canvasBreite)
+    verhaeltnis: grafik.height / grafik.width,
     fenster: false,
     titel: datei.name,
-  }; // Mitte ist wichtig zum späteren skalieren und rotieren
+  };
 }
 
+// Fenster ohne Inhalt: die Mitte bleibt durchsichtig
+export function neuesFenster(nummer) {
+  return {
+    ...grundZettel(),
+    name: `Fenster ${nummer}`,
+    grafik: null,
+    verhaeltnis: 3 / 4,
+    fenster: true,
+    titel: "Unbenannt",
+  };
+}
+
+// punkt in Anteilen (0..1), w und h in Pixeln
 export function trifft(overlays, punkt, w, h) {
   return (
     overlays.find((schritt) => {
-      // find gibt das erste Element zurück wo es zu "true" ausgewertet wird
       const m = overlayMasse(schritt, w);
-      const halbeBreite = m.gesamtB / w / 2;
-      const halbeHoehe = m.gesamtH / h / 2;
-      return (
-        Math.abs(punkt.x - schritt.x) <= halbeBreite && // einfach dass der Punkt max halbe größe des Overlays
-        Math.abs(punkt.y - schritt.y) <= halbeHoehe
-      ); // von der mitte des Overlays entfernt ist
+
+      // Abstand zur Mitte in echten Pixeln
+      // (in Anteilen würde die Drehung auf nicht-quadratischen Bildern verzerren)
+      const dx = (punkt.x - schritt.x) * w;
+      const dy = (punkt.y - schritt.y) * h;
+
+      // den Punkt zurückdrehen, statt das Rechteck zu drehen
+      const r = (-schritt.winkel * Math.PI) / 180;
+      const lx = dx * Math.cos(r) - dy * Math.sin(r);
+      const ly = dx * Math.sin(r) + dy * Math.cos(r);
+
+      return Math.abs(lx) <= m.gesamtB / 2 && Math.abs(ly) <= m.gesamtH / 2;
     }) ?? null
-  )
+  );
 }

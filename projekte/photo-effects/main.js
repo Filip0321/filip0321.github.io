@@ -1,10 +1,11 @@
 import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
-import { neuesOverlay, trifft } from "./effekte/overlay.js";
 import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche } from "./kette.js";
 import { renderVideo } from "./export-video.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
+import { ladeHerunter, zeitstempel, neueAufnahme, FPS, warte } from "/export.js";
+import { neuesOverlay, neuesFenster, trifft } from "./effekte/overlay.js";
 
 // die ganzen HTML Elemente für die basic Einstellungen
 
@@ -39,6 +40,15 @@ const overlayGroesseWert = hole("overlay-groesse-wert");
 const overlayFensterFeld = hole("overlay-fenster");
 const overlayTitelFeld = hole("overlay-titel");
 const overlayEntfernenKnopf = hole("overlay-entfernen");
+const fensterNeuKnopf = hole("fenster-neu");
+const overlayWinkelFeld = hole("overlay-winkel");
+const overlayWinkelWert = hole("overlay-winkel-wert");
+const overlaySchattenFeld = hole("overlay-schatten");
+const overlayVerhaeltnisLabel = hole("overlay-verhaeltnis-feld");
+const overlayVerhaeltnisFeld = hole("overlay-verhaeltnis");
+const overlayVerhaeltnisWert = hole("overlay-verhaeltnis-wert");
+
+let fensterNummer = 1;
 
 let ausgewaehlt = null;   // der Zettel des gerade ausgewählten Overlays
 
@@ -49,6 +59,8 @@ const speichernKnopf = hole("speichern"); // export optionen
 const abspielKnopf = hole("abspielen");
 const frameKnopf = hole("frame-speichern");
 const videoKnopf = hole("video-speichern");
+const videoSekundenFeld = hole("video-sekunden");
+const bildVideoKnopf = hole("bild-video-speichern");
 
 const formatFeld = hole("format");
 
@@ -103,6 +115,15 @@ function passeCanvasAn(qw, qh) {
   canvas.height = r.h;
 }
 
+fensterNeuKnopf.addEventListener("click", () => {
+  const schritt = neuesFenster(fensterNummer++);
+  kette.push(schritt);
+  ausgewaehlt = schritt;
+  zeigeAuswahl();
+  zeigeKette();
+  planeAnwenden();
+});
+
 // Bild laden
 
 async function ladeBild(datei) {
@@ -114,6 +135,7 @@ async function ladeBild(datei) {
 
   canvas.hidden = false;
   speichernKnopf.disabled = false;
+  bildVideoKnopf.disabled = false;
   zeigeModus("bild");
   wendeAn();
 }
@@ -209,7 +231,7 @@ function zeigeKette() {
   kette.forEach((schritt, i) => {
     // schritt ist in dem fall das gleiche wie kette[i]
     const effekt = EFFEKTE[schritt.typ];
-    const name = schritt.name ?? schritt.typ.toUpperCase();
+    const name = schritt.name ?? effekt.name;
 
     const li = document.createElement("li");
 
@@ -459,6 +481,56 @@ async function speichereVideo() {
   }
 }
 
+async function speichereBildAlsVideo() {
+  if (!quelle) return;
+
+  let sekunden = Math.round(Number(videoSekundenFeld.value));
+  if (!Number.isFinite(sekunden)) sekunden = 5;
+  sekunden = Math.min(Math.max(sekunden, 1), 30);
+  videoSekundenFeld.value = sekunden;
+  const n = Math.round(sekunden * FPS);
+
+  const arbeit = document.createElement("canvas");
+  arbeit.width = quelle.width;
+  arbeit.height = quelle.height;
+  const arbeitCtx = arbeit.getContext("2d");
+
+  // alles bis zum ersten zeitabhängigen Effekt nur einmal rechnen
+  const schritte = aktiveSchritte();
+  let erster = schritte.findIndex((schritt) => EFFEKTE[schritt.typ].zeitabhaengig);
+  if (erster === -1) erster = schritte.length;
+  const fest = wendeEffekteAn(quelle, 0, schritte.slice(0, erster));
+  const bewegt = schritte.slice(erster);
+
+  const bedienung = [speichernKnopf, bildVideoKnopf, videoSekundenFeld, dateiFeld, overlayFeld];
+  bedienung.forEach((element) => { element.disabled = true; });
+  let aufnahme = null;
+
+  try {
+    aufnahme = await neueAufnahme(arbeit, FPS, zustand.hintergrund);
+
+    for (let i = 0; i < n; i++) {
+      const t = i / FPS;
+      arbeitCtx.putImageData(wendeEffekteAn(fest, t, bewegt), 0, 0);
+      await aufnahme.bild(arbeit, t, 1 / FPS);
+      bildVideoKnopf.textContent = `Rendern … ${Math.round(((i + 1) / n) * 100)} %`;
+      await warte();
+    }
+
+    bildVideoKnopf.textContent = "Speichern …";
+    ladeHerunter(await aufnahme.fertig(), `foto-effekte-${zeitstempel()}.mp4`);
+  } catch (fehler) {
+    console.error(fehler);
+    await aufnahme?.abbrechen();
+    alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
+  } finally {
+    bildVideoKnopf.textContent = "Als Video speichern";
+    bedienung.forEach((element) => { element.disabled = false; });
+  }
+}
+
+bildVideoKnopf.addEventListener("click", speichereBildAlsVideo);
+
 // Buttons
 // Listener
 
@@ -546,6 +618,13 @@ function zeigeAuswahl() {
   overlayGroesseWert.textContent = ausgewaehlt.groesse;
   overlayFensterFeld.checked = ausgewaehlt.fenster;
   overlayTitelFeld.value = ausgewaehlt.titel;
+  overlayWinkelFeld.value = ausgewaehlt.winkel;
+  overlayWinkelWert.textContent = `${ausgewaehlt.winkel}°`;
+  overlaySchattenFeld.checked = ausgewaehlt.schatten;
+  // Höhe nur bei leeren Fenstern, sonst würde die Grafik verzerrt
+  overlayVerhaeltnisLabel.hidden = ausgewaehlt.grafik !== null;
+  overlayVerhaeltnisFeld.value = ausgewaehlt.verhaeltnis;
+  overlayVerhaeltnisWert.textContent = ausgewaehlt.verhaeltnis;
 }
 
 overlayGroesseFeld.addEventListener("input", () => {
@@ -569,6 +648,23 @@ overlayEntfernenKnopf.addEventListener("click", () => {
   ausgewaehlt = null;
   zeigeAuswahl();
   zeigeKette();
+  planeAnwenden();
+});
+
+overlayWinkelFeld.addEventListener("input", () => {
+  ausgewaehlt.winkel = Number(overlayWinkelFeld.value);
+  overlayWinkelWert.textContent = `${ausgewaehlt.winkel}°`;
+  planeAnwenden();
+});
+
+overlaySchattenFeld.addEventListener("change", () => {
+  ausgewaehlt.schatten = overlaySchattenFeld.checked;
+  planeAnwenden();
+});
+
+overlayVerhaeltnisFeld.addEventListener("input", () => {
+  ausgewaehlt.verhaeltnis = Number(overlayVerhaeltnisFeld.value);
+  overlayVerhaeltnisWert.textContent = overlayVerhaeltnisFeld.value;
   planeAnwenden();
 });
 

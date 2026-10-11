@@ -1,4 +1,4 @@
-import { crtProgramm } from "./effekte/crt.js";
+import { crtProgramm } from "../../lib/effekte/crt.js";
 import { vhsProgramm } from "../../lib/effekte/vhs.js";
 import { verkleinern, vergroessern, dithern } from "./effekte/pixel.js";
 import { fensterUmsBild } from "./effekte/rahmen.js";
@@ -23,6 +23,7 @@ export const EFFEKTE = {
   vhs: {
     name: "VHS",
     gpu: true,
+    zeitabhaengig: true,
     an: () => zustand.vhsAn && gl,
     programm: vhsProgramm,
     einstellungen: (zeit) => ({ ...zustand.werte.vhs, zeit }),
@@ -30,6 +31,7 @@ export const EFFEKTE = {
   crt: {
     name: "CRT",
     gpu: true,
+    zeitabhaengig: true,
     an: () => zustand.crtAn && gl,
     programm: crtProgramm,
     einstellungen: (zeit) => ({ ...zustand.werte.crt, zufall: zeit }),
@@ -82,9 +84,9 @@ export function aktiveSchritte() {
   return kette.filter((schritt) => EFFEKTE[schritt.typ].an());
 }
 
-export function wendeEffekteAn(eingabe, zeit) {
+export function wendeEffekteAn(eingabe, zeit, schritte = aktiveSchritte()) {
   let bild = eingabe;
-  for (const schritt of aktiveSchritte()) {
+  for (const schritt of schritte) {
     bild = wendeSchrittAn(schritt, bild, zeit);
   }
   return bild;

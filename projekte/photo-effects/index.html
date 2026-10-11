@@ -37,6 +37,7 @@
       <label class="datei-knopf">Overlay hinzufügen
         <input type="file" id="overlay-datei" accept="image/*">
       </label>
+      <button type="button" id="fenster-neu">Leeres Fenster</button>
       <label>Format
         <select id="format">
           <option value="original">Original</option>
@@ -275,6 +276,15 @@
           <input type="text" id="overlay-titel">
         </label>
         <button type="button" id="overlay-entfernen">Entfernen</button>
+        <label>Drehung
+          <input type="range" id="overlay-winkel" min="-180" max="180" step="1">
+          <output id="overlay-winkel-wert"></output>
+        </label>
+        <label><input type="checkbox" id="overlay-schatten"> Schatten</label>
+        <label id="overlay-verhaeltnis-feld">Höhe
+          <input type="range" id="overlay-verhaeltnis" min="0.2" max="2" step="0.01">
+          <output id="overlay-verhaeltnis-wert"></output>
+        </label>
       </div>
     </div>
     
@@ -287,6 +297,10 @@
 
     <div class="steuerung nur-bild">
       <button type="button" id="speichern" disabled>Bild speichern</button>
+      <label>Sekunden
+        <input type="number" id="video-sekunden" min="1" max="30" step="1" value="5">
+      </label>
+      <button type="button" id="bild-video-speichern" disabled>Als Video speichern</button>
     </div>
 
     <div class="steuerung nur-video" hidden>
@@ -303,7 +317,6 @@
   </footer>
 
   <script src="/script.js"></script>
-  <script src="/export.js"></script>
   <script src="/lib/mediabunny.js"></script>
   <script type="module" src="main.js"></script>
 </body>
