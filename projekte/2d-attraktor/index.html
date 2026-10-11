@@ -1,84 +1,245 @@
 <!DOCTYPE html>
 <html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>2D-Attraktoren - Filip Winkler</title>
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>2D-Attraktoren - Filip Winkler</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
 
-  <nav id="menu" class="menu">
-    <ul>
-      <li><a href="/">Start</a></li>
-      <li><a href="/projekte/">Projekte</a></li>
-      <li><a href="/about/">About</a></li>
-    </ul>
-  </nav>
-
-  <main class="seite">
-    <a class="zurueck" href="/projekte/">← Projekte</a>
-
-    <header class="projekt-kopf">
-      <h1>2D-Attraktoren</h1>
-      <ul class="tags">
-        <li>simulation</li>
-        <li>attraktor</li>
+    <nav id="menu" class="menu">
+      <ul>
+        <li><a href="/">Start</a></li>
+        <li><a href="/projekte/">Projekte</a></li>
+        <li><a href="/about/">About</a></li>
       </ul>
-    </header>
+    </nav>
 
-    <canvas id="feld" class="attraktor-feld"></canvas>
+    <main class="seite">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+
+      <header class="projekt-kopf">
+        <h1>2D-Attraktoren</h1>
+        <ul class="tags">
+          <li>simulation</li>
+          <li>attraktor</li>
+        </ul>
+      </header>
+
+      <div class="feld-stapel">
+        <canvas id="feld" class="attraktor-feld"></canvas>
+        <canvas id="effekte" class="attraktor-feld schicht" hidden></canvas>
+      </div>
+
+      <div class="steuerung">
+        <div class="modus" role="group" aria-label="Darstellung">
+          <button type="button" id="toggle-animiert-sofort">Sofort anzeigen</button>
+        </div>
+        <label>Punkte <input type="number" id="punkte" min="1000" max="1000000" step="1000"></label>
+        <label>Stärke <input type="number" id="staerke" min="1" max="255" step="1"></label>
+      </div>
+
+      <div class="steuerung export"></div>
+
+      <div class="presets" role="group" aria-label="Presets"></div>
+
+      <p class="hinweis" id="hinweis"></p>
+      
+      <div class="werte"></div>
+
+      <details class="preset-info" open>
+        <summary id="preset-name"></summary>
+        <pre class="formel" id="formel"></pre>
+        <p id="preset-text"></p>
+      </details>
+      
+      <!--
+      <section class="lesetext doku">
+        <h2>Was ein Attraktor ist</h2>
+        <p>Dein Text.</p>
+
+        <h2>Die vier Zahlen</h2>
+        <p>Dein Text.</p>
+
+        <h2>Wie das Bild entsteht</h2>
+        <p>Dein Text.</p>
+
+        <details class="code" data-quelle="attraktor.js">
+          <summary>Der Code</summary>
+          <pre><code>Wird geladen …</code></pre>
+        </details>
+      </section>
+      -->
+      
 
     <div class="steuerung">
-      <div class="modus" role="group" aria-label="Darstellung">
-        <button type="button" id="toggle-animiert-sofort">Sofort anzeigen</button>
-      </div>
-      <label>Punkte <input type="number" id="punkte" min="1000" max="1000000" step="1000"></label>
-      <label>Stärke <input type="number" id="staerke" min="1" max="255" step="1"></label>
+      <label><input type="checkbox" id="vhs-an" data-zeigt="vhs-regler"> VHS</label>
+    </div>
+    <div class="regler-gruppen" id="vhs-regler" hidden>
+
+      <details class="regler-gruppe">
+        <summary>Band</summary>
+        <div class="steuerung">
+          <label>Wackeln
+            <input type="range" data-regler="vhs.wackeln" min="0" max="10" step="0.5" value="3">
+            <output></output>
+          </label>
+          <label>Tracking
+            <input type="range" data-regler="vhs.tracking" min="0" max="300" step="1" value="0">
+            <output></output>
+          </label>
+          <label>Tracking-Höhe
+            <input type="range" data-regler="vhs.trackingHoehe" min="0" max="0.4" step="0.01" value="0.08">
+            <output></output>
+          </label>
+          <label>Tracking-Tempo
+            <input type="range" data-regler="vhs.trackingTempo" min="-1" max="1" step="0.01" value="0.1">
+            <output></output>
+          </label>
+          <label>Tracking-Position
+            <input type="range" data-regler="vhs.trackingPosition" min="0" max="1" step="0.01" value="0.5">
+            <output></output>
+          </label>
+          <label>Bandrauschen
+            <input type="range" data-regler="vhs.band" min="0" max="1" step="0.05" value="0.3">
+            <output></output>
+          </label>
+          <label>Kopf-Höhe
+            <input type="range" data-regler="vhs.kopfHoehe" min="0" max="0.15" step="0.005" value="0.04">
+            <output></output>
+          </label>
+          <label>Kopf-Wackeln
+            <input type="range" data-regler="vhs.kopfStaerke" min="0" max="20" step="0.5" value="6">
+            <output></output>
+          </label>
+          <label>Kopf-Rauschen
+            <input type="range" data-regler="vhs.kopfRauschen" min="0" max="1" step="0.05" value="0">
+            <output></output>
+          </label>
+        </div>
+      </details>
+
+      <details class="regler-gruppe">
+        <summary>Signal</summary>
+        <div class="steuerung">
+          <label>Weichzeichnen
+            <input type="range" data-regler="vhs.weich" min="0" max="4" step="0.25" value="1">
+            <output></output>
+          </label>
+          <label>Schärfe
+            <input type="range" data-regler="vhs.schaerfe" min="0" max="3" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <label>Schärfe-Breite
+            <input type="range" data-regler="vhs.schaerfeBreite" min="1" max="8" step="0.5" value="2">
+            <output></output>
+          </label>
+          <label>Geist-Abstand
+            <input type="range" data-regler="vhs.geistAbstand" min="0" max="40" step="1" value="8">
+            <output></output>
+          </label>
+          <label>Geist-Stärke
+            <input type="range" data-regler="vhs.geistStaerke" min="-0.8" max="0.8" step="0.05" value="0">
+            <output></output>
+          </label>
+          <label>Schwarzwert
+            <input type="range" data-regler="vhs.schwarzwert" min="0" max="0.4" step="0.01" value="0.05">
+            <output></output>
+          </label>
+          <label>Helligkeitsrauschen
+            <input type="range" data-regler="vhs.hellRauschen" min="0" max="0.3" step="0.01" value="0.03">
+            <output></output>
+          </label>
+        </div>
+      </details>
+
+      <details class="regler-gruppe">
+        <summary>Farbe</summary>
+        <div class="steuerung">
+          <label>Farbbluten
+            <input type="range" data-regler="vhs.bluten" min="0" max="20" step="1" value="8">
+            <output></output>
+          </label>
+          <label>Farbverzögerung
+            <input type="range" data-regler="vhs.farbVerzoegerung" min="-10" max="10" step="0.5" value="2">
+            <output></output>
+          </label>
+          <label>Sättigung
+            <input type="range" data-regler="vhs.saettigung" min="0" max="1.5" step="0.05" value="0.8">
+            <output></output>
+          </label>
+          <label>Regenbogen
+            <input type="range" data-regler="vhs.regenbogen" min="0" max="8" step="0.1" value="0">
+            <output></output>
+          </label>
+          <label>Regenbogen-Feinheit
+            <input type="range" data-regler="vhs.regenbogenFeinheit" min="0.5" max="3" step="0.05" value="1.57">
+            <output></output>
+          </label>
+          <label>Farbrauschen
+            <input type="range" data-regler="vhs.farbRauschen" min="0" max="0.5" step="0.01" value="0.05">
+            <output></output>
+          </label>
+          <label>Farbstich
+            <input type="range" data-regler="vhs.farbstich" min="0" max="0.2" step="0.005" value="0">
+            <output></output>
+          </label>
+          <label>Farbstich-Winkel
+            <input type="range" data-regler="vhs.farbstichWinkel" min="0" max="360" step="1" value="200">
+            <output></output>
+          </label>
+        </div>
+      </details>
+
     </div>
 
-    <div class="steuerung export"></div>
-
-    <div class="presets" role="group" aria-label="Presets"></div>
-
-    <p class="hinweis" id="hinweis"></p>
-    
-    <div class="werte"></div>
-
-    <details class="preset-info" open>
-      <summary id="preset-name"></summary>
-      <pre class="formel" id="formel"></pre>
-      <p id="preset-text"></p>
-    </details>
-    
-    <!--
-    <section class="lesetext doku">
-      <h2>Was ein Attraktor ist</h2>
-      <p>Dein Text.</p>
-
-      <h2>Die vier Zahlen</h2>
-      <p>Dein Text.</p>
-
-      <h2>Wie das Bild entsteht</h2>
-      <p>Dein Text.</p>
-
-      <details class="code" data-quelle="attraktor.js">
-        <summary>Der Code</summary>
-        <pre><code>Wird geladen …</code></pre>
+    <div class="steuerung">
+      <label><input type="checkbox" id="crt-an" data-zeigt="crt-regler"> CRT</label>
+    </div>
+    <div class="steuerung" id="crt-regler" hidden>
+      <details class="regler-gruppe">
+        <summary>Settings</summary>
+        <div class="steuerung">
+          <label>Farbversatz X
+            <input type="range" data-regler="crt.versatzX" min="-20" max="20" step="1" value="4">
+            <output></output>
+          </label>
+          <label>Farbversatz Y
+            <input type="range" data-regler="crt.versatzY" min="-20" max="20" step="1" value="0">
+            <output></output>
+          </label>
+          <label>Wölbung
+            <input type="range" data-regler="crt.woelbung" min="-0.8" max="0.3" step="0.01" value="0.08">
+            <output></output>
+          </label>
+          <label>Scanlines
+            <input type="range" data-regler="crt.scanlines" min="0" max="1" step="0.05" value="0.3">
+            <output></output>
+          </label>
+          <label>Vignette
+            <input type="range" data-regler="crt.vignette" min="0" max="1" step="0.05" value="0.4">
+            <output></output>
+          </label>
+          <label>Rauschen
+            <input type="range" data-regler="crt.rauschen" min="0" max="0.3" step="0.01" value="0.05">
+            <output></output>
+          </label>
+        </div>
       </details>
-    </section>
-    -->
-    
-  </main>
+    </div>
+      
+    </main>
 
-  <footer class="fuss">
-    <a href="/impressum/">Impressum</a>
-    <a href="/datenschutz/">Datenschutz</a>
-  </footer>
+    <footer class="fuss">
+      <a href="/impressum/">Impressum</a>
+      <a href="/datenschutz/">Datenschutz</a>
+    </footer>
 
-  <script src="/script.js"></script>
-  <script src="/export.js"></script>
-  <script src="attraktor.js"></script>
-</body>
+    <script src="/script.js"></script>
+    <script src="/export.js"></script>
+    <script src="attraktor.js"></script>
+    <script type="module" src="/lib/effekt-schicht.js"></script>
+  </body>
 </html>
