@@ -226,7 +226,57 @@
       </details>
     </div>
 
+    <div class="steuerung">
+      <label><input type="checkbox" id="rahmen-an" data-zeigt="rahmen-regler"> Fenster ums Bild</label>
+    </div>
+    <div class="steuerung" id="rahmen-regler" hidden>
+      <label>Titel
+        <input type="text" id="rahmen-titel" value="Unbenannt">
+      </label>
+      <label>Abstand
+        <input type="range" data-regler="rahmen.abstand" min="0" max="0.3" step="0.01" value="0.08">
+        <output></output>
+      </label>
+    </div>
+
+    <details class="regler-gruppe">
+      <summary>Fenster-Stil</summary>
+      <div class="steuerung">
+        <label>Rahmenstärke
+          <input type="range" data-regler="rahmen.staerke" min="0.05" max="0.6" step="0.01" value="0.2">
+          <output></output>
+        </label>
+        <label>Schatten
+          <input type="range" data-regler="rahmen.schattenDeckkraft" min="0" max="1" step="0.05" value="0.5">
+          <output></output>
+        </label>
+        <label>Weichheit
+          <input type="range" data-regler="rahmen.schattenWeich" min="0" max="0.08" step="0.002" value="0.02">
+          <output></output>
+        </label>
+        <label>Versatz
+          <input type="range" data-regler="rahmen.schattenVersatz" min="0" max="0.05" step="0.002" value="0.008">
+          <output></output>
+        </label>
+      </div>
+    </details>
+
     <ol class="kette" id="kette" aria-label="Reihenfolge der Effekte"></ol>
+
+    <div id="overlay-auswahl" hidden>
+      <p class="hinweis" id="overlay-name"></p>
+      <div class="steuerung">
+        <label>Größe
+          <input type="range" id="overlay-groesse" min="0.02" max="1" step="0.01">
+          <output id="overlay-groesse-wert"></output>
+        </label>
+        <label><input type="checkbox" id="overlay-fenster"> im Fenster</label>
+        <label>Titel
+          <input type="text" id="overlay-titel">
+        </label>
+        <button type="button" id="overlay-entfernen">Entfernen</button>
+      </div>
+    </div>
     
     <div class="steuerung">
       <label>Vergleich
