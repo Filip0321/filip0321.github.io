@@ -25,7 +25,7 @@ async function bereiteKonvertierungVor(datei, ausgabeFormat, w, h, fit, verarbei
   return { conversion, output };
 }
 
-export async function renderVideo(datei, w, h, fit, verarbeite) {
+export async function renderVideo(datei, w, h, fit, verarbeite, beiFortschritt) {
     let endung = "mp4";
     let mime = "video/mp4";
     let { conversion, output } = await bereiteKonvertierungVor(

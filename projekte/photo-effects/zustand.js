@@ -13,7 +13,7 @@ export const zustand = {
   vhsAn: false,
   crtAn: false,
   rahmenAn: false,
-  rahmenTitel: "Unbekannt",
+  rahmenTitel: "Unbenannt",
 
   teilung: 0,
 

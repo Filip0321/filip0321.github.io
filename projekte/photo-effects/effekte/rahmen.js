@@ -17,8 +17,8 @@ export const RAHMEN = {
   knoepfe: [
     // von links nach rechts
     ladeGrafik("rahmen/kleiner.png"),
-    ladeGrafik("rahmen/kleiner.png"),
-    ladeGrafik("rahmen/kleiner.png"),
+    ladeGrafik("rahmen/groesser.png"),
+    ladeGrafik("rahmen/schluss_normal.png"),
   ],
   knopfGroesse: 160,
   knopfAbstand: 16, // zwischen den Knöpfen
@@ -135,7 +135,7 @@ export function baueFenster(inhalt, iw, ih, s, titel) {
   fensterCtx.imageSmoothingQuality = "high";
 
   // 1. Inhalt in die Innenfläche
-  fensterCtx.drawImage(inhalt, innen.links * s, innen.oben * s, iw, ih);
+  if (inhalt) fensterCtx.drawImage(inhalt, innen.links * s, innen.oben * s, iw, ih);
 
   // 2. Rahmen darüber, die transparente Mitte lässt den Inhalt durch
   zeichneNeunteilig(

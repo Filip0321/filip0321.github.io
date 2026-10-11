@@ -1,3 +1,5 @@
+import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+
 // Settings
 
 const MAX_PUNKTE = 1000000;
@@ -412,8 +414,34 @@ window.addEventListener("resize", () => {
 passeGroesseAn();
 waehlePreset(0);
 
+let renderProBild = 0;
+
+const render = {
+  start(n) {
+    stoppeAnimation();
+    neuesBild();
+    if (animiert) {
+      renderProBild = Math.ceil(punkte / n); // Entstehen genau über die Videolänge verteilt
+    } else {
+      punkteHinzufuegen(punkte);
+      renderProBild = 0;
+    }
+  },
+  bild() {
+    if (renderProBild > 0) punkteHinzufuegen(renderProBild);
+    zeige();
+  },
+  ende() {
+    punkteHinzufuegen(punkte); // Rest auffüllen, Bild vollständig hinterlassen
+    zeige();
+  },
+};
+
 richteExportEin({
   canvas,
   ziel: document.querySelector(".export"),
-  name: () => typ.name.toLowerCase().replace(/\s+/g, "-")
+  name: () => typ.name.toLowerCase().replace(/\s+/g, "-"),
+  anzeige: sichtbaresBild,
+  endbild,
+  render,
 });
