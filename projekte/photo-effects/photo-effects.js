@@ -28,6 +28,21 @@ const grauFeld = hole("grau");
 const vhsFeld = hole("vhs-an"); // toggle für vhs
 const crtFeld = hole("crt-an"); // toggle für crt
 
+const rahmenFeld = hole("rahmen-an");
+const rahmenTitelFeld = hole("rahmen-titel");
+let rahmenAn = rahmenFeld.checked;
+let rahmenTitel = rahmenTitelFeld.value;
+
+const overlayAuswahl = hole("overlay-auswahl");
+const overlayName = hole("overlay-name");
+const overlayGroesseFeld = hole("overlay-groesse");
+const overlayGroesseWert = hole("overlay-groesse-wert");
+const overlayFensterFeld = hole("overlay-fenster");
+const overlayTitelFeld = hole("overlay-titel");
+const overlayEntfernenKnopf = hole("overlay-entfernen");
+
+let ausgewaehlt = null;   // der Zettel des gerade ausgewählten Overlays
+
 const vergleichFeld = hole("vergleich"); // slider für vorher/nachher
 const vergleichWert = hole("vergleichwert");
 
@@ -62,7 +77,7 @@ let crtAn = crtFeld.checked;
 let teilung = 0;
 let geplant = false;
 
-const werte = { crt: {}, vhs: {} }; // bringen beide einige eigene Einstellungen mit
+const werte = { crt: {}, vhs: {}, rahmen: {} }; // bringen beide einige eigene Einstellungen mit
 // und können später auch erweitert werden
 
 if (!gl) {
@@ -396,6 +411,155 @@ function dithern(eingabe, stufen, grau) {
   return ausgabe;
 }
 
+// Fenster-Rahmen
+
+function ladeGrafik(pfad) {
+  const grafik = new Image();
+  grafik.src = pfad;
+  grafik.addEventListener("load", planeAnwenden); // neu zeichnen, sobald geladen
+  return grafik;
+}
+
+function geladen(grafik) {
+  return grafik.complete && grafik.naturalWidth > 0;
+} // check obs geladen ist
+
+const RAHMEN = {
+  grafik: ladeGrafik("rahmen/rahmen.png"),
+  schnitte: { oben: 280, links: 120, rechts: 120, unten: 16 }, // wo geschnitten wird
+  innen: { oben: 280, links: 16, rechts: 16, unten: 16 }, // wo der Inhalt beginnt
+  knoepfe: [
+    // von links nach rechts
+    ladeGrafik("rahmen/kleiner.png"),
+    ladeGrafik("rahmen/groesser.png"),
+    ladeGrafik("rahmen/schluss_normal.png"),
+  ],
+  knopfGroesse: 160,
+  knopfAbstand: 16, // zwischen den Knöpfen
+  knopfRand: 60, // vom rechten Rand
+  titelLinks: 70, // wo der Titel beginnt
+};
+
+// unsichtbare Arbeitsflächen
+const inhaltCanvas = document.createElement("canvas");
+const inhaltCtx = inhaltCanvas.getContext("2d");
+const fensterCanvas = document.createElement("canvas");
+const fensterCtx = fensterCanvas.getContext("2d");
+const rahmenCanvas = document.createElement("canvas");
+const rahmenCtx = rahmenCanvas.getContext("2d", { willReadFrequently: true });
+
+// Grafik in 9 Teilen auf die Fläche x, y, w, h verteilen
+function zeichneNeunteilig(ziel, grafik, schnitte, x, y, w, h, s) {
+  const { oben, links, rechts, unten } = schnitte;
+  const gw = grafik.naturalWidth;
+  const gh = grafik.naturalHeight;
+
+  const qx = [0, links, gw - rechts, gw]; // Kanten im Original Rahmen
+  const qy = [0, oben, gh - unten, gh];
+  const zx = [x, x + links * s, x + w - rechts * s, x + w]; // Kanten im  die gestreched werden
+  const zy = [y, y + oben * s, y + h - unten * s, y + h];
+
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 3; i++) {
+      if (i === 1 && j === 1) continue; // Mitte ist transparent
+      ziel.drawImage(
+        grafik,
+        qx[i],
+        qy[j],
+        qx[i + 1] - qx[i],
+        qy[j + 1] - qy[j],
+        zx[i],
+        zy[j],
+        zx[i + 1] - zx[i],
+        zy[j + 1] - zy[j],
+      );
+    }
+  }
+}
+
+// Fenster um einen Inhalt bauen, ohne Schatten
+function baueFenster(inhalt, iw, ih, s, titel) {
+  const { innen } = RAHMEN;
+  const fw = iw + (innen.links + innen.rechts) * s;
+  const fh = ih + (innen.oben + innen.unten) * s;
+
+  fensterCanvas.width = Math.round(fw); // setzt auch den Inhalt zurück
+  fensterCanvas.height = Math.round(fh);
+  fensterCtx.imageSmoothingQuality = "high";
+
+  // 1. Inhalt in die Innenfläche
+  fensterCtx.drawImage(inhalt, innen.links * s, innen.oben * s, iw, ih);
+
+  // 2. Rahmen darüber, die transparente Mitte lässt den Inhalt durch
+  zeichneNeunteilig(
+    fensterCtx,
+    RAHMEN.grafik,
+    RAHMEN.schnitte,
+    0,
+    0,
+    fw,
+    fh,
+    s,
+  );
+
+  // 3. Knöpfe von rechts nach links
+  const kg = RAHMEN.knopfGroesse * s;
+  const ky = ((innen.oben - RAHMEN.knopfGroesse) / 2) * s; // senkrecht mittig in der Titelleiste
+  let kx = fw - RAHMEN.knopfRand * s;
+  for (let i = RAHMEN.knoepfe.length - 1; i >= 0; i--) {
+    kx -= kg;
+    fensterCtx.drawImage(RAHMEN.knoepfe[i], kx, ky, kg, kg);
+    kx -= RAHMEN.knopfAbstand * s;
+  }
+
+  // 4. Titel, höchstens bis vor die Knöpfe
+  const tx = RAHMEN.titelLinks * s;
+  fensterCtx.fillStyle = "#ffffff";
+  fensterCtx.font = `bold ${Math.round(100 * s)}px sans-serif`;
+  fensterCtx.textBaseline = "middle";
+  fensterCtx.fillText(titel, tx, (innen.oben / 2) * s, Math.max(0, kx - tx));
+
+  return fensterCanvas;
+}
+
+function rahmenGeladen() {
+  return [RAHMEN.grafik, ...RAHMEN.knoepfe].every(geladen);
+}
+
+// Maßstab der Rahmenränder für ein Bild der Breite w
+function fensterMassstab(w) {
+  return (w / RAHMEN.grafik.naturalWidth) * werte.rahmen.staerke;
+}
+
+// Schatten für alle Fenster gleich einstellen
+function setzeSchatten(ziel, w) {
+  const r = werte.rahmen;
+  ziel.shadowColor = `rgba(0, 0, 0, ${r.schattenDeckkraft})`;
+  ziel.shadowBlur = r.schattenWeich * w;
+  ziel.shadowOffsetX = r.schattenVersatz * w;
+  ziel.shadowOffsetY = r.schattenVersatz * w;
+}
+
+// Größe eines Overlays auf einem Bild der Breite w 
+// breite, hoehe: nur die Grafik
+// gesamtB, gesamtH: mit Fenster drumherum, falls es eins hat
+function overlayMasse(schritt, w) {
+  const breite = w * schritt.groesse;
+  const hoehe = (breite * schritt.grafik.height) / schritt.grafik.width;
+
+  if (!schritt.fenster || !rahmenGeladen()) {
+    return { breite, hoehe, gesamtB: breite, gesamtH: hoehe, s: 0 };
+  }
+
+  const s = fensterMassstab(w);
+  const { innen } = RAHMEN;
+  return {
+    breite, hoehe, s,
+    gesamtB: breite + (innen.links + innen.rechts) * s,
+    gesamtH: hoehe + (innen.oben + innen.unten) * s,
+  };
+}
+
 // Die Effekte
 
 const EFFEKTE = {
@@ -431,31 +595,99 @@ const EFFEKTE = {
     gpu: false,
     an: () => true,
     anwenden(bild, zeit, schritt) {
-      // 1. Hilfs-Canvas so groß wie das Foto, Foto hineinlegen
-      overlayCanvas.width = bild.width;
-      overlayCanvas.height = bild.height;
+      const w = bild.width;
+      const h = bild.height;
+
+      overlayCanvas.width = w;
+      overlayCanvas.height = h;
       overlayCtx.putImageData(bild, 0, 0);
 
-      // 2. Größe des Overlays in Pixeln, Seitenverhältnis der Grafik bleibt
-      const breite = bild.width * schritt.groesse;
-      const hoehe = (breite * schritt.grafik.height) / schritt.grafik.width;
+      const m = overlayMasse(schritt, w);
+      const links = schritt.x * w - m.gesamtB / 2;   // Mitte → linke Kante
+      const oben = schritt.y * h - m.gesamtH / 2;
 
-      // 3. aus dem Mittelpunkt (0 bis 1) die linke obere Ecke in Pixeln
-      const links = schritt.x * bild.width - breite / 2;
-      const oben = schritt.y * bild.height - hoehe / 2;
+      if (m.s > 0) {
+        // mit Fenster: bauen, dann einmal mit Schatten zeichnen
+        const fenster = baueFenster(schritt.grafik, m.breite, m.hoehe, m.s, schritt.titel);
+        overlayCtx.save();
+        setzeSchatten(overlayCtx, w);
+        overlayCtx.drawImage(fenster, links, oben);
+        overlayCtx.restore();
+      } else {
+        overlayCtx.drawImage(schritt.grafik, links, oben, m.breite, m.hoehe);
+      }
 
-      // 4. Overlay darüber zeichnen, Transparenz bleibt erhalten
-      overlayCtx.drawImage(schritt.grafik, links, oben, breite, hoehe);
+      return overlayCtx.getImageData(0, 0, w, h);
+    },  
+  },
+  rahmen: {
+    name: "Fenster",
+    gpu: false,
+    an: () => rahmenAn,
+    anwenden(bild, zeit, schritt) {
+      if (!rahmenGeladen()) return bild; // noch nicht geladen
 
-      // 5. zurück als ImageData
-      return overlayCtx.getImageData(0, 0, bild.width, bild.height);
+      const w = bild.width;
+      const h = bild.height;
+      const { innen } = RAHMEN;
+      const r = werte.rahmen;
+
+      // Bild als Inhalt bereitlegen
+      inhaltCanvas.width = w;
+      inhaltCanvas.height = h;
+      inhaltCtx.putImageData(bild, 0, 0);
+
+      // Maßstab der Ränder, abhängig von der Bildbreite
+      const s = fensterMassstab(w);
+
+      // Platz für das Fenster, abzüglich Abstand zum Rand [Pixel]
+      const platzW = w * (1 - 2 * r.abstand);
+      const platzH = h * (1 - 2 * r.abstand);
+
+      // Inhalt so verkleinern, dass Inhalt plus Rahmen in den Platz passt,
+      // Seitenverhältnis des Bildes bleibt
+      const randW = (innen.links + innen.rechts) * s;
+      const randH = (innen.oben + innen.unten) * s;
+      const faktor = Math.min((platzW - randW) / w, (platzH - randH) / h);
+      const iw = w * faktor;
+      const ih = h * faktor;
+
+      const fenster = baueFenster(inhaltCanvas, iw, ih, s, rahmenTitel);
+
+      // Hintergrund, wie in zeichneQuelle
+      rahmenCanvas.width = w;
+      rahmenCanvas.height = h;
+      if (!transparent) {
+        rahmenCtx.fillStyle = hintergrund;
+        rahmenCtx.fillRect(0, 0, w, h);
+      }
+
+      // Fenster mittig, mit einem einzigen Schatten
+      rahmenCtx.save();
+      rahmenCtx.save();
+      setzeSchatten(rahmenCtx, w);
+      rahmenCtx.drawImage(fenster, (w - fenster.width) / 2, (h - fenster.height) / 2);
+      rahmenCtx.restore();      
+      rahmenCtx.drawImage(
+        fenster,
+        (w - fenster.width) / 2,
+        (h - fenster.height) / 2,
+      );
+      rahmenCtx.restore();
+
+      return rahmenCtx.getImageData(0, 0, w, h);
     },
   },
 };
 
 // Die Kette: Reihenfolge der Effekte, später umsortierbar
 // overlay kommt mit kette.push() erst beim laden
-let kette = [{ typ: "pixel" }, { typ: "vhs" }, { typ: "crt" }];
+let kette = [
+  { typ: "pixel" },
+  { typ: "vhs" },
+  { typ: "rahmen" },
+  { typ: "crt" },
+];
 
 // Kette anzeigen
 
@@ -489,6 +721,20 @@ function zeigeKette() {
 
     li.append(hoch, runter);
     ketteListe.appendChild(li);
+
+    if (schritt.typ === "overlay") {
+      const waehlen = document.createElement("button");
+      waehlen.textContent = name;
+      waehlen.setAttribute("aria-pressed", schritt === ausgewaehlt);
+      waehlen.addEventListener("click", () => {
+        ausgewaehlt = schritt;
+        zeigeAuswahl();
+        zeigeKette();
+      });
+      li.append(waehlen);
+    } else {
+      li.append(name);
+    }
   });
 }
 
@@ -505,9 +751,103 @@ function verschiebe(i, richtung) {
 
 zeigeKette();
 
+overlayFeld.addEventListener("change", async () => {
+  const datei = overlayFeld.files[0];
+  if (!datei) return;
+
+  const grafik = await createImageBitmap(datei); // einmal laden, nicht bei jedem Bild
+
+  // packe es hinten an die Kette dran
+  const schritt = {
+    typ: "overlay",
+    name: datei.name, // für die Anzeige in der Liste
+    grafik,
+    x: 0.5, // Mitte, waagerecht
+    y: 0.5, // Mitte, senkrecht
+    groesse: 0.3, // 30 % der ganzen Bildbreite (canvasBreite)
+    fenster: false,
+    titel: datei.name,
+  }; // Mitte ist wichtig zum späteren skalieren und rotieren
+
+  kette.push(schritt);
+  ausgewaehlt = schritt;
+
+  overlayFeld.value = "";
+  zeigeKette();
+  planeAnwenden();
+});
+
+// Overlays ziehen
+
+let gezogen = null; // der Schritt, der gerade gezogen wird
+let griff = null; // { x, y }: Abstand Fingerpunkt zu Overlay-Mitte
+
+function punktAusEreignis(e) {
+  const rect = canvas.getBoundingClientRect(); // wo auf dem Canvas wird geklickt
+  const x = (e.clientX - rect.left) / rect.width; // auf 0..1 reduzieren
+  const y = (e.clientY - rect.top) / rect.height;
+  return {
+    x: Math.min(Math.max(x, 0), 1), // auf 0 bis 1 begrenzen, falls der Zeiger
+    y: Math.min(Math.max(y, 0), 1),
+  };
+}
+
+function trifftOverlay(punkt) {
+  const overlays = kette
+    .filter((schritt) => schritt.typ === "overlay")
+    .reverse();
+  // alle overlays aus der Kette rückwärts speichern (das oberste ist wichtig)
+
+  return (
+    overlays.find((schritt) => {
+      // find gibt das erste Element zurück wo es zu "true" ausgewertet wird
+      const m = overlayMasse(schritt, canvas.width);
+      const halbeBreite = m.gesamtB / canvas.width / 2;
+      const halbeHoehe = m.gesamtH / canvas.height / 2;
+      return (
+        Math.abs(punkt.x - schritt.x) <= halbeBreite && // einfach dass der Punkt max halbe größe des Overlays
+        Math.abs(punkt.y - schritt.y) <= halbeHoehe
+      ); // von der mitte des Overlays entfernt ist
+    }) ?? null
+  );
+  // das return .find() gibt also das SchrittObjekt zurück
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  const punkt = punktAusEreignis(e);
+  const treffer = trifftOverlay(punkt);
+  if (!treffer) return;
+  gezogen = treffer; // das SchrittObjekt was gefunden wurde
+  ausgewaehlt = treffer;
+  zeigeAuswahl();
+  zeigeKette();
+  griff = {
+    x: punkt.x - treffer.x,
+    y: punkt.y - treffer.y,
+  };
+  canvas.setPointerCapture(e.pointerId); // jetzt kann man anfangen zu tracken
+});
+
+canvas.addEventListener("pointermove", (e) => {
+  if (!gezogen) return;
+
+  const punkt = punktAusEreignis(e);
+  gezogen.x = punkt.x - griff.x;
+  gezogen.y = punkt.y - griff.y;
+  planeAnwenden();
+});
+
+function lassLos() {
+  gezogen = null;
+  griff = null;
+}
+
+canvas.addEventListener("pointerup", lassLos);
+canvas.addEventListener("pointercancel", lassLos);
+
 function wendeSchrittAn(schritt, bild, zeit) {
   const effekt = EFFEKTE[schritt.typ];
-  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt); 
+  if (!effekt.gpu) return effekt.anwenden(bild, zeit, schritt);
   // ohne gpu, normale anwenden Funktion in EFFEKTE, die andern haben shader
 
   rendere(
@@ -720,28 +1060,7 @@ async function speichereVideo() {
 
 // Buttons
 // Listener
-
-overlayFeld.addEventListener("change", async () => {
-  const datei = overlayFeld.files[0];
-  if (!datei) return;
-
-  const grafik = await createImageBitmap(datei); // einmal laden, nicht bei jedem Bild
-
-  // packe es hinten an die Kette dran
-  kette.push({
-    typ: "overlay",
-    name: datei.name, // für die Anzeige in der Liste
-    grafik,
-    x: 0.5, // Mitte, waagerecht
-    y: 0.5, // Mitte, senkrecht
-    groesse: 0.3, // 30 % der Bildbreite
-  }); // Mitte ist wichtig zum späteren skalieren und rotieren
-
-  overlayFeld.value = "";
-  zeigeKette();
-  planeAnwenden();
-});
-
+//
 formatFeld.addEventListener("change", () => {
   format = formatFeld.value;
   baueQuelleNeu();
@@ -798,8 +1117,56 @@ vhsFeld.addEventListener("change", () => {
   planeAnwenden();
 });
 
+rahmenFeld.addEventListener("change", () => {
+  rahmenAn = rahmenFeld.checked;
+  zeigeKette();
+  planeAnwenden();
+});
+
+rahmenTitelFeld.addEventListener("input", () => {
+  rahmenTitel = rahmenTitelFeld.value;
+  planeAnwenden();
+});
+
 crtFeld.addEventListener("change", () => {
   crtAn = crtFeld.checked;
+  zeigeKette();
+  planeAnwenden();
+});
+
+// Einstellungen des ausgewählten Overlays
+
+function zeigeAuswahl() {
+  overlayAuswahl.hidden = !ausgewaehlt;
+  if (!ausgewaehlt) return;
+
+  overlayName.textContent = ausgewaehlt.name;
+  overlayGroesseFeld.value = ausgewaehlt.groesse;
+  overlayGroesseWert.textContent = ausgewaehlt.groesse;
+  overlayFensterFeld.checked = ausgewaehlt.fenster;
+  overlayTitelFeld.value = ausgewaehlt.titel;
+}
+
+overlayGroesseFeld.addEventListener("input", () => {
+  ausgewaehlt.groesse = Number(overlayGroesseFeld.value);
+  overlayGroesseWert.textContent = overlayGroesseFeld.value;
+  planeAnwenden();
+});
+
+overlayFensterFeld.addEventListener("change", () => {
+  ausgewaehlt.fenster = overlayFensterFeld.checked;
+  planeAnwenden();
+});
+
+overlayTitelFeld.addEventListener("input", () => {
+  ausgewaehlt.titel = overlayTitelFeld.value;
+  planeAnwenden();
+});
+
+overlayEntfernenKnopf.addEventListener("click", () => {
+  kette.splice(kette.indexOf(ausgewaehlt), 1);   // genau diesen Zettel aus der Kette nehmen
+  ausgewaehlt = null;
+  zeigeAuswahl();
   zeigeKette();
   planeAnwenden();
 });

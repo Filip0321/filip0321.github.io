@@ -665,6 +665,10 @@ pre {
   cursor: pointer;
 }
 
+.steuerung input[type="text"] {
+  width: 12rem;
+}
+
 select {
   font: inherit;
   color: inherit;
