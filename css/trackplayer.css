@@ -1,0 +1,49 @@
+/*
+Tracks: Cover und Audio-Player (player.js)
+*/
+
+.cover {
+  max-width: 24rem;
+  margin-bottom: 1.5rem;
+}
+
+.cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.play {
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.play:hover,
+.play:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.zeit {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.zeitleiste {
+  flex: 1;
+  accent-color: var(--text);
+  cursor: pointer;
+}

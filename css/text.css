@@ -1,0 +1,96 @@
+/*
+Text zum Lesen: Lesetext (Impressum, Datenschutz, Doku), Gedichte,
+anderer Text, Doku-Abschnitte und aufklappbarer Code
+*/
+
+/*
+Einstellungen sollte der Text auch lesbar sein
+*/
+
+.lesetext {
+  max-width: 65ch;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  hyphens: auto;
+}
+
+.lesetext .projekt-kopf {
+  font-family: "Special Elite", "Courier New", monospace;
+  margin-bottom: 2.5rem;
+}
+
+.lesetext p + p {
+  margin-top: 1em;
+}
+
+.lesetext h2 {
+  font-family: "Special Elite", "Courier New", monospace;
+  font-size: 1.4rem;
+  margin: 2.5rem 0 1rem;
+}
+
+.lesetext blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1.25rem;
+  border-left: 2px solid currentColor;
+  opacity: 0.85;
+}
+
+.lesetext blockquote footer {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+/*
+besondere Formatierung für Gedichte
+*/
+
+.gedicht {
+  white-space: pre-line;
+}
+
+.gedicht p + p {
+  margin-top: 1.75em;
+}
+
+/*
+Anderer Text
+*/
+
+.text {
+  max-width: 65ch;
+  line-height: 1.6;
+  margin: 2rem 0 3rem;
+}
+
+.text p + p {
+  margin-top: 1em;
+}
+
+/*
+Dokumentation unter den Projekten
+*/
+
+.doku {
+  margin-top: 4rem;
+}
+
+.doku ul {
+  padding-left: 1.25rem;
+  margin-top: 1rem;
+}
+
+.doku li + li {
+  margin-top: 0.4rem;
+}
+
+.code {
+  margin-top: 2.5rem;
+}
+
+.code summary {
+  font-family: "Special Elite", "Courier New", monospace;
+  cursor: pointer;
+}

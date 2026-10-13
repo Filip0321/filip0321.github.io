@@ -1,0 +1,87 @@
+/*
+Foto Serien Darstellen: Galerie, Mosaik, Pinnwand
+*/
+
+/*
+Galerie Style
+*/
+
+.galerie {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.galerie img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.galerie figcaption {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 0.5rem;
+}
+
+/*
+Mosaik Styles
+*/
+
+.mosaik {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+  grid-auto-rows: 9rem;
+  grid-auto-flow: dense;
+  gap: 0.5rem;
+}
+
+.mosaik a {
+  display: block;
+  height: 100%;
+}
+
+.mosaik img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--fokus, center);
+}
+
+/* selber bestimmen wie ein Bild ist */
+.mosaik .breit {
+  grid-column: span 2;
+}
+.mosaik .hoch {
+  grid-row: span 2;
+}
+.mosaik .gross {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+/*
+Pinnwand Style (siehe Pinterest - in Spalten)
+*/
+
+.pinnwand {
+  columns: 3 9rem;
+  column-gap: 0.75rem;
+}
+
+.pinnwand figure {
+  break-inside: avoid;
+  margin-bottom: 0.75rem;
+}
+
+.pinnwand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pinnwand figcaption {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 0.35rem;
+}

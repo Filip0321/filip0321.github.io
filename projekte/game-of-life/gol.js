@@ -21,6 +21,16 @@ let naechstes = new Uint8Array(SPALTEN * ZEILEN);
 let laeuft = true;
 let letzteZeit = 0;
 
+// Regeln: eine lebende Zelle überlebt mit nachbar1 oder nachbar2 Nachbarn,
+// eine tote Zelle wird mit genau nachbar3 Nachbarn lebendig (Conway: 2, 3 und 3)
+let nachbar1 = 2;
+let nachbar2 = 3;
+let nachbar3 = 3;
+
+const nachbar1Feld = hole("nachbar1");
+const nachbar2Feld = hole("nachbar2");
+const nachbar3Feld = hole("nachbar3");
+
 
 // Größe einer Zelle in Canvas-Pixeln (die Ansicht, wird berechnet)
 
@@ -103,7 +113,7 @@ const MUSTER = [
 
 // Spielfeld-Canvas initialisieren
 
-const canvas = document.getElementById("feld");
+const canvas = hole("feld");
 const ctx = canvas.getContext("2d");
 
 function passeGroesseAn() {
@@ -129,8 +139,9 @@ function nachbarn(x, y) {
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       if (dx === 0 && dy === 0) continue;
-      const nx = (x + dx + SPALTEN) % SPALTEN; // Wrap around horizontally
-      const ny = (y + dy + ZEILEN) % ZEILEN;   // Wrap around vertically
+      // rechts raus kommt links wieder rein; + SPALTEN, weil -1 % SPALTEN in JS -1 bleibt
+      const nx = (x + dx + SPALTEN) % SPALTEN;
+      const ny = (y + dy + ZEILEN) % ZEILEN; // genauso oben und unten
       anzahl += gitter[index(nx, ny)];
     }
   }
@@ -142,9 +153,10 @@ function schritt() {
     for (let x = 0; x < SPALTEN; x++) {
       const n = nachbarn(x, y);
       const lebt = gitter[index(x, y)]; // Array enthält 1 für lebende Zellen und 0 für tote Zellen
-      const lebtWeiter = lebt ? (n === 2 || n === 3) : n === 3; // Regeln: 
-                                                                // Lebende Zelle mit 2 oder 3 Nachbarn lebt weiter, 
-                                                                // tote Zelle mit genau 3 Nachbarn wird lebendig
+      const lebtWeiter = lebt ? (n === nachbar1 || n === nachbar2) : n === nachbar3;
+      // Regeln (oben einstellbar), bei Conway:
+      // Lebende Zelle mit 2 oder 3 Nachbarn lebt weiter,
+      // tote Zelle mit genau 3 Nachbarn wird lebendig
       naechstes[index(x, y)] = lebtWeiter ? 1 : 0;
     }
   }
@@ -207,11 +219,11 @@ const neuKnopf = document.getElementById("neu");
 
 function setzeLaeuft(wert) {
   laeuft = wert;
-  startKnopf.textContent = laeuft ? "Pause" : "Start";
+  startKnopf.textContent = laeuft ? "Pause" : "Start"; // zeigt, was ein Klick macht
 }
 
 startKnopf.addEventListener("click", () => {
-  setzeLaeuft(!laeuft); // Toggle the running state
+  setzeLaeuft(!laeuft); // an ↔ aus
 });
 
 schrittKnopf.addEventListener("click", () => {
@@ -355,6 +367,51 @@ stufenFeld.addEventListener("input", () => {
 });
 
 
+// Regeln einstellen
+
+// sinnvolle Hilfsfunktion, dass die Eingabe auch immer eine
+// Ganzzahl und im Rahmen bleibt
+function leseGanzzahl(feld, min, max, bisher) {
+  const eingabe = feld.value.trim();
+  const zahl = Number(eingabe);
+
+  if (eingabe === "" || !Number.isFinite(zahl)) {
+    feld.value = bisher;
+    return bisher;
+  }
+
+  const ergebnis = Math.min(Math.max(Math.round(zahl), min), max);
+  feld.value = ergebnis;
+  return ergebnis;
+}
+
+// neue Regel: neues Zufallsfeld, damit man sie gleich sieht
+function neueRegel() {
+  zufall(0.25);
+  markiere(-1);
+  zeichne();
+}
+
+nachbar1Feld.addEventListener("change", () => {
+  nachbar1 = leseGanzzahl(nachbar1Feld, 0, 8, nachbar1);
+  neueRegel();
+});
+
+nachbar2Feld.addEventListener("change", () => {
+  nachbar2 = leseGanzzahl(nachbar2Feld, 0, 8, nachbar2);
+  neueRegel();
+});
+
+nachbar3Feld.addEventListener("change", () => {
+  nachbar3 = leseGanzzahl(nachbar3Feld, 1, 8, nachbar3); // ab 1: mit 0 würde jede leere Fläche sofort lebendig
+  neueRegel();
+});
+
+nachbar1Feld.value = nachbar1;
+nachbar2Feld.value = nachbar2;
+nachbar3Feld.value = nachbar3;
+
+
 // Animation
 
 function schleife(zeit) {
@@ -380,7 +437,7 @@ zeichne();
 requestAnimationFrame(schleife);
 
 
-// Exportfunktion (sieht export.js)
+// Exportfunktion (siehe export.js)
 
 let warLaeuft = false;
 let renderGeneration = 0;
@@ -413,3 +470,5 @@ richteExportEin({
   endbild,
   render,
 });
+
+

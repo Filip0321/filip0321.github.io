@@ -1,0 +1,237 @@
+/*
+style.css: gilt auf JEDER Seite
+Schriften, Farben, Grundlagen, Menü, Fuß, Seitenrahmen, Tags, Karten
+
+Was nur auf manchen Seiten gebraucht wird, liegt daneben:
+  landing.css      Startseite (Name, Bühne mit Symbolen)
+  fenster.css      XP-Fenster und schlichte Fenster
+  text.css         Lesetext, Gedichte, Doku, Code
+  fotocollage.css  Galerie, Mosaik, Pinnwand
+  trackplayer.css  Cover und Audio-Player
+  canvas.css       Simulationen: Canvas, Effekt-Schicht, Werkbank-Layout
+  steuerung.css    Knöpfe, Felder, Regler, Presets, Effekt-Kette
+
+Regeln
+
+1. Nur zwei Farben: --bg und --text
+2. Rahmen immer 1px solid currentColor, keine Rundungen
+3. Aktiv oder darüber: Farben tauschen
+4. Unwichtiges über Deckkraft: 0,4 aus, 0,6 Nebensache, 0,8 Text
+5. Schrift erben mit font: inherit
+*/
+
+/*
+Fonts (liegen in css/fonts/, die Pfade sind relativ zu dieser Datei)
+*/
+
+@font-face {
+  font-family: "Special Elite";
+  src: url("fonts/SpecialElite-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("fonts/CourierPrime-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("fonts/CourierPrime-Italic.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+/*
+Für überall auf der Page
+*/
+
+:root {
+  --bg: #111111;
+  --text: #dddddd;
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Special Elite", "Courier New", monospace;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+address {
+  font-style: normal;
+}
+
+pre {
+  margin-top: 1rem;
+  padding: 1rem;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.fuss {
+  justify-content: center;
+  display: flex;
+  gap: 1.5em;
+  padding: 2em 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+
+/*
+Menu Styles
+*/
+
+.menu-btn {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 2;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  padding: 4rem 1.5rem;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s,
+    visibility 0.3s;
+}
+
+.menu.offen {
+  opacity: 1;
+  visibility: visible;
+}
+
+.menu ul {
+  list-style: none;
+  text-align: center;
+}
+
+.menu a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: clamp(1.25rem, 6vw, 2.5rem);
+}
+
+/*
+Alle Seiten außer der Startseite
+*/
+
+.seite {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 5rem 1.5rem;
+}
+
+.seite h1 {
+  font-size: clamp(2rem, 8vw, 4rem);
+  margin-bottom: 2rem;
+}
+
+.zurueck {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.zurueck:hover {
+  opacity: 1;
+}
+
+.projekt-kopf .meta {
+  opacity: 0.6;
+  margin-top: 0.25rem;
+}
+
+/*
+Auf Übersicht und Projektseite
+*/
+
+.tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.tags li {
+  font-size: 0.8rem;
+  border: 1px solid currentColor;
+  padding: 0.1rem 0.5rem;
+  opacity: 0.6;
+}
+
+/*
+Projektübersicht mit Projekten als Karten im Grid
+*/
+
+.karten {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 2.5rem 2rem;
+}
+
+.karte a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.karte img,
+.karte video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.karte h2 {
+  font-size: 1.5rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.karte p {
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.karte a:hover h2 {
+  text-decoration: underline;
+}

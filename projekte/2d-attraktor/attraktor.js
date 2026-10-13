@@ -1,16 +1,8 @@
-import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
-import { richteExportEin } from "/export.js";
+// Rechne den Attraktor aus, gezeichnet wird er dann vom shader
+// Dadurch muss ich die Punkte nicht mit jeder Bewegung komplett neu berechnen
 
-// Settings
-
-const MAX_PUNKTE = 1000000;
-const BILDER_PRO_ANIMATION = 1500;
-const MAX_PROBE = 200000;
-const GRENZE = 1e6;
-
-let punkte = 600000;
-let staerke = 15;
-let animiert = true;
+const LIMIT_ABSTAND_PUNKTE = 1000000; // weiter weg gilt als davongelaufen
+const EINPENDELN = 100; // so viele Schritte am Anfang nicht speichern
 
 
 // Hilfsfunktion für Gumowski-Mira-Attraktor 
@@ -23,7 +15,7 @@ function gmFunktion(x, b) {
 // Attraktor-Typen
 // hab ich von http://www.3d-meier.de/tut19/Seite1.html
 
-const TYPEN = {
+export const TYPEN = {
   clifford: {
     name: "Clifford",
     formel: "x' = sin(a·y) + c·cos(a·x)\ny' = sin(b·x) + d·cos(b·y)",
@@ -115,7 +107,7 @@ const TYPEN = {
 
 // Die Presets und ihre initialen Werte
 
-const PRESETS = [
+export const PRESETS = [
   { name: "Clifford I", typ: "clifford", werte: { a: -1.4, b: 1.6, c: 1.0, d: 0.7 }, text: "Platzhalter." },
   { name: "Clifford II", typ: "clifford", werte: { a: 1.7, b: 1.7, c: 0.6, d: 1.2 }, text: "Platzhalter." },
   { name: "De Jong I", typ: "dejong", werte: { a: 1.4, b: -2.3, c: 2.4, d: -2.1 }, text: "Platzhalter." },
@@ -130,319 +122,63 @@ const PRESETS = [
 ];
 
 
-// Canvas als Zeichenfläche
+// Rechnen
 
-const canvas = document.getElementById("feld");
-const ctx = canvas.getContext("2d");
-
-function passeGroesseAn() {
-  const dpr = Math.max(window.devicePixelRatio || 1, 2);  // bei normalen monitoren mit dpr 1 wird doppelt so fein gerechnet und dann verkleinert
-  canvas.width = Math.round(canvas.clientWidth * dpr);    // die Größe des Canvas in CSS-Pixeln * devicePixelRatio = die Größe in echten Pixeln
-  canvas.height = Math.round(canvas.clientHeight * dpr);
+// Hilfsfunktion
+// Check ob der Punkt außerhalb des Limits oder im Unendlichen ist
+function punktNichtMehrDa(punkt) {
+  return (
+    !Number.isFinite(punkt.x + punkt.y) ||
+    Math.abs(punkt.x) > LIMIT_ABSTAND_PUNKTE ||
+    Math.abs(punkt.y) > LIMIT_ABSTAND_PUNKTE
+  );
 }
 
+// Alle Punkte einmal berechnen.
+// Ergebnis: Float32Array mit x0, y0, x1, y1, … oder null, wenn der Punkt davonläuft
+// start ist optional, ohne nimmt er den Start vom Typ
+export function berechnePunkte(typ, werte, anzahl, start = typ.start) {
+  const pos = { x: start[0], y: start[1] }; // eigene Position, nicht global
 
-// Zustände  
-
-let typ = TYPEN.clifford;   // Starttyp
-let werte = {};
-let start = typ.start; 
-const pos = { x: start[0], y: start[1] };  // Startposition des Attraktors
-
-let bild = null;
-let abbildung = null;
-let gezeichnet = 0;
-let animationsId = null;
-
-
-// Berechnung
-
-function laeuftDavon(p) {
-  return !Number.isFinite(p.x + p.y) // läuft davon wenn nicht finite
-    || Math.abs(p.x) > GRENZE
-    || Math.abs(p.y) > GRENZE;
-} // läuft der Punkt ins Unendliche?
-
-function bestimmeAbbildung() {
-  const probe = { x: start[0], y: start[1] };
-  let minX = Infinity;  // der neue wert (min) soll ja sicher kleiner sein
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  const schritte = Math.min(punkte, MAX_PROBE);
-
-  for (let i = 0; i < schritte; i++) {
-    typ.schritt(werte, probe);
-    if (laeuftDavon(probe)) return null;
-    if (i < 100) continue;  // ersten 100 Schritte sind einpendeln
-    if (probe.x < minX) minX = probe.x; // ist der neue Wert kleiner oder größer als der alte
-    if (probe.x > maxX) maxX = probe.x;
-    if (probe.y < minY) minY = probe.y;
-    if (probe.y > maxY) maxY = probe.y;
+  for (let i = 0; i < EINPENDELN; i++) {
+    typ.schritt(werte, pos);
   }
 
-  const breite = Math.max(maxX - minX, 1e-9);   // die breite der entstandenen Figur
-  const hoehe = Math.max(maxY - minY, 1e-9);
+  // anzahl * 2 weil jeder Punkt eine x und y Koordinate hat
+  const daten = new Float32Array(anzahl * 2);
+
+  for (let i = 0; i < anzahl; i++) {
+    typ.schritt(werte, pos);
+    if (punktNichtMehrDa(pos)) return null;
+    daten[i * 2] = pos.x;
+    daten[i * 2 + 1] = pos.y;
+  }
+
+  return daten;
+}
+
+// Den fertigen Attraktor vermessen: wo ist seine Mitte und wie groß ist er
+// gemalt wird hier nichts, mit dem Ergebnis kann main.js den Zoom so wählen,
+// dass der Attraktor mittig und ganz im Bild ist
+export function vermesseAttraktor(punkte) {
+  let minX = Infinity; // der erste Punkt ist sicher kleiner
+  let minY = Infinity;
+  let maxX = -Infinity; // und sicher größer
+  let maxY = -Infinity;
+
+  // jetzt hat jeder punkt eine x und y Koordinate nacheinander geschrieben
+  // im Array, also muss += 2
+  for (let i = 0; i < punkte.length; i += 2) {
+    if (punkte[i] < minX) minX = punkte[i];
+    if (punkte[i] > maxX) maxX = punkte[i];
+    if (punkte[i + 1] < minY) minY = punkte[i + 1];
+    if (punkte[i + 1] > maxY) maxY = punkte[i + 1];
+  }
 
   return {
-    massstab: Math.min(canvas.width / breite, canvas.height / hoehe) * 0.9,
     mitteX: (minX + maxX) / 2,
-    mitteY: (minY + maxY) / 2
-  };  // Figur zentrieren durch die in der Probe gewonnenen Infos
+    mitteY: (minY + maxY) / 2,
+    breite: Math.max(maxX - minX, 1e-9), // nie 0, sonst teilt passenderZoom durch 0
+    hoehe: Math.max(maxY - minY, 1e-9),
+  };
 }
-
-
-// Attraktor malen
-
-const hinweis = document.getElementById("hinweis");
-
-function neuesBild() {
-  bild = ctx.createImageData(canvas.width, canvas.height);
-  const pixel = bild.data;
-  for (let i = 0; i < pixel.length; i += 4) {
-    pixel[i] = 17;
-    pixel[i + 1] = 17;
-    pixel[i + 2] = 17;
-    pixel[i + 3] = 255;
-  }
-  pos.x = start[0];
-  pos.y = start[1];
-  gezeichnet = 0;
-  abbildung = bestimmeAbbildung();
-
-  hinweis.textContent = abbildung
-    ? ""
-    : "Mit diesen Werten läuft der Punkt ins Unendliche. Probier andere Zahlen.";
-} // das Bild initialisieren
-
-function punkteHinzufuegen(anzahl) {
-  if (!abbildung) {
-    gezeichnet = punkte;
-    return;
-  }
-
-  const w = bild.width;
-  const h = bild.height;
-  const pixel = bild.data;
-  const { massstab, mitteX, mitteY } = abbildung;
-  const ende = Math.min(gezeichnet + anzahl, punkte);
-
-  for (; gezeichnet < ende; gezeichnet++) {
-    typ.schritt(werte, pos);
-
-    if (laeuftDavon(pos)) {
-      gezeichnet = punkte;
-      return;
-    }
-
-    if (gezeichnet < 100) continue;
-
-    const px = Math.floor(w / 2 + (pos.x - mitteX) * massstab); // die Punkte korrekt bezogen 
-    const py = Math.floor(h / 2 + (pos.y - mitteY) * massstab); // auf die neue Mitte setzen
-    if (px < 0 || px >= w || py < 0 || py >= h) continue;
-
-    const stelle = (py * w + px) * 4;
-    pixel[stelle] += staerke;
-    pixel[stelle + 1] += staerke;
-    pixel[stelle + 2] += staerke;
-  }
-}
-
-function zeige() {
-  ctx.putImageData(bild, 0, 0);
-}
-
-function stoppeAnimation() {
-  if (animationsId !== null) {
-    cancelAnimationFrame(animationsId);
-    animationsId = null;
-  }
-}
-
-function zeichneSofort() {
-  stoppeAnimation();
-  neuesBild();
-  punkteHinzufuegen(punkte);
-  zeige();
-}
-
-function zeichneAnimiert() {
-  stoppeAnimation();
-  neuesBild();
-  const proBild = Math.ceil(punkte / BILDER_PRO_ANIMATION);
-
-  function bildSchritt() {
-    punkteHinzufuegen(proBild);
-    zeige();
-    if (gezeichnet < punkte) {
-      animationsId = requestAnimationFrame(bildSchritt);
-    } else {
-      animationsId = null;
-    }
-  }
-
-  animationsId = requestAnimationFrame(bildSchritt);
-}
-
-function zeichne() {
-  if (animiert) {
-    zeichneAnimiert();
-  } else {
-    zeichneSofort();
-  }
-}
-
-
-// Buttons
-
-const modusEnstehung = document.getElementById("toggle-animiert-sofort");
-const punkteFeld = document.getElementById("punkte");
-const staerkeFeld = document.getElementById("staerke");
-
-modusEnstehung.addEventListener("click", () => {
-  animiert = !animiert;
-  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Entstehen lassen";
-  zeichne();
-});
-
-function leseGanzzahl(feld, min, max, bisher) {
-  const eingabe = feld.value.trim();
-  const zahl = Number(eingabe);
-
-  if (eingabe === "" || !Number.isFinite(zahl)) {
-    feld.value = bisher;
-    return bisher;
-  }
-
-  const ergebnis = Math.min(Math.max(Math.round(zahl), min), max);
-  feld.value = ergebnis;
-  return ergebnis;
-}
-
-punkteFeld.addEventListener("change", () => {
-  punkte = leseGanzzahl(punkteFeld, 1000, MAX_PUNKTE, punkte);
-  zeichne();
-});
-
-staerkeFeld.addEventListener("change", () => {
-  staerke = leseGanzzahl(staerkeFeld, 1, 255, staerke);
-  zeichne();
-});
-
-punkteFeld.value = punkte;
-staerkeFeld.value = staerke;
-
-
-// Presets in HTML
-
-const presetBox = document.querySelector(".presets");
-const werteBox = document.querySelector(".werte");
-const presetName = document.getElementById("preset-name");
-const presetText = document.getElementById("preset-text");
-const formelFeld = document.getElementById("formel");
-
-PRESETS.forEach((preset, i) => {
-  const knopf = document.createElement("button");
-  knopf.type = "button";
-  knopf.textContent = preset.name;
-  knopf.addEventListener("click", () => waehlePreset(i));
-  presetBox.append(knopf);
-});
-
-function baueWerteFelder() {
-  werteBox.replaceChildren();
-
-  for (const name of typ.parameter) {
-    const label = document.createElement("label");
-    const feld = document.createElement("input");
-    feld.type = "number";
-    feld.step = "any";
-    feld.value = werte[name];
-
-    feld.addEventListener("change", () => {
-      const eingabe = feld.value.trim();
-      const zahl = Number(eingabe);
-
-      if (eingabe === "" || !Number.isFinite(zahl)) {
-        feld.value = werte[name];
-        return;
-      }
-
-      werte[name] = zahl;
-      markiere(-1);
-      zeichne();
-    });
-
-    label.append(`${name} `, feld);
-    werteBox.append(label);
-  }
-}
-
-function markiere(i) {
-  presetBox.querySelectorAll("button").forEach((knopf, j) => {
-    knopf.setAttribute("aria-pressed", j === i);
-  });
-
-  formelFeld.textContent = typ.formel;
-
-  if (i === -1) {
-    presetName.textContent = `${typ.name} - eigene Werte`;
-    presetText.textContent = "Du hast die Werte selbst verändert. Schon kleine Änderungen können eine völlig andere Form ergeben.";
-  } else {
-    presetName.textContent = PRESETS[i].name;
-    presetText.textContent = PRESETS[i].text;
-  }
-}
-
-function waehlePreset(i) {
-  const preset = PRESETS[i];
-  typ = TYPEN[preset.typ];
-  werte = { ...preset.werte };
-  start = preset.start || typ.start;
-  baueWerteFelder();
-  markiere(i);
-  zeichne();
-}
-
-
-// Start
-
-window.addEventListener("resize", () => {
-  passeGroesseAn();
-  zeichneSofort();
-});
-
-passeGroesseAn();
-waehlePreset(0);
-
-let renderProBild = 0;
-
-const render = {
-  start(n) {
-    stoppeAnimation();
-    neuesBild();
-    if (animiert) {
-      renderProBild = Math.ceil(punkte / n); // Entstehen genau über die Videolänge verteilt
-    } else {
-      punkteHinzufuegen(punkte);
-      renderProBild = 0;
-    }
-  },
-  bild() {
-    if (renderProBild > 0) punkteHinzufuegen(renderProBild);
-    zeige();
-  },
-  ende() {
-    punkteHinzufuegen(punkte); // Rest auffüllen, Bild vollständig hinterlassen
-    zeige();
-  },
-};
-
-richteExportEin({
-  canvas,
-  ziel: document.querySelector(".export"),
-  name: () => typ.name.toLowerCase().replace(/\s+/g, "-"),
-  anzeige: sichtbaresBild,
-  endbild,
-  render,
-});
