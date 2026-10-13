@@ -1,0 +1,190 @@
+/*
+XP-Fenster
+Rahmen als 9-Slice per border-image, Zahlen wie in rahmen.js
+Grafiken sind vierfach groß, --m = 0.125 ergibt etwa XP-Originalgröße
+*/
+
+.fenster {
+  --m: 0.125;
+  position: absolute;
+  width: min(26rem, calc(100% - 2rem));
+  /* Innenränder: so weit beginnt der Inhalt (innen 280/16/16/16) */
+  padding: calc(280px * var(--m)) calc(16px * var(--m)) calc(16px * var(--m));
+  /* folgt dem Alphakanal, wie der Canvas-Schatten */
+  filter: drop-shadow(0.3rem 0.4rem 0.5rem rgba(0, 0, 0, 0.6));
+  animation: fenster-auf 0.15s ease-out;
+}
+
+/* Rahmen liegt ÜBER dem Inhalt, wie in baueFenster; Schnitte breiter als die Innenränder */
+.fenster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-style: solid;
+  border-color: transparent;
+  border-width: calc(280px * var(--m)) calc(120px * var(--m)) calc(16px * var(--m));
+  border-image: url("/projekte/photo-effects/rahmen/rahmen.png") 280 120 16;
+  pointer-events: none;
+}
+
+.fenster-leiste {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1; /* über dem Rahmen */
+  height: calc(280px * var(--m));
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 calc(60px * var(--m)) 0 calc(70px * var(--m));
+  cursor: grab;
+  touch-action: none; /* Ziehen statt Scrollen auf dem Handy */
+  user-select: none;
+}
+
+.fenster.zieht .fenster-leiste {
+  cursor: grabbing;
+}
+
+.fenster-titel {
+  flex: 1;
+  min-width: 0;
+  font: bold calc(100px * var(--m)) "Trebuchet MS", sans-serif;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fenster-knoepfe {
+  display: flex;
+  gap: calc(16px * var(--m));
+}
+
+.fenster-knopf {
+  display: block;
+  width: calc(160px * var(--m));
+  height: calc(160px * var(--m));
+  padding: 0;
+  border: none;
+  background: center / contain no-repeat;
+}
+
+.fenster-knopf.deko {
+  background-image: url("/projekte/photo-effects/rahmen/kleiner.png");
+}
+
+.fenster-knopf.deko2 {
+  background-image: url("/projekte/photo-effects/rahmen/groesser.png");
+}
+
+.fenster-knopf.schliessen {
+  background-image: url("/projekte/photo-effects/rahmen/schluss_normal.png");
+  cursor: pointer;
+}
+
+.fenster-knopf.schliessen:hover {
+  background-image: url("/projekte/photo-effects/rahmen/schluss_hover.png");
+}
+
+.fenster-knopf.schliessen:active {
+  background-image: url("/projekte/photo-effects/rahmen/schluss_pressed.png");
+}
+
+.fenster-knopf.schliessen:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 1px;
+}
+
+.fenster-inhalt {
+  background: var(--bg);
+  padding: 1rem;
+  max-height: 60vh;
+  overflow: auto;
+  line-height: 1.6;
+}
+
+.fenster-inhalt ul {
+  list-style: none;
+}
+
+.fenster-inhalt p + p,
+.fenster-inhalt ul + p {
+  margin-top: 1em;
+}
+
+.fenster-inhalt a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fenster-inhalt a:hover {
+  text-decoration: underline;
+}
+
+@keyframes fenster-auf {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fenster {
+    animation: none;
+  }
+}
+
+/*
+Schlichte Fenster: ohne XP-Grafik, nach den Seitenregeln
+die Klasse "schlicht" sitzt auf <html> (fenster.js)
+*/
+
+.schlicht .fenster {
+  padding: 2.2rem 0 0;
+  border: 1px solid currentColor;
+  background: var(--bg);
+}
+
+.schlicht .fenster::after {
+  display: none;
+}
+
+.schlicht .fenster-leiste {
+  height: 2.2rem;
+  padding: 0 0.3rem 0 0.75rem;
+  border-bottom: 1px solid currentColor;
+}
+
+.schlicht .fenster-titel {
+  font: inherit;
+  color: inherit;
+}
+
+.schlicht .fenster-knopf.deko,
+.schlicht .fenster-knopf.deko2 {
+  display: none;
+}
+
+.schlicht .fenster-knopf.schliessen {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.schlicht .fenster-knopf.schliessen::before {
+  content: "✕";
+}
+
+.schlicht .fenster-knopf.schliessen:hover,
+.schlicht .fenster-knopf.schliessen:focus-visible,
+.schlicht .fenster-knopf.schliessen:active {
+  background: var(--text);
+  color: var(--bg);
+  outline: none;
+}

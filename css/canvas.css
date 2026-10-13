@@ -1,0 +1,137 @@
+/*
+Simulationen: Canvas, Effekt-Schicht darüber und das Werkbank-Layout
+(Game of Life, 2D- und 3D-Attraktor, Foto-Effekte)
+*/
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  touch-action: none; /* Finger ziehen/malen im Canvas, statt die Seite zu scrollen */
+  cursor: crosshair;
+}
+
+.attraktor-feld {
+  aspect-ratio: 1 / 1;
+  image-rendering: auto;
+}
+
+.gol-feld {
+  aspect-ratio: 4 / 3;
+  image-rendering: auto;
+}
+
+.drehbar {
+  cursor: grab;
+}
+
+.drehbar.zieht {
+  cursor: grabbing;
+}
+
+/* Foto-Effekte */
+
+.bild-feld {
+  margin-top: 1rem;
+  image-rendering: auto;
+  cursor: default;
+}
+
+/*
+Effekt-Schicht: zweiter Canvas genau über dem Feld (effekt-schicht.js)
+*/
+
+.feld-stapel {
+  position: relative; /* Bezug für die Schicht */
+  --verhaeltnis: 1; /* Breite durch Höhe des Felds, fürs Werkbank-Layout */
+}
+
+.feld-stapel:has(.gol-feld) {
+  --verhaeltnis: 4 / 3;
+}
+
+.feld-stapel .schicht {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Maus und Finger gehen durch auf das Feld darunter */
+}
+
+/*
+Werkbank: Canvas links (zwei Drittel), Titel und Bedienung rechts
+gilt, sobald der Bildschirm breiter als hoch ist (Desktop, Handy quer)
+und nicht winzig. Hochkant bleibt alles untereinander.
+
+  ┌────────────────┬───────────┐
+  │                │ kopf      │
+  │     feld       ├───────────┤
+  │                │ bedienung │
+  └────────────────┴───────────┘
+
+HTML dazu:
+  <main class="seite werkbank">
+    <header class="projekt-kopf"> Zurück-Link, h1, Tags </header>
+    <div class="feld-stapel"> Canvas </div>
+    <div class="bedienung"> alle Regler </div>
+  </main>
+*/
+
+@media (orientation: landscape) and (min-width: 40rem) {
+  .werkbank {
+    max-width: 120rem;
+    padding: 2rem 1.5rem;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "feld kopf"
+      "feld bedienung";
+    column-gap: 2.5rem;
+    align-items: start; /* nicht strecken, damit sticky geht */
+  }
+
+  .werkbank .projekt-kopf {
+    grid-area: kopf;
+    padding-right: 4rem; /* Platz für den Menü-Knopf oben rechts */
+  }
+
+  .werkbank .zurueck {
+    margin-bottom: 1rem;
+  }
+
+  .werkbank h1 {
+    font-size: clamp(1.5rem, 3vw, 2.5rem); /* rechts ist weniger Platz */
+    margin-bottom: 1rem;
+  }
+
+  .werkbank .feld-stapel {
+    grid-area: feld;
+    position: sticky; /* bleibt stehen, wenn man rechts scrollt */
+    top: 2rem;
+    /* nie höher als der Bildschirm: Höhe = Breite / Verhältnis */
+    width: min(100%, calc((100vh - 4rem) * var(--verhaeltnis)));
+    width: min(100%, calc((100dvh - 4rem) * var(--verhaeltnis))); /* dvh: Handy-Adressleiste mitgerechnet, ältere Browser nehmen die Zeile drüber */
+    margin: 0 auto;
+  }
+
+  .werkbank .bedienung {
+    grid-area: bedienung;
+    min-width: 0; /* lange Inhalte (Formel) dürfen die Spalte nicht sprengen */
+  }
+
+  /* Doku-Text unter beiden Spalten, über die ganze Breite */
+  .werkbank > .doku {
+    grid-column: 1 / -1;
+  }
+
+  .werkbank .bedienung .steuerung {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .werkbank .bedienung .steuerung label {
+    justify-content: space-between; /* Text links, Feld rechts */
+  }
+}

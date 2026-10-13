@@ -44,7 +44,8 @@ function waehleCodec(w, h) {
 
 // Eine Aufnahme: eigener Canvas mit festen, geraden Maßen und eine MP4-Ausgabe
 // fps nur beim Rendern; live sind die Abstände unregelmäßig
-export async function neueAufnahme(vorlage, fps) {
+// hintergrund: Farbe hinter durchsichtigen Stellen (Foto-Effekte geben zustand.hintergrund mit)
+export async function neueAufnahme(vorlage, fps, hintergrund = "#111111") {
   const w = vorlage.width - (vorlage.width % 2); // H.264 verlangt gerade Maße
   const h = vorlage.height - (vorlage.height % 2);
 
@@ -253,3 +254,4 @@ export function richteExportEin({
     }
   });
 }
+

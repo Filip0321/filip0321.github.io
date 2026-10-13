@@ -1,0 +1,87 @@
+/*
+Startseite: Name mit Schreibmaschine, Hinweis zum Weiterscrollen,
+Bühne mit Symbolen, die Fenster öffnen (die Fenster selbst: fenster.css)
+*/
+
+.landing {
+  position: relative; /* Bezug für den Weiter-Hinweis */
+  min-height: 100vh;
+  display: grid;
+  align-items: center;
+  justify-items: start;
+  padding: 0 5vw;
+}
+
+#name {
+  white-space: pre-line;
+  text-align: left;
+  font-size: clamp(5rem, 15vw, 20rem);
+  line-height: 1.1;
+}
+
+#name::after {
+  content: "_";
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.weiter-hinweis {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  opacity: 0.6;
+}
+
+/*
+Bühne mit Fenstern
+*/
+
+.buehne {
+  position: relative; /* Bezug für die Fenster */
+  min-height: 100vh;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+.symbole {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.symbole button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.symbole button:hover,
+.symbole button:focus-visible,
+.symbole button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+@media (max-width: 600px) {
+  #name {
+    font-size: clamp(2.5rem, 12vw, 6rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #name::after {
+    animation: none;
+  }
+}
