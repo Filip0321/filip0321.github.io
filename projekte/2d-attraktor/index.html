@@ -42,15 +42,19 @@
             <button type="button" id="toggle-animiert-sofort">Sofort anzeigen</button>
           </div>
           <label>Punkte <input type="number" id="punkte" min="1000" max="10000000" step="1000"></label>
-          <label>Stärke <input type="number" id="staerke" min="1" max="255" step="1"></label>
           <label>Zoom <input type="number" id="zoom" min="1" max="100000" step="1"></label>
           <button type="button" id="massstabBtn">Maßstab</button>
         </div>
 
+        <p class="hinweis">Ziehen verschiebt · Mausrad zoomt · zwei Finger zoomen und verschieben</p>
+
+        <!-- data-wert="name": main.js liest den Wert als einstellung.name, ein <output> dahinter zeigt ihn an (/lib/regler.js) -->
         <div class="steuerung">
-          <label><input type="checkbox" id="farbigCheck"> Farbe</label>
-          <label>Rot <input type="range" min="0" max="1" step="0.01" value="1" id="red"></label>
-          <label>Blau <input type="range" min="0" max="1" step="0.01" value="1" id="blue"></label>
+          <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
+          <label><input type="checkbox" data-wert="invertiert"> Invertieren</label>
+          <label><input type="checkbox" data-wert="farbig"> Farbe</label>
+          <label>Rot <input type="range" data-wert="red" min="0" max="1" step="0.01" value="1"><output></output></label>
+          <label>Blau <input type="range" data-wert="blue" min="0" max="1" step="0.01" value="1"><output></output></label>
         </div>
 
         <div class="steuerung export"></div>
@@ -254,4 +258,5 @@
     <script type="module" src="/lib/effekt-schicht.js"></script>
   </body>
 </html>
+
 

@@ -23,6 +23,7 @@ const FRAGMENT_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 
 in float fortschritt;
+uniform float invertiert; // 1.0 = weißer Grund, die Punkte dunkeln ihn ab
 uniform float farbig; // 1.0 = farbig, 0.0 = grau
 uniform float blue;
 uniform float red;
@@ -33,14 +34,21 @@ out vec4 farbe;
 void main() {
   vec3 anfang = vec3(0.0, 0.0, blue); // blau
   vec3 ende = vec3(red, 0.0, 0.0); // rot
+  vec3 grundfarbe;
   if (farbig > 0.5) {
-    // fortschritt entscheidet die Farbe (früher Punkt blau, später rot),
-    // staerke wie hell sie ist
-    farbe = vec4(mix(anfang, ende, fortschritt) * staerke, 1.0);
+    // fortschritt entscheidet die Farbe (früher Punkt blau, später rot)
+    grundfarbe = mix(anfang, ende, fortschritt);
+    // invertiert wird vom Weiß abgezogen (siehe blendEquation in zeichne):
+    // zieht man die Gegenfarbe ab, bleibt die Farbe selbst übrig
+    // Weiß (1, 1, 1) minus Gegenfarbe von Blau (1, 1, 0) = Blau (0, 0, 1)
+    if (invertiert > 0.5) grundfarbe = vec3(1.0) - grundfarbe;
   } else {
-    // wendet auf die ersten 3 werte die Helligkeit an
-    farbe = vec4(vec3(staerke), 1.0);
+    // grau: alle 3 Kanäle gleich
+    grundfarbe = vec3(1.0);
   }
+  // wendet auf die ersten 3 werte die Helligkeit an
+  // staerke wie hell (invertiert: wie dunkel) ein Punkt macht
+  farbe = vec4(grundfarbe * staerke, 1.0);
 }`;
 
 /*
@@ -88,7 +96,7 @@ export function erstelleShader(canvas) {
   // preserveDrawingBuffer: das Bild bleibt nach dem Zeichnen stehen,
   // sonst können "Bild speichern", Video-Export und die Effekt-Schicht
   // es später nicht mehr auslesen (sie sehen dann nur Schwarz)
-  const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
+  const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true, alpha: false });
   if (!gl) throw new Error("Dein Browser unterstützt kein WebGL2.");
 
   const programm = baueProgramm(gl);
@@ -98,7 +106,7 @@ export function erstelleShader(canvas) {
 
   // Orte der Uniforms einmal nachschlagen, nicht bei jedem Bild
   const uniform = {};
-  for (const name of ["mitte", "zoom", "aufloesung", "staerke", "anzahl", "farbig", "red", "blue"]) {
+  for (const name of ["mitte", "zoom", "aufloesung", "staerke", "anzahl", "invertiert", "farbig", "red", "blue"]) {
     uniform[name] = gl.getUniformLocation(programm, name);
   }
 
@@ -113,9 +121,11 @@ export function erstelleShader(canvas) {
 
   // Ein Bild zeichnen, so oft man will, ohne neu zu rechnen
   // sichtbar: wie viele Punkte gezeichnet werden (zum Entstehen lassen), ohne Angabe alle
-  function zeichne({ mitteX, mitteY, zoom, staerke, farbig, red, blue, sichtbar = anzahl }) {
+  function zeichne({ mitteX, mitteY, zoom, staerke, invertiert, farbig, red, blue, sichtbar = anzahl }) {
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(17 / 255, 17 / 255, 17 / 255, 1); // das Grau der Seite (#111111)
+    // Hintergrund: das Grau der Seite (#111111) oder invertiert Weiß (clearColor will 0 bis 1)
+    const grund = invertiert ? 1 : 17 / 255;
+    gl.clearColor(grund, grund, grund, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     if (anzahl === 0) return;
 
@@ -127,13 +137,16 @@ export function erstelleShader(canvas) {
     gl.uniform2f(uniform.aufloesung, canvas.width, canvas.height);
     gl.uniform1f(uniform.staerke, staerke / 255);
     gl.uniform1f(uniform.anzahl, anzahl); // alle Punkte, damit die Farben beim Entstehen nicht wandern
+    gl.uniform1f(uniform.invertiert, invertiert ? 1 : 0);
     gl.uniform1f(uniform.farbig, farbig ? 1 : 0);
     gl.uniform1f(uniform.red, red);
     gl.uniform1f(uniform.blue, blue);
 
-    // Helligkeit addieren statt übermalen
+    // Helligkeit addieren statt übermalen: Ergebnis = Ziel + Punkt
+    // invertiert abziehen: Ergebnis = Ziel - Punkt, jeder Punkt dunkelt das Weiß ein Stück ab
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
+    gl.blendEquation(invertiert ? gl.FUNC_REVERSE_SUBTRACT : gl.FUNC_ADD);
 
     // Wie die Liste zu lesen ist: je 2 Kommazahlen pro Punkt
     gl.bindBuffer(gl.ARRAY_BUFFER, puffer);
@@ -145,3 +158,4 @@ export function erstelleShader(canvas) {
 
   return { ladePunkte, zeichne };
 }
+
