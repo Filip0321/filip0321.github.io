@@ -73,7 +73,7 @@ und nicht winzig. Hochkant bleibt alles untereinander.
 HTML dazu:
   <main class="seite werkbank">
     <header class="projekt-kopf"> Zurück-Link, h1, Tags </header>
-    <div class="feld-stapel"> Canvas </div>
+    <div class="feld-rahmen"><div class="feld-stapel"> Canvas </div></div>
     <div class="bedienung"> alle Regler </div>
   </main>
 */
@@ -95,6 +95,7 @@ HTML dazu:
   .werkbank .projekt-kopf {
     grid-area: kopf;
     padding-right: 4rem; /* Platz für den Menü-Knopf oben rechts */
+    margin-bottom: 1rem;
   }
 
   .werkbank .zurueck {
@@ -106,14 +107,23 @@ HTML dazu:
     margin-bottom: 1rem;
   }
 
-  .werkbank .feld-stapel {
+  /* der Rahmen ist so hoch wie der Bildschirm (minus Rand) und bleibt stehen,
+     der Canvas sitzt darin waagerecht und senkrecht in der Mitte */
+  .werkbank .feld-rahmen {
     grid-area: feld;
     position: sticky; /* bleibt stehen, wenn man rechts scrollt */
     top: 2rem;
-    /* nie höher als der Bildschirm: Höhe = Breite / Verhältnis */
+    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem); /* dvh: Handy-Adressleiste mitgerechnet, ältere Browser nehmen die Zeile drüber */
+    display: flex;
+    align-items: center; /* senkrecht mittig */
+    justify-content: center; /* waagerecht mittig */
+  }
+
+  /* nie höher als der Bildschirm: Höhe = Breite / Verhältnis */
+  .werkbank .feld-stapel {
     width: min(100%, calc((100vh - 4rem) * var(--verhaeltnis)));
-    width: min(100%, calc((100dvh - 4rem) * var(--verhaeltnis))); /* dvh: Handy-Adressleiste mitgerechnet, ältere Browser nehmen die Zeile drüber */
-    margin: 0 auto;
+    width: min(100%, calc((100dvh - 4rem) * var(--verhaeltnis)));
   }
 
   .werkbank .bedienung {

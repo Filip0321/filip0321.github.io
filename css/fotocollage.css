@@ -62,16 +62,30 @@ Mosaik Styles
 
 /*
 Pinnwand Style (siehe Pinterest - in Spalten)
+Handy hochkant 2 Spalten, ab 40rem Breite 3
 */
 
 .pinnwand {
-  columns: 3 9rem;
+  columns: 2;
   column-gap: 0.75rem;
 }
 
+@media (min-width: 40rem) {
+  .pinnwand {
+    columns: 3;
+  }
+}
+
 .pinnwand figure {
-  break-inside: avoid;
-  margin-bottom: 0.75rem;
+  break-inside: avoid; /* ein Bild nie auf zwei Spalten verteilen */
+  /* Abstand als padding statt margin: ein margin am Spaltenende rutscht
+     in manchen Browsern (Firefox) an den Anfang der nächsten Spalte,
+     dann beginnen die Spalten verschoben */
+  padding-bottom: 0.75rem;
+}
+
+.pinnwand a {
+  display: block; /* sonst ist der Link ein Inline-Kasten um ein Block-Bild */
 }
 
 .pinnwand img {
