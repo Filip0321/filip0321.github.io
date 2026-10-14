@@ -104,7 +104,7 @@ void main() {
     // invertiert wird vom Weiß abgezogen (siehe blendEquation in zeichne):
     // zieht man die Gegenfarbe ab, bleibt die Farbe selbst übrig
     // Weiß (1, 1, 1) minus Gegenfarbe von Blau (1, 1, 0) = Blau (0, 0, 1)
-    if (invertiert > 0.5) grundfarbe = vec3(1.0) - grundfarbe;
+    grundfarbe = invertiert ? 1 - 17 / 255 : 17 / 255;;
   } else {
     // grau: alle 3 Kanäle gleich
     grundfarbe = vec3(1.0);
