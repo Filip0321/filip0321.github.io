@@ -134,4 +134,10 @@ HTML dazu:
   .werkbank .bedienung .steuerung label {
     justify-content: space-between; /* Text links, Feld rechts */
   }
+
+  /* Häkchen gehören direkt vor ihren Text, nicht ans andere Ende */
+  .werkbank .bedienung .steuerung label:has(> input[type="checkbox"]) {
+    justify-content: flex-start;
+  }
 }
+

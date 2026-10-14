@@ -1,30 +1,19 @@
-import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
-import { richteExportEin } from "/export.js";
+// Rechnet den 3D-Attraktor aus, das Zeichnen mach ich im Shader
 
-// Settings, Startwerte
-
-const MAX_PUNKTE = 1000000;
-const BILDER_PRO_ANIMATION = 1500;
-const START_ABSTAND = 2.5;
-const BRENNWEITE = 2;
-const MIN_ABSTAND = 0.2;
-const MAX_ABSTAND = 20;
-const ZOOM_EMPFINDLICHKEIT = 0.001;
-const EMPFINDLICHKEIT = 0.01;
-const START_WINKEL = 0.6;
-const START_NEIGUNG = 0.35;
-const GRENZE = 1e6;
-const DREH_PRO_SEKUNDE = 0.12; // war 0.002 pro Bild bei 60 fps
-
-let punkte = 600000;
-let staerke = 15;
-let animiert = true;
-let dreht = false;
+const LIMIT_ABSTAND_PUNKTE = 1000000;
+const EINPENDEL_ZEIT = 5; // Zeiteinheiten, nicht Schritte
+// weil dt ein Bruchteil einer Zeiteinheit ist, und jeder Typ ein anderes dt hat
+// (Lorenz dt = 0.005: 200 Schritte pro Zeiteinheit, Thomas dt = 0.05: nur 20)
+// um sicherzugehen dass der Punkt schon auf der Laufbahn ist wenn man malt
 
 
 // Attraktor-Typen
+// 3D-Attraktoren werden mit Differentialgleichungen berechnet:
+// die Formel gibt nicht direkt den neuen Punkt, sondern nur die Geschwindigkeit,
+// mal dt ergibt das kleine Stück, das der Punkt pro Schritt weiterwandert (Euler-Verfahren)
+// hab ich von http://www.3d-meier.de/tut19/Seite1.html
 
-const TYPEN = {
+export const TYPEN = {
   lorenz: {
     name: "Lorenz",
     formel: "x' = a·(y - x)\ny' = x·(b - z) - y\nz' = x·y - c·z",
@@ -212,7 +201,7 @@ const TYPEN = {
 
 // Presets mit ihren Startwerten 
 
-const PRESETS = [
+export const PRESETS = [
   { name: "Lorenz", typ: "lorenz", werte: { a: 10, b: 28, c: 2.6667 }, text: "Platzhalter." },
   { name: "Aizawa", typ: "aizawa", werte: { a: 0.95, b: 0.7, c: 0.6, d: 3.5, e: 0.25, f: 0.1 }, text: "Platzhalter." },
   { name: "Thomas I", typ: "thomas", werte: { b: 0.208186 }, text: "Platzhalter." },
@@ -230,473 +219,77 @@ const PRESETS = [
 ];
 
 
-// Canvas als Quelle für das Bild
+// Rechnen
 
-const canvas = document.getElementById("feld");
-const ctx = canvas.getContext("2d");
-
-let bild = null;
-let pixel32 = null;
-
-function passeGroesseAn() {
-  const dpr = Math.max(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(canvas.clientWidth * dpr);
-  canvas.height = Math.round(canvas.clientHeight * dpr);
-  bild = ctx.createImageData(canvas.width, canvas.height);
-  pixel32 = new Uint32Array(bild.data.buffer);
-} // siehe 2d-Attraktor dateien
-
-
-// Variablen und start
-
-let typ = TYPEN.lorenz; // erster Attraktor
-let werte = {};
-
-const daten = new Float32Array(MAX_PUNKTE * 3);
-let anzahl = 0;
-let sichtbar = 0;
-
-let winkel = START_WINKEL;
-let neigung = START_NEIGUNG;
-let abstand = START_ABSTAND;
-let animationsId = null;
-let geplant = false;
-
-
-// Punkte berechnen
-
-function laeuftDavon(p) {
-  return !Number.isFinite(p.x + p.y + p.z)
-    || Math.abs(p.x) > GRENZE
-    || Math.abs(p.y) > GRENZE
-    || Math.abs(p.z) > GRENZE;
+// schauen ob der Punkt schon zu weit weg ist oder nicht mehr endlich
+function punktNichtMehrDa(punkt) {
+  return (
+    !Number.isFinite(punkt.x + punkt.y + punkt.z) ||
+    Math.abs(punkt.x) > LIMIT_ABSTAND_PUNKTE ||
+    Math.abs(punkt.y) > LIMIT_ABSTAND_PUNKTE ||
+    Math.abs(punkt.z) > LIMIT_ABSTAND_PUNKTE
+  );
 }
 
-function berechnePunkte() {
-  const p = { x: typ.start[0], y: typ.start[1], z: typ.start[2] };
-  anzahl = 0;
+export function berechnePunkte(typ, werte, anzahl, start = typ.start) {
+  const pos = { x: start[0], y: start[1], z: start[2] };
+  const einpendeln = Math.ceil(EINPENDEL_ZEIT / typ.dt);
 
-  for (let i = 0; i < 1000; i++) {
-    typ.schritt(werte, p, typ.dt);
-    if (laeuftDavon(p)) return;
+  for (let i = 0; i < einpendeln; i++) {
+    typ.schritt(werte, pos, typ.dt);
+    if (punktNichtMehrDa(pos)) return null; // schon beim Einpendeln davongelaufen
   }
 
-  for (let i = 0; i < punkte; i++) {
-    typ.schritt(werte, p, typ.dt);
-    if (laeuftDavon(p)) break;
-    daten[i * 3] = p.x;
-    daten[i * 3 + 1] = p.z;
-    daten[i * 3 + 2] = p.y;
-    anzahl++;
-  }
+  // anzahl * 3 weil jeder Punkt 3 Koordinaten hat (x, y, z)
+  const daten = new Float32Array(anzahl * 3);
 
-  normalisiere();
-}
-
-function normalisiere() {
-  const ende = anzahl * 3;
-  const min = [Infinity, Infinity, Infinity];
-  const max = [-Infinity, -Infinity, -Infinity];
-
-  for (let i = 0; i < ende; i += 3) {
-    for (let k = 0; k < 3; k++) {
-      if (daten[i + k] < min[k]) min[k] = daten[i + k];
-      if (daten[i + k] > max[k]) max[k] = daten[i + k];
+  for (let i = 0; i < anzahl; i++) {
+    typ.schritt(werte, pos, typ.dt);
+    if (punktNichtMehrDa(pos)) {
+      // unterwegs davongelaufen: die Punkte bis hier behalten
+      // subarray ist nur ein Blick auf den Anfang, es wird nichts kopiert
+      return i > 0 ? daten.subarray(0, i * 3) : null;
     }
+    // y und z getauscht: bei den meisten Attraktoren ist z die "Höhe" der Formel,
+    // auf dem Bildschirm zeigt aber y nach oben (so steht der Lorenz aufrecht)
+    daten[i * 3] = pos.x;
+    daten[i * 3 + 1] = pos.z;
+    daten[i * 3 + 2] = pos.y;
   }
-
-  const mitte = [0, 1, 2].map(k => (min[k] + max[k]) / 2);
-  let radius = 0;
-
-  for (let i = 0; i < ende; i += 3) {
-    for (let k = 0; k < 3; k++) {
-      daten[i + k] -= mitte[k];
-    }
-    const abstand = Math.hypot(daten[i], daten[i + 1], daten[i + 2]);
-    if (abstand > radius) radius = abstand;
-  }
-
-  if (radius === 0) {
-    anzahl = 0;
-    return;
-  }
-
-  for (let i = 0; i < ende; i++) {
-    daten[i] /= radius;
-  }
+  return daten;
 }
 
 
-// Zeichnen
+// Den fertigen Attraktor vermessen: wo ist seine Mitte und wie groß ist er
+// mit dem Ergebnis rückt der Shader den Attraktor in die Mitte 
+// und bringt ihn auf Größe −1 bis 1, damit er sich um sich selbst dreht.
+export function vermesseAttraktor(punkte) {
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
 
-function zeichne() {
-  const w = canvas.width;
-  const h = canvas.height;
-  const pixel = bild.data;
-
-  pixel32.fill(0xFF111111);
-
-  const cosW = Math.cos(winkel);
-  const sinW = Math.sin(winkel);
-  const cosN = Math.cos(neigung);
-  const sinN = Math.sin(neigung);
-  const groesse = (Math.min(w, h) / 2) * 0.9;
-  const ende = sichtbar * 3;
-
-  for (let i = 0; i < ende; i += 3) {
-    const x = daten[i];
-    const y = daten[i + 1];
-    const z = daten[i + 2];
-
-    const x1 = x * cosW + z * sinW;
-    const z1 = -x * sinW + z * cosW;
-
-    const y2 = y * cosN - z1 * sinN;
-    const z2 = y * sinN + z1 * cosN;
-
-    const tiefe = abstand - z2;
-    if (tiefe < 0.05) continue;
-
-    const f = BRENNWEITE / tiefe;
-
-    const px = Math.floor(w / 2 + x1 * f * groesse);
-    const py = Math.floor(h / 2 - y2 * f * groesse);
-    if (px < 0 || px >= w || py < 0 || py >= h) continue;
-
-    const stelle = (py * w + px) * 4;
-    pixel[stelle] += staerke;
-    pixel[stelle + 1] += staerke;
-    pixel[stelle + 2] += staerke;
+  // jetzt hat jeder punkt eine x, y und z Koordinate nacheinander geschrieben
+  // im Array, also muss += 3
+  for (let i = 0; i < punkte.length; i += 3) {
+    if (punkte[i] < minX) minX = punkte[i];
+    if (punkte[i] > maxX) maxX = punkte[i];
+    if (punkte[i + 1] < minY) minY = punkte[i + 1];
+    if (punkte[i + 1] > maxY) maxY = punkte[i + 1];    
+    if (punkte[i + 2] < minZ) minZ = punkte[i + 2];
+    if (punkte[i + 2] > maxZ) maxZ = punkte[i + 2];
   }
 
-  ctx.putImageData(bild, 0, 0);
+  return {
+    mitteX: (minX + maxX) / 2,
+    mitteY: (minY + maxY) / 2,
+    mitteZ: (minZ + maxZ) / 2,
+    mass: Math.max(
+      maxX - minX, 
+      maxY - minY,
+      maxZ - minZ, 1e-9),
+    // nie 0, sonst teilt der Shader (punkt - mitte) / mass durch 0
+    // würde ich hier wieder breite, hoehe und tiefe nehmen, dann hätte ich kein uniformen 
+    // Attraktor beim Drehen
+  };
 }
 
-function planeZeichnen() {
-  if (geplant || animationsId !== null) return;
-  geplant = true;
-  requestAnimationFrame(() => {
-    geplant = false;
-    zeichne();
-  });
-}
-
-function stoppeAnimation() {
-  if (animationsId !== null) {
-    cancelAnimationFrame(animationsId);
-    animationsId = null;
-  }
-}
-
-function zeichneSofort() {
-  stoppeAnimation();
-  sichtbar = anzahl;
-  zeichne();
-}
-
-function zeichneAnimiert() {
-  stoppeAnimation();
-  sichtbar = 0;
-  const proBild = Math.max(1, Math.ceil(anzahl / BILDER_PRO_ANIMATION));
-
-  function bildSchritt() {
-    sichtbar = Math.min(sichtbar + proBild, anzahl);
-    zeichne();
-    if (sichtbar < anzahl) {
-      animationsId = requestAnimationFrame(bildSchritt);
-    } else {
-      animationsId = null;
-    }
-  }
-
-  animationsId = requestAnimationFrame(bildSchritt);
-}
-
-function darstellen() {
-  if (animiert) {
-    zeichneAnimiert();
-  } else {
-    zeichneSofort();
-  }
-}
-
-const hinweis = document.getElementById("hinweis");
-
-function neuBerechnen() {
-  berechnePunkte();
-
-  if (anzahl === 0) {
-    hinweis.textContent = "Mit diesen Werten läuft der Punkt sofort ins Unendliche. Probier andere Zahlen.";
-  } else if (anzahl < punkte) {
-    hinweis.textContent = `Mit diesen Werten läuft der Punkt nach ${anzahl.toLocaleString("de-DE")} Schritten ins Unendliche.`;
-  } else {
-    hinweis.textContent = "";
-  }
-
-  darstellen();
-}
-
-
-// Drehen und Zoomen 
-
-const zeiger = new Map();
-let letzterFingerAbstand = 0;
-
-function fingerAbstand() {
-  const [a, b] = [...zeiger.values()];
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function setzeAbstand(neu) {
-  abstand = Math.min(Math.max(neu, MIN_ABSTAND), MAX_ABSTAND);
-  planeZeichnen();
-}
-
-canvas.addEventListener("pointerdown", (e) => {
-  canvas.setPointerCapture(e.pointerId);
-  zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  canvas.classList.add("zieht");
-
-  if (zeiger.size === 2) {
-    letzterFingerAbstand = fingerAbstand();
-  }
-});
-
-canvas.addEventListener("pointermove", (e) => {
-  if (!zeiger.has(e.pointerId)) return;
-
-  const vorher = zeiger.get(e.pointerId);
-  const jetzt = { x: e.clientX, y: e.clientY };
-  zeiger.set(e.pointerId, jetzt);
-
-  if (zeiger.size === 1) {
-    winkel += (jetzt.x - vorher.x) * EMPFINDLICHKEIT;
-    neigung += (jetzt.y - vorher.y) * EMPFINDLICHKEIT;
-    neigung = Math.min(Math.max(neigung, -Math.PI / 2), Math.PI / 2);
-    planeZeichnen();
-  } else if (zeiger.size === 2) {
-    const neuerAbstand = fingerAbstand();
-    if (letzterFingerAbstand > 0) {
-      setzeAbstand(abstand * letzterFingerAbstand / neuerAbstand);
-    }
-    letzterFingerAbstand = neuerAbstand;
-  }
-});
-
-function zeigerWeg(e) {
-  zeiger.delete(e.pointerId);
-  if (zeiger.size < 2) letzterFingerAbstand = 0;
-  if (zeiger.size === 0) canvas.classList.remove("zieht");
-}
-
-canvas.addEventListener("pointerup", zeigerWeg);
-canvas.addEventListener("pointercancel", zeigerWeg);
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-  setzeAbstand(abstand * Math.exp(delta * ZOOM_EMPFINDLICHKEIT));
-}, { passive: false });
-
-
-// Drehen lassen
-
-let drehId = null;
-
-function stoppeDrehen() {
-  if (drehId !== null) {
-    cancelAnimationFrame(drehId);
-    drehId = null;
-  }
-}
-
-function starteDrehen() {
-  stoppeDrehen();
-  let letzte = null;
-
-  function drehSchritt(zeitpunkt) {
-    if (letzte !== null) {
-      winkel += DREH_PRO_SEKUNDE * (zeitpunkt - letzte) / 1000;
-    }
-    letzte = zeitpunkt;
-    planeZeichnen();
-    drehId = requestAnimationFrame(drehSchritt);
-  }
-
-  drehId = requestAnimationFrame(drehSchritt);
-}
-
-
-// Buttons
-
-const modusEnstehung = document.getElementById("toggle-animiert-sofort");
-const punkteFeld = document.getElementById("punkte");
-const staerkeFeld = document.getElementById("staerke");
-const modusDrehen = document.getElementById("toggle-drehen");
-
-modusEnstehung.addEventListener("click", () => {
-  animiert = !animiert;
-  modusEnstehung.textContent = animiert ? "Sofort anzeigen" : "Entstehen lassen";
-  darstellen();
-});
-
-modusDrehen.addEventListener("click", () => {
-  dreht = !dreht;
-  modusDrehen.textContent = dreht ? "Drehen stoppen" : "Drehen lassen";
-  if (dreht) {
-    starteDrehen();
-  } else {
-    stoppeDrehen();
-  }
-});
-
-function leseGanzzahl(feld, min, max, bisher) {
-  const eingabe = feld.value.trim();
-  const zahl = Number(eingabe);
-
-  if (eingabe === "" || !Number.isFinite(zahl)) {
-    feld.value = bisher;
-    return bisher;
-  }
-
-  const ergebnis = Math.min(Math.max(Math.round(zahl), min), max);
-  feld.value = ergebnis;
-  return ergebnis;
-}
-
-punkteFeld.addEventListener("change", () => {
-  punkte = leseGanzzahl(punkteFeld, 1000, MAX_PUNKTE, punkte);
-  neuBerechnen();
-});
-
-staerkeFeld.addEventListener("change", () => {
-  staerke = leseGanzzahl(staerkeFeld, 1, 255, staerke);
-  planeZeichnen();
-});
-
-punkteFeld.value = punkte;
-staerkeFeld.value = staerke;
-
-document.getElementById("zuruecksetzen").addEventListener("click", () => {
-  winkel = START_WINKEL;
-  neigung = START_NEIGUNG;
-  abstand = START_ABSTAND;
-  planeZeichnen();
-});
-
-
-// Presets und Werte
-
-const presetBox = document.querySelector(".presets");
-const werteBox = document.querySelector(".werte");
-const presetName = document.getElementById("preset-name");
-const presetText = document.getElementById("preset-text");
-const formelFeld = document.getElementById("formel");
-
-PRESETS.forEach((preset, i) => {
-  const knopf = document.createElement("button");
-  knopf.type = "button";
-  knopf.textContent = preset.name;
-  knopf.addEventListener("click", () => waehlePreset(i));
-  presetBox.append(knopf);
-});
-
-function baueWerteFelder() {
-  werteBox.replaceChildren();
-
-  for (const [schluessel, zeichen] of typ.parameter) {
-    const label = document.createElement("label");
-    const feld = document.createElement("input");
-    feld.type = "number";
-    feld.step = "any";
-    feld.value = werte[schluessel];
-
-    feld.addEventListener("change", () => {
-      const eingabe = feld.value.trim();
-      const zahl = Number(eingabe);
-
-      if (eingabe === "" || !Number.isFinite(zahl)) {
-        feld.value = werte[schluessel];
-        return;
-      }
-
-      werte[schluessel] = zahl;
-      markiere(-1);
-      neuBerechnen();
-    });
-
-    label.append(`${zeichen} `, feld);
-    werteBox.append(label);
-  }
-}
-
-function markiere(i) {
-  presetBox.querySelectorAll("button").forEach((knopf, j) => {
-    knopf.setAttribute("aria-pressed", j === i);
-  });
-
-  formelFeld.textContent = typ.formel;
-
-  if (i === -1) {
-    presetName.textContent = `${typ.name} - eigene Werte`;
-    presetText.textContent = "Du hast die Werte selbst verändert. Manche Zahlen lassen den Attraktor zerfallen, andere lassen ihn zu einem Punkt oder einer Schleife zusammenschrumpfen.";
-  } else {
-    presetName.textContent = PRESETS[i].name;
-    presetText.textContent = PRESETS[i].text;
-  }
-}
-
-function waehlePreset(i) {
-  const preset = PRESETS[i];
-  typ = TYPEN[preset.typ];
-  werte = { ...preset.werte };
-  baueWerteFelder();
-  markiere(i);
-  neuBerechnen();
-}
-
-
-// Start 
-
-window.addEventListener("resize", () => {
-  passeGroesseAn();
-  zeichne();
-});
-
-passeGroesseAn();
-waehlePreset(0);
-
-let renderProBild = 0;
-
-const render = {
-  start(n) {
-    stoppeAnimation();
-    stoppeDrehen();
-    if (animiert) {
-      sichtbar = 0;
-      renderProBild = Math.max(1, Math.ceil(anzahl / n));
-    } else {
-      sichtbar = anzahl;
-      renderProBild = 0;
-    }
-  },
-  bild(i, dt) {
-    sichtbar = Math.min(sichtbar + renderProBild, anzahl);
-    if (dreht) winkel += DREH_PRO_SEKUNDE * dt;
-    zeichne();
-  },
-  ende() {
-    sichtbar = anzahl;
-    zeichne();
-    if (dreht) starteDrehen();
-  },
-};
-
-richteExportEin({
-  canvas,
-  ziel: document.querySelector(".export"),
-  name: () => typ.name.toLowerCase().replace(/\s+/g, "-"),
-  anzeige: sichtbaresBild,
-  endbild,
-  render,
-});

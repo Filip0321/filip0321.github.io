@@ -3,18 +3,17 @@
 
 import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.js";
 import { erstelleShader } from "./shader.js";
+import { richteReglerEin } from "/lib/regler.js";
 import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
 import { richteExportEin } from "/export.js";
 
 // Settings
 
 const MAX_PUNKTE = 10000000;
-const MAX_STAERKE = 255;
 const MAX_ZOOM = 100000;
 const BILDER_PRO_ANIMATION = 1500; // in so vielen Bildern entsteht der Attraktor (60 pro Sekunde = 25 s)
 
 let punkte = 1000000;
-let staerke = 15;
 let zoom = 100;
 let animiert = true; // Entstehen lassen oder sofort alles zeigen
 
@@ -26,19 +25,13 @@ const modusEntstehung = hole("toggle-animiert-sofort");
 const massstabBtn = hole("massstabBtn");
 
 const punkteFeld = hole("punkte");
-const staerkeFeld = hole("staerke");
 const zoomFeld = hole("zoom");
-
-const farbigCheck = hole("farbigCheck");
-const redRange = hole("red");
-const blueRange = hole("blue");
 
 const hinweis = hole("hinweis");
 
-// Startwerte aus dem HTML lesen, dann gibt es nur eine Stelle, wo sie stehen
-let farbig = farbigCheck.checked;
-let red = Number(redRange.value);
-let blue = Number(blueRange.value);
+// Regler und Schalter: alles mit data-wert im HTML (siehe /lib/regler.js)
+// einstellung.staerke, .invertiert, .farbig, .red, .blue
+const { einstellung } = richteReglerEin({ beiAenderung: zeichne });
 
 const shader = erstelleShader(canvas);
 
@@ -101,7 +94,10 @@ function rechne() {
 
 // zeichnen billig, geht bei jedem Zoom
 function zeichne() {
-  shader.zeichne({ mitteX: ansicht.x, mitteY: ansicht.y, zoom, staerke, farbig, red, blue, sichtbar });
+  shader.zeichne({
+    mitteX: ansicht.x, mitteY: ansicht.y, zoom, sichtbar,
+    ...einstellung, // staerke, invertiert, farbig, red, blue … alle auf einmal
+  });
 }
 
 function zeigeAlles() {
@@ -132,6 +128,10 @@ function lassEntstehen() {
   }
 
   animationsId = requestAnimationFrame(bildSchritt);
+  // da bildSchritt auch nur eine Funktion ist, muss diese einmal nach ihrer Definition aufgerufen werden
+  // bis hier wurde sie lediglich definiert
+  // läuft also nicht nach bildSchritt durch, sondern ist der erste Funktionsaufruf
+  // und sagt was beim nächsten Frame gemacht werden soll
 }
 
 // nach dem Rechnen: je nach Modus entstehen lassen oder sofort alles zeigen
@@ -161,34 +161,12 @@ punkteFeld.addEventListener("change", () => {
   zeigeNeu(); // Ansicht bleibt, nur mehr oder weniger Punkte
 });
 
-staerkeFeld.addEventListener("change", () => {
-  staerke = leseZahl(staerkeFeld, 1, MAX_STAERKE, staerke);
-  zeichne(); // nur zeichnen, die Punkte bleiben gleich
-});
-
 zoomFeld.addEventListener("change", () => {
   zoom = leseZahl(zoomFeld, 1, MAX_ZOOM, zoom, false);
   zeichne(); // nur zeichnen
 });
 
 massstabBtn.addEventListener("click", zeigeAlles);
-
-farbigCheck.addEventListener("change", () => {
-  farbig = farbigCheck.checked;
-  zeichne();
-});
-
-// "input" statt "change": feuert schon beim Ziehen, nicht erst beim Loslassen
-redRange.addEventListener("input", () => {
-  red = Number(redRange.value);
-  zeichne();
-});
-
-blueRange.addEventListener("input", () => {
-  blue = Number(blueRange.value);
-  zeichne();
-});
-
 
 // Mausrad: zoomen, die Stelle unter dem Zeiger bleibt stehen
 
@@ -209,7 +187,7 @@ canvas.addEventListener("wheel", (event) => {
   zeichne();
 }, { passive: false });
 
-// Abstand der Maus zur Canvas-Mitte [Canvas-Pixel]
+// Abstand der Maus zur Canvas-Mitte
 function mausAbstand(event) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -389,7 +367,6 @@ function waehlePreset(i) {
 // Start
 
 punkteFeld.value = punkte;
-staerkeFeld.value = staerke;
 
 let ersteGroesse = true;
 
@@ -445,3 +422,4 @@ richteExportEin({
   endbild,
   render,
 });
+

@@ -41,10 +41,31 @@
         <div class="modus" role="group" aria-label="Darstellung">
           <button type="button" id="toggle-animiert-sofort">Sofort anzeigen</button>
         </div>
-        <button type="button" id="toggle-drehen">Drehen lassen</button>
-        <label>Punkte <input type="number" id="punkte" min="1000" max="1000000" step="1000"></label>
-        <label>Stärke <input type="number" id="staerke" min="1" max="255" step="1"></label>
+        <button type="button" id="toggle-drehen" aria-pressed="false">Drehen lassen</button>
+        <label>Punkte <input type="number" id="punkte" min="1000" max="10000000" step="1000"></label>
+        <label>Abstand <input type="number" id="abstand" min="0.2" max="20" step="0.1"></label>
         <button type="button" id="zuruecksetzen">Ansicht zurücksetzen</button>
+      </div>
+
+      <p class="hinweis">Ziehen dreht · Shift + Ziehen schiebt · Mausrad, Alt + Ziehen oder Strg + Ziehen zoomt · zwei Finger zoomen und schieben</p>
+
+      <!-- data-wert="name": main.js liest den Wert als einstellung.name, ein <output> dahinter zeigt ihn an (/lib/regler.js) -->
+      <div class="steuerung">
+        <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
+        <label><input type="checkbox" data-wert="invertiert"> Invertieren</label>
+        <label><input type="checkbox" data-wert="farbig"> Farbe</label>
+        <label>Rot <input type="range" data-wert="red" min="0" max="1" step="0.01" value="1"><output></output></label>
+        <label>Blau <input type="range" data-wert="blue" min="0" max="1" step="0.01" value="1"><output></output></label>
+      </div>
+
+      <div class="steuerung">
+        <label><input type="checkbox" data-wert="travel"> Travel</label>
+        <label><input type="checkbox" data-wert="endlos" checked> Endlos</label>
+        <label>Länge <input type="range" data-wert="laenge" min="100" max="10000" step="100" value="1000"><output></output></label>
+        <label>Kopf <input type="range" data-wert="kopf" min="0" max="1000000" step="1" value="0"><output></output></label>
+        <label>Tempo <input type="range" data-wert="tempo" min="1" max="20000" step="10" value="300"><output></output></label>
+        <label>Rest <input type="range" data-wert="rest" min="0" max="1" step="0.05" value="0.1"><output></output></label>
+        <label>Glanz <input type="range" data-wert="glanz" min="1" max="50" step="1" value="20"><output></output></label>
       </div>
 
       <div class="steuerung export"></div>
@@ -245,9 +266,10 @@
 
   <script src="/script.js"></script>
   <script src="/lib/mediabunny.js"></script>
-  <script type="module" src="attraktor.js"></script>
+  <script type="module" src="main.js"></script>
   <script type="module" src="/lib/effekt-schicht.js"></script>
 
 </body>
 </html>
+
 
