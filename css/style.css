@@ -172,6 +172,11 @@ Alle Seiten außer der Startseite
   opacity: 1;
 }
 
+/* Platz zwischen Titel/Tags und dem Inhalt darunter (Canvas, Fotos, Text) */
+.projekt-kopf {
+  margin-bottom: 2rem;
+}
+
 .projekt-kopf .meta {
   opacity: 0.6;
   margin-top: 0.25rem;
@@ -235,3 +240,4 @@ Projektübersicht mit Projekten als Karten im Grid
 .karte a:hover h2 {
   text-decoration: underline;
 }
+

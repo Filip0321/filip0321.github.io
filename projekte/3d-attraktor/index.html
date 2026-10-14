@@ -31,9 +31,11 @@
       </ul>
     </header>
 
-    <div class="feld-stapel">
-      <canvas id="feld" class="attraktor-feld drehbar"></canvas>
-      <canvas id="effekte" class="attraktor-feld schicht" hidden></canvas>
+    <div class="feld-rahmen">
+      <div class="feld-stapel">
+        <canvas id="feld" class="attraktor-feld drehbar"></canvas>
+        <canvas id="effekte" class="attraktor-feld schicht" hidden></canvas>
+      </div>
     </div>
 
     <div class="bedienung">
@@ -47,6 +49,8 @@
         <button type="button" id="zuruecksetzen">Ansicht zurücksetzen</button>
       </div>
 
+      <p class="hinweis">Ziehen dreht · Shift + Ziehen schiebt · Mausrad, Alt + Ziehen oder Strg + Ziehen zoomt · zwei Finger zoomen und schieben</p>
+
       <!-- data-wert="name": main.js liest den Wert als einstellung.name, ein <output> dahinter zeigt ihn an (/lib/regler.js) -->
       <div class="steuerung">
         <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
@@ -59,9 +63,9 @@
       <div class="steuerung">
         <label><input type="checkbox" data-wert="travel"> Travel</label>
         <label><input type="checkbox" data-wert="endlos" checked> Endlos</label>
-        <label>Länge <input type="range" data-wert="laenge" min="100" max="10000" step="100" value="1000"><output></output></label>
+        <label>Länge <input type="range" data-wert="laenge" min="100" max="100000" step="100" value="20000"><output></output></label>
         <label>Kopf <input type="range" data-wert="kopf" min="0" max="1000000" step="1" value="0"><output></output></label>
-        <label>Tempo <input type="range" data-wert="tempo" min="1" max="20000" step="10" value="300"><output></output></label>
+        <label>Tempo <input type="range" data-wert="tempo" min="1000" max="300000" step="1000" value="60000"><output></output></label>
         <label>Rest <input type="range" data-wert="rest" min="0" max="1" step="0.05" value="0.1"><output></output></label>
         <label>Glanz <input type="range" data-wert="glanz" min="1" max="50" step="1" value="20"><output></output></label>
       </div>
