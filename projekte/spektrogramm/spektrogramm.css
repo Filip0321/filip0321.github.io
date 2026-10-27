@@ -1,0 +1,167 @@
+/*
+Spektrogramm: nur was es nirgends sonst auf der Website gibt
+(Schriften, Farben, Knöpfe, Regler, Auswahl, Werkbank kommen aus /css/)
+
+  Rahmen und Format der beiden Canvas
+  Schild unter dem Mauszeiger
+  Pult: Raster aus Drehknöpfen, Fader mit Pegel
+  Lampe für Einsätze
+  Audio-Player
+*/
+
+/*
+Rahmen: zwei Canvas genau übereinander.
+--grund = Breite / Höhe der Hauptansicht
+  quer (Desktop, Handy gedreht): 2:1
+  hochkant: quadratisch, beim Wasserfall 3:4 (die Zeit läuft nach unten, also mehr Höhe)
+--hoeher: mit Spektrum oben wird der Rahmen 1,25-mal so hoch, damit der Wasserfall darunter
+nicht kleiner wird (js/live.js, OBEN_ANTEIL).
+Daraus --verhaeltnis: das kennt /css/canvas.css schon (Werkbank, nie höher als der Bildschirm).
+js/main.js setzt die Klassen .wasserfall, .mit-spektrum und .aufnahme am Rahmen (#feld).
+*/
+
+.spektro {
+  --grund: 1;
+  --hoeher: 1;
+  --verhaeltnis: calc(var(--grund) / var(--hoeher));
+  aspect-ratio: var(--verhaeltnis); /* Höhe ergibt sich aus der Breite */
+  border: 1px solid currentColor;
+}
+
+.feld-rahmen.wasserfall .spektro {
+  --grund: 0.75; /* 3:4, hochkant */
+}
+
+@media (orientation: landscape) {
+  .spektro,
+  .feld-rahmen.wasserfall .spektro {
+    --grund: 2;
+  }
+}
+
+.feld-rahmen.mit-spektrum .spektro {
+  --hoeher: 1.25; /* gleiche Breite, 1,25-fache Höhe */
+}
+
+.spektro canvas {
+  position: absolute;
+  inset: 0; /* oben, rechts, unten, links = 0: füllt den Rahmen */
+  width: 100%;
+  height: 100%;
+  /* der Canvas rechnet in doppelter Auflösung und wird verkleinert;
+     "pixelated" aus canvas.css würde dabei krisseln */
+  image-rendering: auto;
+}
+
+#skala {
+  pointer-events: none; /* Klicks gehen durch zum Spektrogramm darunter */
+}
+
+.feld-rahmen.aufnahme #bild {
+  cursor: col-resize; /* Gesamtbild: klicken oder ziehen springt */
+}
+
+/* Schild unter dem Mauszeiger: Frequenz, Note, Zeit (js/maus-info.js setzt left/top) */
+.maus-info {
+  position: absolute;
+  pointer-events: none; /* Klicks gehen durch zum Canvas */
+  transform: translate(12px, -130%); /* rechts über dem Zeiger, nicht darunter */
+  padding: 0.15rem 0.4rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.maus-info.links {
+  transform: translate(calc(-100% - 12px), -130%); /* am rechten Rand links vom Zeiger */
+}
+
+/* der Audio-Player des Browsers: volle Breite, sonst lässt er sich kaum gestalten */
+audio {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/*
+Pult: links das Raster der Drehknöpfe, rechts Fader und Pegel
+(Drehknopf und Fader selbst: /css/steuerung.css, weil /lib/knopfRegler.js für alle Projekte ist)
+*/
+
+.pult {
+  display: grid;
+  grid-template-columns: 1fr auto; /* Knöpfe bekommen den Rest, Fader so breit wie nötig */
+  column-gap: 1rem;
+  margin-top: 1rem;
+  /* align-items bleibt "stretch": der Fader wird so hoch wie das Knopf-Raster */
+}
+
+/* Fader und Pegel nebeneinander, beide: Name oben, Schiene, Zahl unten */
+.fader-feld {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem; /* klein, sonst macht "Lautstärke" die Spalte breit und nimmt den Knöpfen Platz */
+}
+
+.pegel-feld {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* Mitte (Balken) nimmt die ganze übrige Höhe */
+  justify-items: center;
+  row-gap: 0.3rem;
+}
+
+.pegel-feld output {
+  opacity: 0.8; /* Regel 4 */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Pegel: Rahmen, darin ein Balken von unten. Die Höhe kommt als --pegel (0–1) aus js/pegel.js.
+   scaleY statt height: der Browser muss nichts neu anordnen, nur malen (schneller, jedes Bild) */
+.pegel {
+  position: relative;
+  width: 0.5rem;
+  min-height: 8rem; /* Höhe wie beim Fader: von selbst gestreckt */
+  margin-top: 0.6rem; /* Platz für das Übersteuert-Feld darüber */
+  border: 1px solid currentColor;
+}
+
+.pegel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  transform-origin: bottom; /* von unten wachsen */
+  transform: scaleY(var(--pegel, 0));
+  opacity: 0.8;
+}
+
+/* Übersteuert: kleines Feld über dem Balken, das sich füllt (zwei Farben, kein Rot) */
+.pegel::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: -0.6rem;
+  height: 0.4rem;
+  border: 1px solid currentColor;
+}
+
+.pegel.clip::after {
+  background: currentColor;
+}
+
+/* Lampe für Einsätze: --an (0–1) setzt js/live.js in jedem Bild.
+   Hellblau wie die Einsatz-Striche im Bild: die Farbe gehört zum Spektrogramm, nicht zur Seite */
+.lampe {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: rgb(120 220 255 / var(--an, 0)); /* Deckkraft = Stärke des Einsatzes */
+}

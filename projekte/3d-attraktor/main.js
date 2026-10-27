@@ -5,7 +5,7 @@ import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.j
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
-import { richteExportEin } from "/export.js";
+import { richteExportEin } from "/lib/export.js";
 
 const MAX_PUNKTE = 10000000;
 const BILDER_PRO_ANIMATION = 1500; // in so vielen Bildern entsteht der Attraktor (60 pro Sekunde = 25 s)
@@ -537,3 +537,4 @@ richteExportEin({
   endbild,
   render,
 });
+
