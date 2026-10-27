@@ -5,7 +5,7 @@ import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.j
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
-import { richteExportEin } from "/export.js";
+import { richteExportEin } from "/lib/export.js";
 
 // Settings
 
@@ -422,4 +422,5 @@ richteExportEin({
   endbild,
   render,
 });
+
 

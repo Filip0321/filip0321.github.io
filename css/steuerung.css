@@ -1,6 +1,6 @@
 /*
 Bedienung: Knöpfe, Eingabefelder, Regler, Auswahl, Presets,
-Hinweise und die Effekt-Kette der Foto-Effekte
+Hinweise, Drehknöpfe und Fader (/lib/knopfRegler.js) und die Effekt-Kette der Foto-Effekte
 */
 
 /*
@@ -36,6 +36,27 @@ Gruppen
 
 .regler-gruppe {
   margin: 0.5em 0 0.5em 1em;
+}
+
+/* Überschrift über einer Gruppe in der Bedienung (z. B. Quelle, Bild, Export) */
+.gruppe {
+  font-size: 0.9rem;
+  font-weight: normal;
+  margin-top: 2rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid currentColor;
+  opacity: 0.6; /* Regel 4: Überschrift ist Orientierung, nicht Inhalt */
+}
+
+.bedienung > .gruppe:first-child {
+  margin-top: 1rem;
+}
+
+/* mehrere Teile als eins in der Steuerung (z. B. Häkchen mit zwei Knöpfen daneben) */
+.steuerung-gruppe {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .regler-gruppe > summary {
@@ -87,6 +108,17 @@ Eingabefelder
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* lange Auswahl (z. B. "Systemton (Browser, Ableton …)") darf am Handy schmaler werden,
+   statt die Seite seitlich zu verbreitern: min-width 0 erlaubt das Schrumpfen unter die Textbreite */
+.steuerung label {
+  max-width: 100%;
+}
+
+.steuerung select {
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .steuerung input,
@@ -156,6 +188,7 @@ den Regler nicht hin und her, am Desktop und am Handy hochkant gleich.
   grid-column: 2;
   text-align: right;
   font-variant-numeric: tabular-nums; /* alle Ziffern gleich breit, die Zahl zittert nicht */
+  white-space: nowrap; /* „4 kHz“ oder „-30 dB“ nicht umbrechen */
 }
 
 /* Regler ohne Zahl: über beide Spalten */
@@ -255,6 +288,14 @@ Infos zu Presets und Hinweise
   display: none;
 }
 
+/* Meldung (z. B. Mikrofon verweigert): Rahmen wie alles, Text etwas zurück */
+.meldung {
+  margin-top: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid currentColor;
+  opacity: 0.8; /* Regel 4 */
+}
+
 /*
 Effekt-Kette der Foto-Effekte: nummerierte Liste mit Knöpfen
 */
@@ -288,3 +329,163 @@ Effekt-Kette der Foto-Effekte: nummerierte Liste mit Knöpfen
   line-height: 1;
 }
 
+/*
+Drehknöpfe und Fader (/lib/knopfRegler.js)
+Der echte Regler bleibt im HTML (er hält den Wert), wird aber versteckt;
+davor setzt knopfRegler.js eine Schaltfläche, die nur --anteil (0–1) bekommt.
+
+HTML dazu:
+  <div class="knoepfe">
+    <label>Name <input type="range" …> <output></output></label>
+  </div>
+*/
+
+/* auto-fill + minmax: so viele Spalten, wie mit mindestens 6rem hineinpassen.
+   Handy 2 Spalten, Desktop 3, ohne eine einzige Media Query */
+.knoepfe {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 1rem 0.25rem; /* zwischen Zeilen, zwischen Spalten */
+}
+
+/* ein Knopf-Feld: alles untereinander und mittig */
+.knoepfe label {
+  position: relative; /* der unsichtbare Regler bleibt im Label statt irgendwo auf der Seite */
+  display: grid;
+  justify-items: center;
+  row-gap: 0.3rem;
+  font-size: 0.8rem; /* "Schwarzpunkt" muss in 6rem passen */
+  text-align: center;
+}
+
+/* order: im Raster nach vorne, also über den Namen, obwohl er im HTML dahinter steht */
+.knoepfe .knopf {
+  order: -1;
+}
+
+.knoepfe output,
+.fader-label output {
+  opacity: 0.8; /* Regel 4 */
+  font-variant-numeric: tabular-nums; /* alle Ziffern gleich breit */
+  white-space: nowrap;
+}
+
+/* Der Regler bleibt im Dokument (er hält den Wert), ist aber unsichtbar.
+   Nicht display: none, sonst gibt es ihn für Screenreader und Formulare nicht mehr */
+.regler-versteckt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%); /* alles wegschneiden */
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Gemeinsam für Knopf und Fader: Browser-Aussehen der Schaltfläche weg.
+   button.knopf statt .knopf: genauso genau wie ".steuerung button" und weiter unten, gewinnt also */
+button.knopf,
+button.fader {
+  padding: 0;
+  font: inherit;
+  background: transparent;
+  color: inherit;
+  touch-action: none; /* Ziehen mit dem Finger scrollt nicht die Seite */
+  cursor: ns-resize; /* Pfeil hoch/runter: zeigt, dass man senkrecht zieht */
+}
+
+/* Drehknopf */
+button.knopf {
+  position: relative; /* Bezugspunkt für den Strich */
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid currentColor;
+  border-radius: 50%; /* rund: die eine Ausnahme von Regel 2, ein Drehknopf ist rund */
+}
+
+/* Regel 3: darüber oder ausgewählt Farben tauschen, der Strich tauscht mit (currentColor) */
+button.knopf:hover,
+button.knopf:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Der Strich zeigt die Stellung: -135° + Anteil × 270°, also von links unten über oben
+   nach rechts unten. Sein unteres Ende sitzt im Mittelpunkt, um diesen Punkt dreht er sich:
+     1. top/left 50 %: die linke obere Ecke des Strichs liegt im Mittelpunkt
+     2. translate(-50 %, -100 %): halb nach links, ganz nach oben, jetzt liegt
+        das untere Ende in der Mitte
+     3. rotate dreht um transform-origin 50 % 100 % = das untere Ende */
+.knopf::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 40%; /* vom Mittelpunkt fast bis zum Rand */
+  background: currentColor;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotate(calc(-135deg + var(--anteil, 0) * 270deg));
+}
+
+/* Fader: Name oben, Schiene, Zahl unten */
+.fader-label {
+  position: relative; /* für den unsichtbaren Regler */
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* Mitte (Schiene) nimmt die ganze übrige Höhe */
+  justify-items: center;
+  row-gap: 0.3rem;
+}
+
+/* Die Schaltfläche ist die ganze Schiene, die Kappe sitzt darin.
+   --kappe als Variable, weil die Höhe zweimal gebraucht wird */
+button.fader {
+  --kappe: 0.9rem;
+  position: relative;
+  width: 2rem;
+  /* keine Höhe: im Raster wird er von selbst so hoch wie die Zeile (stretch) */
+  min-height: 8rem;
+  border: 0;
+}
+
+/* die Schiene: eine dünne Linie in der Mitte */
+.fader::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: currentColor;
+  opacity: 0.6; /* Regel 4: Nebensache */
+}
+
+/* Mittelmarke (bei -24 bis +24 dB liegt 0 dB genau in der Mitte des Wegs) */
+.fader::after {
+  content: "";
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: calc(0.5 * (100% - var(--kappe)) + var(--kappe) / 2);
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4; /* Regel 4: Hilfslinie */
+}
+
+/* Kappe: unten bei Anteil 0, oben bei 1. Weg = Schiene minus eigene Höhe, sonst ragt sie oben hinaus */
+.fader-kappe {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: var(--kappe);
+  bottom: calc(var(--anteil, 0) * (100% - var(--kappe)));
+  border: 1px solid currentColor;
+  background: var(--bg); /* deckt die Schiene ab */
+}
+
+/* Regel 3 am Fader: die Kappe tauscht */
+.fader:hover .fader-kappe,
+.fader:focus-visible .fader-kappe {
+  background: var(--text);
+}

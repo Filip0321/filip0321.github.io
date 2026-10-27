@@ -4,7 +4,7 @@ import { beiGeladen } from "./effekte/rahmen.js"
 import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig } from "./kette.js";
 import { renderVideo } from "./export-video.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
-import { ladeHerunter, zeitstempel, neueAufnahme, FPS, warte } from "/export.js";
+import { ladeHerunter, zeitstempel, neueAufnahme, FPS, warte } from "/lib/export.js";
 import { neuesOverlay,farbFlaeche, neuesFenster, trifft, stelleOverlaysAuf, stelleOverlaysZurueck, synchronisiere, gibOverlayFrei } from "./effekte/overlay.js";
 // die ganzen HTML Elemente für die basic Einstellungen
 
@@ -792,3 +792,4 @@ videoKnopf.addEventListener("click", speichereVideo);
 // Start
 beiGeladen(planeAnwenden)
 zeigeModus("bild"); // starte mit Bild, wenn Video wird es auch geändert
+
