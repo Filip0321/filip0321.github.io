@@ -183,9 +183,7 @@ function markiereEinsatz(x, y, breite, hoehe) {
   ctx.fillRect(x, y, breite, hoehe);
 }
 
-// Catmull-Rom: weiche Kurve durch vier Punkte p0 p1 p2 p3, t von 0 (bei p1) bis 1 (bei p2).
-// Anders als bei einer Geraden von p1 nach p2 schauen p0 und p3 mit, wohin die Kurve vorher und nachher läuft,
-// so gibt es an den Fächern keinen Knick
+// Catmull-Rom für weiche Kurve 
 function catmullRom(p0, p1, p2, p3, t) {
   return (
     0.5 *
@@ -193,18 +191,15 @@ function catmullRom(p0, p1, p2, p3, t) {
   );
 }
 
-// Wert (0–255) für Pixelspalte x im Spektrum
 function wertBeiSpalte(x) {
-  // mehrere Fächer in einer Spalte (Höhen) oder Häkchen aus: wie bisher das lauteste
   if (!spektrumGlatt.checked || bisFach[x] > vonFach[x]) return lautestes(vonFach[x], bisFach[x]);
-  // nur ein Fach für viele Spalten (Tiefen): zwischen den Fächern weich übergehen statt einer Treppe
   const letztes = werte.length - 1;
   const i = Math.min(Math.floor(fachPos[x]), letztes - 1);
   const t = fachPos[x] - i; // wie weit zwischen Fach i und i + 1
   const p0 = werte[Math.max(i - 1, 0)];
   const p3 = werte[Math.min(i + 2, letztes)];
   const wert = catmullRom(p0, werte[i], werte[i + 1], p3, t);
-  return Math.min(Math.max(wert, 0), 255); // die Kurve kann leicht über- oder unterschießen
+  return Math.min(Math.max(wert, 0), 255); 
 }
 
 // Spektrum in den Bereich von y = 0 bis hoeheCanvas, mit dem passenden Farbverlauf
