@@ -1,5 +1,5 @@
-import { anteilZuFrequenz, zeigeFrequenz } from "./frequenzen.js"
-import { haltePaar } from "/lib/knopfregler.js"
+import { anteilZuFrequenz, zeigeFrequenz } from "./frequenzen.js";
+import { haltePaar } from "/lib/knopfRegler.js"; 
 
 export const tiefen = hole("tiefen");
 const tiefenAnzeige = hole("tiefenAnzeige");

@@ -39,6 +39,31 @@ export async function ladeDatei(datei) {
   return true;
 }
 
+// Stücke (Frames) für die eigene FFT
+//------------------------------------------------------
+export const SPRUNG = FENSTER / 4; // so weit rückt das nächste Stück vor, 3/4 überlappen sich
+
+// Hann-Fenster: eine Glockenkurve von 0 über 1 zurück auf 0, einmal vorausberechnet
+const hann = new Float32Array(FENSTER);
+for (let n = 0; n < FENSTER; n++) {
+  hann[n] = 0.5 * (1 - Math.cos((2 * Math.PI * n) / FENSTER));
+}
+
+// wie viele ganze Stücke in die Aufnahme passen
+export function anzahlStuecke(laenge) {
+  if (laenge < FENSTER) return 0;
+  return Math.floor((laenge - FENSTER) / SPRUNG) + 1;
+}
+
+function holeStueck(nummer, ziel) {
+  const start = nummer * SPRUNG;
+  for (let n = 0; n < FENSTER; n++) {
+    ziel[n] = aufnahme[start + n] * hann[n]; // durch hann[] wird es am anfang und ende "ausgewaschen"
+  }
+  return ziel;
+}
+//------------------------------------------------------
+
 // Gesamtbild
 export const ZEILEN = 1024;
 export const MAX_STUECKE = 32767 - 100;
@@ -51,7 +76,7 @@ export let gesamtStuecke = 0;
 let rechenNummer = 0;
 
 function zuDb(betrag) {
-  return 20 * Math.log10(betrag / FENSTER + 1e-12)
+  return 20 * Math.log10(betrag / FENSTER + 1e-12);
   // sonst ist log10(0) = -Infinity
 }
 
