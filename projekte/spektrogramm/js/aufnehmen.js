@@ -1,15 +1,16 @@
+// Aufnehmen: was gerade durch das Pult läuft, wird zu einer Datei.
+// main.js lädt sie danach wie eine geöffnete Datei; gespeichert wird über PNG, Video und "Ton speichern" (WAV)
+
 import { zeigeMeldung } from "./seite.js";
 import { aufnahmeZiel } from "./audio.js";
-import { ladeHerunter, zeitstempel, zuWav } from "/lib/export.js";
+import { zeitstempel } from "/lib/export.js";
 
 const aufnehmenKnopf = hole("aufnehmenKnopf");
-const aufnahmeSpeichern = hole("aufnahmeSpeichern");
 
 let rekorder = null;
 let teile = [];
 let startZeit = 0;
 let uhrId = null;
-let letzteAufnahme = null;
 const zuhoerer = [];
 
 export function beiAufnahme(funktion) {
@@ -24,7 +25,8 @@ function waehleFormat() {
 
 function starteAufnahme() {
   if (!aufnahmeZiel) {
-    zeigeMeldung("Erst Start drücken, dann aufnehmen");
+    zeigeMeldung("Erst Start drücken, dann aufnehmen.");
+    return; // ohne Start gibt es keinen Ton zum Aufnehmen, sonst Fehler bei aufnahmeZiel.stream
   }
   const format = waehleFormat();
   rekorder = new MediaRecorder(aufnahmeZiel.stream, {
@@ -62,22 +64,13 @@ function fertig() {
   rekorder = null;
 
   const endung = typ.includes("mp4") ? "m4a" : typ.includes("ogg") ? "ogg" : "webm";
-  letzteAufnahme = new File(teile, `aufnahme-${zeitstempel()}.${endung}`, { type: typ});
+  const datei = new File(teile, `aufnahme-${zeitstempel()}.${endung}`, { type: typ });
   teile = [];
-  aufnahmeSpeichern.hidden = false;
-  for (const funktion of zuhoerer) funktion(letzteAufnahme);
+  for (const funktion of zuhoerer) funktion(datei);
 }
 
 aufnehmenKnopf.addEventListener("click", () => {
   zeigeMeldung("");
   if (rekorder) stoppeAufnahme();
   else starteAufnahme();
-});
-
-aufnahmeSpeichern.addEventListener("click", async () => {
-  if (!letzteAufnahme) return;
-  const dekoder = new OfflineAudioContext(1, 1, 48000);
-  const puffer = await dekoder.decodeAudioData(await letzteAufnahme.arrayBuffer());
-  const name = letzteAufnahme.name.replace(/\.[^.]+$/, ".wav"); // Endung zu wav
-  ladeHerunter(zuWav(puffer), name);
 });

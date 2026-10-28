@@ -1,9 +1,9 @@
 // Stellen, an denen plötzlich etwas Neues anfängt (Schlag, Ton, Silbe)
 
-import { baueFft } from "./fft.js";
+import { baueFft } from "/lib/fft.js";
 import { fachTabelle } from "./frequenzen.js";
 import { ANALYSE_RATE, aufnahme } from "./datei.js";
-import { warte } from "../lib/export.js";
+import { warte } from "/lib/export.js";
 
 const KLEIN = 1024;
 const KLEIN_SPRUNG = KLEIN / 4;

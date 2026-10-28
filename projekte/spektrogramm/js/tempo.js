@@ -25,16 +25,18 @@ export function berechneTempo() {
   if (!flux || flux.length < STUECKE_PRO_SEKUNDE * 4) return;
   
   staerke = ohneGrundrauschen(flux);
+  // ist wo es es schläge gibt
   const n = staerke.length;
 
   const lagMin = Math.floor((60 / MAX_BPM) * STUECKE_PRO_SEKUNDE);
   const lagMax = Math.ceil((60 / MIN_BPM) * STUECKE_PRO_SEKUNDE);
-  // soviele stücke pro Sekunde um die jeweilige Min und Max Bpm zu erzeugen
+  // Abstand zwischen Schlägen bei Min und Max BPM
+  // Flux ist pro Stück
   const korrelation = new Float32Array(lagMax + 2);
   for (let lag = lagMin - 1; lag <= lagMax + 1; lag++) {
     let summe = 0;
     for (let s = 0; s + lag < n; s++) summe += staerke[s] * staerke[s + lag];
-    korrelation[lag] = summe / (n - lag);
+    korrelation[lag] = summe / (n - lag); // nur wenn es schläge in diesem Abstand gab speichern (sonst 0)
     // alle möglichen Werte durchgehen und speichern
   }
 
@@ -44,6 +46,9 @@ export function berechneTempo() {
   for (let lag = lagMin; lag <= lagMax; lag++) {
     const lagBpm = (60 * STUECKE_PRO_SEKUNDE) / lag;
     const oktaven = Math.log2(lagBpm / BEVORZUGT_BPM); 
+    // von bevorzugtem BPM schauen welcher Abstand näher dran
+    // wenn zwei Abstände gleich kommen (beispiel aller 4 und 8)
+    // bei allen anderen Abständen kommt 0 raus
     const wert = korrelation[lag] * Math.exp(-0.5 * (oktaven / OKTAVEN_BREITE) ** 2);
     summeWerte += wert;
     if (wert > besterWert) {
@@ -52,6 +57,7 @@ export function berechneTempo() {
     }
   }
   const klarheit = besterWert / (summeWerte / (lagMax - lagMin + 1));
+  // durchschnitt
   if (!(klarheit >= MIN_KLARHEIT)) {
     tempoAnzeige.textContent = "kein klares Tempo";
     return;
@@ -62,6 +68,7 @@ export function berechneTempo() {
   const rechts = korrelation[besterLag + 1];
   const nenner = links - 2 * mitte + rechts;
   const versatz = nenner === 0 ? 0 : (0.5 * (links - rechts)) / nenner;
+  // wo genau der schlag kommt
   const grobePeriode = besterLag + versatz;
 
   legeRasterAn(grobePeriode);

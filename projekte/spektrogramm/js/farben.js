@@ -43,7 +43,8 @@ export function waehleFarbskala(name) {
 }
 
 function farbenGenerieren() {
-  for (let loudness = 0; loudness < 256; loudness++) {
+  for (let v = 0; v < 256; v++) {
+    // v: Lautstärke 0–255, jede bekommt ihre Farbe
     const position = (v / 255) * (ANKER.length - 1); // Zahl zwischen 0 und ANKER.length - 1
     const i = Math.min(Math.floor(position), ANKER.length - 2); // length - 1 sowieso, dann nochmal, 
     // weil sonst gibts kein + 1 zum mischen
@@ -51,9 +52,9 @@ function farbenGenerieren() {
 
     const von = ANKER[i];
     const bis = ANKER[i + 1];
-    farbenZahlen[v * 3] = Math.round(mische(von[0], bis[0], t)); // rot
-    farbenZahlen[v * 3 + 1] = Math.round(mische(von[1], bis[1], t)); // grün
-    farbenZahlen[v * 3 + 2] = Math.round(mische(von[2], bis[2], t)); // blau
+    farbenZahlen[v * 3] = Math.round(mischen(von[0], bis[0], abstand)); // rot
+    farbenZahlen[v * 3 + 1] = Math.round(mischen(von[1], bis[1], abstand)); // grün
+    farbenZahlen[v * 3 + 2] = Math.round(mischen(von[2], bis[2], abstand)); // blau
   }
 }
 
