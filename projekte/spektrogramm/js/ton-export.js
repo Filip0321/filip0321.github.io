@@ -1,5 +1,3 @@
-// Ton der geladenen Datei oder Aufnahme als WAV speichern, im Exportbereich
-
 import { zeigeMeldung } from "./seite.js";
 import { originalTon, dateiName } from "./datei.js";
 import { exportBereich } from "./bereich.js";

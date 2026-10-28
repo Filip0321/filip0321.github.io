@@ -13,9 +13,8 @@ import { setzeEmpfindlichkeitLive } from "./einsaetze-live.js";
 import { berechneTempo, aendereTempo } from "./tempo.js";
 import { zeigeGesamt, markiereFarbenVeraltet, zeigeAlles } from "./gesamtbild.js";
 import { waehleFarbskala } from "./farben.js";
-import { stelleWiederHer, merkeEinstellungen } from "./einstellungen.js";
 import "./maus-info.js"; 
-import "./ton-export.js"; // hängt nur seinen Knopf an
+import "./ton-export.js"; 
 import { vonFeld, bisFeld, loescheBereich } from "./bereich.js";
 import "./png-export.js"; 
 import "./video-export.js"; 
@@ -231,9 +230,6 @@ setzeLautstaerke();
 setzeGrenzen(tiefen);
 zeichneSkala();
 setzeEmpfindlichkeiten();
-// gemerkte Einstellungen zurückholen (löst die Listener oben aus), ab jetzt jede Änderung merken
-stelleWiederHer(bedienung);
-merkeEinstellungen(bedienung);
 
 const beobachter = new ResizeObserver(groesseGeaendert);
 beobachter.observe(canvas);

@@ -105,7 +105,7 @@ export function setzeEmpfindlichkeit(wert) {
 }
 
 // Spitzen suchen
-// höchste Stelle in der Nähe UND deutlich über dem Durchschnitt drumherum
+// höchste Stelle in der Nähe und deutlich über dem Durchschnitt drumherum
 function sucheSpitzen() {
   const gefunden = [];
   let letzter = -Infinity;

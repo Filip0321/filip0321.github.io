@@ -1,6 +1,3 @@
-// Aufnehmen: was gerade durch das Pult läuft, wird zu einer Datei.
-// main.js lädt sie danach wie eine geöffnete Datei; gespeichert wird über PNG, Video und "Ton speichern" (WAV)
-
 import { zeigeMeldung } from "./seite.js";
 import { aufnahmeZiel } from "./audio.js";
 import { zeitstempel } from "/lib/export.js";

@@ -1,5 +1,6 @@
 import { fachTabelle } from "./frequenzen.js";
-import { audio, einsatzMesser } from "./audio.js";// Einsätze live: dasselbe Prinzip wie in einsaetze.js (Spectral Flux mit Nachbar-Vergleich),
+import { audio, einsatzMesser } from "./audio.js";
+// Einsätze live: dasselbe Prinzip wie in einsaetze.js (Spectral Flux mit Nachbar-Vergleich),
 
 const BAENDER = 64;
 const BODEN_DB = -80; 
