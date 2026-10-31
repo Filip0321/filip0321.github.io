@@ -7,6 +7,7 @@ import { exportBereich } from "./bereich.js";
 import { zeichneEinsaetze } from "./einsaetze.js";
 import { zeichneTakt } from "./tempo.js";
 import { ladeHerunter, zeitstempel } from "/lib/export.js";
+import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 
 export const mitAchsen = hole("mitAchsen"); 
 const bildSpeichern = hole("bildSpeichern");
@@ -121,7 +122,22 @@ export function baueExport(achsen, breiteArt = exportBreite.value) {
   return ergebnis;
 }
 
-bildSpeichern.addEventListener("click", () => {
+// Export-Fenster: Rahmen, Format und Größe; Achsen, Breite und Bereich bleiben im Bedienfeld
+// (auch video-export.js benutzt es). Beim Video ist die Breite immer "wie angezeigt", siehe dort
+let exportArt = "bild";
+const exportFenster = erstelleExportDialog({
+  zeitVorschau: false,
+  zeichneVorschau: (allgemein) =>
+    mitRahmen(baueExport(mitAchsen.checked, exportArt === "video" ? "anzeige" : exportBreite.value).bild, allgemein),
+});
+
+// öffnet das Fenster; ergibt die Einstellungen oder null (abgebrochen)
+export function frageExport(art) {
+  exportArt = art;
+  return exportFenster.oeffne({ art, ueberschrift: art === "video" ? "Video speichern" : "Bild speichern" });
+}
+
+bildSpeichern.addEventListener("click", async () => {
   zeigeMeldung("");
   if (!gesamtDb) {
     zeigeMeldung("Erst eine Datei laden.");
@@ -131,7 +147,9 @@ bildSpeichern.addEventListener("click", () => {
     zeigeMeldung("Der Bereich ist zu kurz.");
     return;
   }
-  baueExport(mitAchsen.checked).bild.toBlob((blob) => {
+  const einst = await frageExport("bild");
+  if (!einst) return; // abgebrochen
+  mitRahmen(baueExport(mitAchsen.checked).bild, einst).toBlob((blob) => {
     if (blob) ladeHerunter(blob, `${dateiName}-spektrogramm-${zeitstempel()}.png`);
     else zeigeMeldung("Das Bild konnte nicht erstellt werden.");
   }, "image/png");
