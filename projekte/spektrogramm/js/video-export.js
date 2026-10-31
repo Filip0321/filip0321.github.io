@@ -1,12 +1,24 @@
-import { zeigeMeldung, LESEKOPF_FARBE } from "./seite.js";
-import { gesamtDb, originalTon, dateiName } from "./datei.js";
-import { baueExport, mitAchsen, frageExport } from "./png-export.js";
-import { mitRahmen } from "/lib/export-dialog.js";
+import { zeigeMeldung } from "./seite.js";
+import { originalTon, dateiName, gesamtDb } from "./datei.js";
+import { baueExport, mitAchsen, frageExport, zeichneVideoBild } from "./png-export.js";
 import { exportBereich } from "./bereich.js";
 import { neueAufnahme, schneideTon, ladeHerunter, zeitstempel, warte, FPS } from "/lib/export.js";
+import { mitRahmen } from "/lib/export-dialog.js";
 
 const videoSpeichern = hole("videoSpeichern");
-const KOPF_BREITE = 3; 
+
+// der Ton im Bereich als eigener Puffer, wahlweise umgedreht (rückwärts)
+function ausschnitt(ton, von, bis, umdrehen) {
+  const anfang = Math.round(von * ton.sampleRate);
+  const ende = Math.round(bis * ton.sampleRate);
+  const stueck = new AudioBuffer({ length: ende - anfang, numberOfChannels: ton.numberOfChannels, sampleRate: ton.sampleRate });
+  for (let k = 0; k < ton.numberOfChannels; k++) {
+    const samples = ton.getChannelData(k).slice(anfang, ende); // Kopie: reverse() dreht sonst die Datei selbst um
+    if (umdrehen) samples.reverse();
+    stueck.copyToChannel(samples, k);
+  }
+  return stueck;
+}
 
 videoSpeichern.addEventListener("click", async () => {
   zeigeMeldung("");
@@ -18,46 +30,43 @@ videoSpeichern.addEventListener("click", async () => {
     zeigeMeldung("Dein Browser kann keine Videos kodieren.");
     return;
   }
+
+  const einst = await frageExport("video"); // Rahmen, Format, Größe, Bereich, Ablauf, rückwärts
+  if (!einst) return; // abgebrochen
   if (exportBereich().zuKurz) {
     zeigeMeldung("Der Bereich ist zu kurz.");
     return;
   }
 
-  const einst = await frageExport("video"); // Rahmen, Format, Größe
-  if (!einst) return; // abgebrochen
-
   videoSpeichern.disabled = true; // nicht zweimal gleichzeitig
   let aufnahme = null;
   try {
-    // Hintergrund einmal (Gesamtbild, Achsen, Einsätze), danach pro Bild nur kopieren und Strich darüber
-    // Immer "wie angezeigt": eine Spalte pro Stück wäre für ein Video zu breit (H.264 schafft etwa 4096 Pixel)
+    // Hintergrund einmal (Gesamtbild, Achsen, Einsätze), danach pro Bild nur kopieren, Strich darüber
     // von, bis: der Exportbereich in Sekunden (ohne Bereich die ganze Datei)
-    const { bild, links, oben, breite, hoehe, zeitZuX, von, bis } = baueExport(mitAchsen.checked, "anzeige");
-    const rahmen = document.createElement("canvas"); 
-    rahmen.width = bild.width;
-    rahmen.height = bild.height;
+    const exp = baueExport(mitAchsen.checked, "anzeige");
+    const { von, bis } = exp;
+    const rahmen = document.createElement("canvas");
+    rahmen.width = exp.bild.width;
+    rahmen.height = exp.bild.height;
     const c = rahmen.getContext("2d");
-
     const mitRand = document.createElement("canvas"); // jedes Bild mit Rahmen hier hinein (ein Canvas für alle)
-    const ton = { kanaele: originalTon.numberOfChannels, rate: originalTon.sampleRate };
-    aufnahme = await neueAufnahme(mitRahmen(rahmen, einst, mitRand), FPS, "#111111", ton);
+
+    const ton = ausschnitt(originalTon, von, bis, einst.rueckwaerts); // fängt bei 0 an, wie das Video
+    aufnahme = await neueAufnahme(mitRahmen(rahmen, einst, mitRand), FPS, "#111111", {
+      kanaele: ton.numberOfChannels,
+      rate: ton.sampleRate,
+    }, einst.videoTyp);
 
     const anzahl = Math.ceil((bis - von) * FPS); // so viele Bilder, wie der Bereich lang ist
-    const rate = originalTon.sampleRate;
+    const rate = ton.sampleRate;
     let letztePause = performance.now();
     for (let i = 0; i < anzahl; i++) {
       const t = i / FPS; // Zeit im Video (fängt bei 0 an)
-      const zeitImTon = von + t; // dieselbe Stelle in der Datei
-      c.drawImage(bild, 0, 0);
-      // ganz am Anfang und Ende liegt die Zeit vor der ersten bzw. hinter der letzten Stückmitte
-      const x = Math.min(Math.max(Math.round(links + zeitZuX(zeitImTon)), links), links + breite - KOPF_BREITE);
-      c.fillStyle = LESEKOPF_FARBE;
-      c.fillRect(x, oben, KOPF_BREITE, hoehe);
+      const zeitImTon = einst.rueckwaerts ? bis - t : von + t; // rückwärts läuft der Strich vom Ende zum Anfang
+      zeichneVideoBild(c, exp, zeitImTon, einst);
 
-      // der Ton für genau dieses Bild: bis zum nächsten Bild, aber nicht über das Bereichsende
-      const anfang = Math.round(zeitImTon * rate);
-      const ende = Math.round(Math.min(von + (i + 1) / FPS, bis) * rate);
-      const tonStueck = schneideTon(originalTon, anfang, ende);
+      // der Ton für genau dieses Bild: bis zum nächsten Bild
+      const tonStueck = schneideTon(ton, Math.round(t * rate), Math.round(((i + 1) / FPS) * rate));
       // Bild und Ton gleichzeitig abgeben und auf beide warten
       await Promise.all([aufnahme.bild(mitRahmen(rahmen, einst, mitRand), t, 1 / FPS), tonStueck && aufnahme.ton(tonStueck)]);
 
@@ -69,7 +78,8 @@ videoSpeichern.addEventListener("click", async () => {
     }
 
     videoSpeichern.textContent = "Speichern ...";
-    ladeHerunter(await aufnahme.fertig(), `${dateiName}-spektrogramm-${zeitstempel()}.mp4`);
+    const richtung = einst.rueckwaerts ? "-rueckwaerts" : "";
+    ladeHerunter(await aufnahme.fertig(), `${dateiName}-spektrogramm${richtung}-${zeitstempel()}.${aufnahme.endung}`);
   } catch (fehler) {
     console.error(fehler);
     await aufnahme?.abbrechen();

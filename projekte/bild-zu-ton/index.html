@@ -120,6 +120,9 @@
       </div>
       <!-- Runde 0 (Start) bis N, Klick = diese Stufe weiterbenutzen -->
       <div class="stufen" id="stufen"></div>
+      <div class="steuerung">
+        <button type="button" id="stufenLoeschen" hidden>Stufen löschen</button> <!-- erst da, wenn es Stufen gibt -->
+      </div>
       <audio id="spieler" controls></audio>
       <p class="meldung" id="meldung" hidden></p> 
       
@@ -160,6 +163,10 @@
             <option value="paar">Paar (zwei übereinander, rücken nach)</option>
             <option value="gitter">Gitter (alle Stufen)</option>
           </select>
+        </label>
+        <!-- nur die Stufen bis hierhin (Start, Runde 1 …), wird beim Öffnen gefüllt (js/main.js) -->
+        <label id="exportBisStufeLabel">bis
+          <select id="exportBisStufe"></select>
         </label>
         <label id="exportSpaltenLabel">nebeneinander (0 = automatisch) <input type="number" id="exportSpalten" min="0" max="12" step="1" value="0"></label>
         <label id="exportBeschriftungLabel"><input type="checkbox" id="exportBeschriftung" checked> Start, Runde 1 … darüber</label>

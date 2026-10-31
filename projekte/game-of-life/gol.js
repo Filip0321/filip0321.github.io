@@ -1,4 +1,4 @@
-import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
 import { richteExportEin } from "/lib/export.js";
 
 // Konstanten - Spielfeld (das Modell, immer gleich)
@@ -444,8 +444,11 @@ let renderGeneration = 0;
 
 const render = {
   start() {
-    warLaeuft = laeuft;
-    setzeLaeuft(false);          // die normale Schleife hält still
+    // nur beim ersten start() merken, ob es lief: die Vorschau ruft start() oft hintereinander auf
+    if (laeuft) {
+      warLaeuft = true;
+      setzeLaeuft(false);        // die normale Schleife hält still
+    }
     renderGeneration = 0;
   },
   bild(i, dt) {
@@ -459,6 +462,18 @@ const render = {
   },
   ende() {
     setzeLaeuft(warLaeuft);
+    warLaeuft = false;
+  },
+  // Vorschau im Export-Fenster: das Gitter merken, jede Vorschau rechnet von dort aus
+  merke() {
+    const kopie = gitter.slice();
+    return () => gitter.set(kopie); // in das jetzige Gitter zurückkopieren (schritt() tauscht die Arrays)
+  },
+  // Bild i direkt: alle Generationen bis dahin ohne Zeichnen, dann einmal zeichnen
+  vorschau(i, n, dt) {
+    const soll = Math.floor((i * dt * 1000) / INTERVALL);
+    for (let g = 0; g < soll; g++) schritt();
+    zeichne();
   },
 };
 
@@ -469,7 +484,5 @@ richteExportEin({
   anzeige: sichtbaresBild,
   endbild,
   render,
+  zuschnitt: crtZuschnitt,
 });
-
-
-

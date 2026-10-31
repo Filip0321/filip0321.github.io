@@ -4,7 +4,7 @@
 // entsteht: das Bild erscheint nur, wo der Strich schon war; strich: der Lesekopf läuft durch dieses Feld
 // szene.rueckwaerts: der Strich läuft von rechts nach links, jeder Ton ist umgedreht
 
-import { neueAufnahme, schneideTon, ladeHerunter, zeitstempel, warte, FPS } from "/lib/export.js";
+import { neueAufnahme, schneideTon, ladeHerunter, speichereCanvas, zeitstempel, warte, FPS } from "/lib/export.js";
 import { zeichneSkala } from "./kopf.js";
 import { rueckwaerts } from "./ton.js";
 
@@ -81,7 +81,9 @@ function hintereinander(puffer) {
   return ziel;
 }
 
-export async function speichereVideo(szene, { name, beiFortschritt }) {
+// von, bis: der Bereich aus dem Export-Fenster als Anteil (0 bis 1) der ganzen Länge
+// typ: "mp4" oder "webm"
+export async function speichereVideo(szene, { name, beiFortschritt, von = 0, bis = 1, typ = "mp4" }) {
   const abschnitte = szene.abschnitte;
   // rückwärts: jeder Abschnitt für sich umgedreht, die Reihenfolge der Stufen bleibt
   const ton = hintereinander(abschnitte.map((a) => (szene.rueckwaerts ? rueckwaerts(a.puffer) : a.puffer)));
@@ -101,29 +103,32 @@ export async function speichereVideo(szene, { name, beiFortschritt }) {
   const rate = ton.sampleRate;
   let aufnahme = null; // außerhalb von try, damit catch es abbrechen kann
   try {
-    aufnahme = await neueAufnahme(rahmen, FPS, szene.rahmenFarbe, { kanaele: ton.numberOfChannels, rate });
-    const anzahl = Math.ceil(ton.duration * FPS);
+    aufnahme = await neueAufnahme(rahmen, FPS, szene.rahmenFarbe, { kanaele: ton.numberOfChannels, rate }, typ);
+    // nur der Bereich: Bilder von erstes bis vor letztes, die Zeit im Video fängt beim Bereich bei 0 an
+    const erstes = Math.round(von * ton.duration * FPS);
+    const letztes = Math.max(erstes + 1, Math.ceil(bis * ton.duration * FPS));
     let k = 0;
     let letztePause = performance.now();
-    for (let i = 0; i < anzahl; i++) {
-      const t = i / FPS; // Zeit im Video = Zeit im Ton
-      while (k < abschnitte.length - 1 && t >= anfaenge[k + 1]) k++; // nächster Abschnitt?
-      const anteil = Math.min((t - anfaenge[k]) / abschnitte[k].puffer.duration, 1);
+    for (let i = erstes; i < letztes; i++) {
+      const tImTon = i / FPS; // wo im ganzen Ton
+      const t = (i - erstes) / FPS; // wo im Video
+      while (k < abschnitte.length - 1 && tImTon >= anfaenge[k + 1]) k++; // nächster Abschnitt?
+      const anteil = Math.min((tImTon - anfaenge[k]) / abschnitte[k].puffer.duration, 1);
       zeichneSzene(c, szene, k, anteil);
 
-      // der Ton für genau dieses Bild: von t bis zum nächsten Bild
-      const anfang = Math.round(t * rate);
-      const ende = Math.round(((i + 1) / FPS) * rate);
+      // der Ton für genau dieses Bild: von hier bis zum nächsten Bild
+      const anfang = Math.round(tImTon * rate);
+      const ende = Math.round(Math.min((i + 1) / FPS, bis * ton.duration) * rate);
       const tonStueck = schneideTon(ton, anfang, ende); // null, wenn nichts mehr übrig ist
       await Promise.all([aufnahme.bild(rahmen, t, 1 / FPS), tonStueck && aufnahme.ton(tonStueck)]);
 
       if (performance.now() - letztePause > 50) {
-        beiFortschritt?.((i + 1) / anzahl);
+        beiFortschritt?.((i - erstes + 1) / (letztes - erstes));
         await warte();
         letztePause = performance.now();
       }
     }
-    ladeHerunter(await aufnahme.fertig(), `${name}-${zeitstempel()}.mp4`);
+    ladeHerunter(await aufnahme.fertig(), `${name}-${zeitstempel()}.${aufnahme.endung}`);
     return { codec: aufnahme.codec, tonCodec: aufnahme.tonCodec }; // für den Hinweis in main.js
   } catch (fehler) {
     await aufnahme?.abbrechen();
@@ -131,18 +136,11 @@ export async function speichereVideo(szene, { name, beiFortschritt }) {
   }
 }
 
-// das fertige Bild (alles da, kein Strich) als PNG
-export function speichereBild(szene, name) {
+// das fertige Bild (alles da, kein Strich) als PNG oder WebP (typ)
+export function speichereBild(szene, name, typ = "png") {
   const bild = document.createElement("canvas");
   bild.width = szene.breite;
   bild.height = szene.hoehe;
   zeichneSzene(bild.getContext("2d"), szene, szene.abschnitte.length - 1, null);
-  // toBlob ruft zurück, statt zu warten: in ein Promise packen, damit main.js await benutzen kann
-  return new Promise((fertig, fehler) => {
-    bild.toBlob((blob) => {
-      if (!blob) return fehler(new Error("Das Bild konnte nicht erstellt werden."));
-      ladeHerunter(blob, `${name}-${zeitstempel()}.png`);
-      fertig();
-    }, "image/png");
-  });
+  return speichereCanvas(bild, typ, `${name}-${zeitstempel()}`); // gibt ein Promise zurück: main.js kann warten
 }

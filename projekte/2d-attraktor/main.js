@@ -4,7 +4,7 @@
 import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.js";
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
-import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
 import { richteExportEin } from "/lib/export.js";
 
 // Settings
@@ -412,6 +412,15 @@ const render = {
     sichtbar = punkte; // Bild vollständig hinterlassen
     zeichne();
   },
+  // Vorschau im Export-Fenster: nichts zu merken, start() setzt alles neu
+  merke() {
+    return () => {};
+  },
+  // Bild i direkt: so viele Punkte, wie nach i + 1 Schritten von bild() da wären
+  vorschau(i) {
+    sichtbar = Math.min(sichtbar + renderProBild * (i + 1), punkte);
+    zeichne();
+  },
 };
 
 richteExportEin({
@@ -421,6 +430,5 @@ richteExportEin({
   anzeige: sichtbaresBild,
   endbild,
   render,
+  zuschnitt: crtZuschnitt,
 });
-
-
