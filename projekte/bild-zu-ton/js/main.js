@@ -45,6 +45,8 @@ const kippen = hole("kippen");
 const rundenFeld = hole("runden");
 const rundenKnopf = hole("rundenStarten");
 const stufenFeld = hole("stufen"); // hier erscheinen die kleinen Bilder der Stufen
+const stufenLoeschen = hole("stufenLoeschen");
+const exportBisStufe = hole("exportBisStufe"); // im Export-Fenster: nur die Stufen bis hierhin
 const bildSpeichern = hole("bildSpeichern");
 const rueckwaertsCheck = hole("rueckwaerts");
 const artKnoepfe = hole("syntheseArt"); // "Töne" und "Rauschen", der gewählte hat aria-pressed="true"
@@ -118,7 +120,7 @@ datei.addEventListener("change", async () => {
 
 // Knöpfe, die rechnen, während einer Rechnung sperren: sonst funkt ein zweiter Klick dazwischen
 function sperre(an) {
-  for (const knopf of [erzeugenKnopf, zurueckKnopf, rundenKnopf, videoSpeichern, bildSpeichern]) knopf.disabled = an;
+  for (const knopf of [erzeugenKnopf, zurueckKnopf, rundenKnopf, videoSpeichern, bildSpeichern, stufenLoeschen]) knopf.disabled = an;
 }
 
 // Ton -> neues Bild: misst mit denselben Werten, mit denen der Ton erzeugt wurde
@@ -342,7 +344,15 @@ function zeigeStufen() {
     });
     stufenFeld.append(figur);
   });
+  stufenLoeschen.hidden = stufen.length === 0; // ohne Stufen gibt es nichts zu löschen
 }
+
+// alle Stufen weg, das Bild bleibt, wie es gerade ist (die nächsten Runden fangen bei ihm an)
+stufenLoeschen.addEventListener("click", () => {
+  stufen = [];
+  zeigeStufen();
+  zeigeMeldung("Die Stufen sind gelöscht.");
+});
 
 rundenKnopf.addEventListener("click", async () => {
   if (!rastertBild) {
@@ -409,7 +419,11 @@ function passeFelderAn() {
   hole("exportAnordnungLabel").hidden = !video || !mitStufen;
   hole("exportSpaltenLabel").hidden = !mitStufen || !gitter;
   hole("exportBeschriftungLabel").hidden = !mitStufen || !gitter;
+  hole("exportBisStufeLabel").hidden = !mitStufen;
 }
+
+// die Stufen, die ins Bild oder Video kommen: Start bis zur gewählten
+const gewaehlteStufen = () => stufen.slice(0, Number(exportBisStufe.value) + 1);
 for (const feld of [exportInhalt, exportAnordnung]) feld.addEventListener("change", passeFelderAn);
 
 // alles, woraus szene.js die Bilder baut
@@ -421,7 +435,7 @@ function quellen() {
     original: originalBild, // nach dem Kreislauf die letzte Stufe
     invertieren: invertieren.checked,
     puffer,
-    stufen,
+    stufen: gewaehlteStufen(),
     foto: fotoBild,
     farbskala: farbskala.value,
     rueckwaerts: rueckwaertsCheck.checked,
@@ -463,11 +477,18 @@ async function exportiere(art, inhalt) {
   exportInhalt.querySelector('[value="stufen"]').disabled = stufen.length === 0; // ohne Runden keine Stufen
   if (inhalt) exportInhalt.value = inhalt;
   if (stufen.length === 0) exportInhalt.value = "ansicht";
+  // Auswahl "bis": Start, Runde 1 … Runde N; steht am Anfang auf der letzten
+  exportBisStufe.replaceChildren(...stufen.map((_, i) => new Option(i === 0 ? "Start" : `Runde ${i}`, i)));
+  exportBisStufe.value = stufen.length - 1;
   passeFelderAn();
 
+  // Länge fürs Anzeigen der Zeitleiste: ein Ton oder alle Stufen hintereinander (je so lang wie der letzte Ton)
+  const laenge = () =>
+    exportInhalt.value === "stufen" ? gewaehlteStufen().length * (letzterTon?.dauer ?? 0) : puffer?.duration ?? 0;
   const allgemein = await exportFenster.oeffne({
     art,
     ueberschrift: art === "video" ? "Video speichern" : "Bild speichern",
+    laenge,
   });
   if (!allgemein) return; // abgebrochen
   const einst = { ...allgemein, ...leseFelder() };
@@ -483,20 +504,24 @@ async function exportiere(art, inhalt) {
     const richtung = art === "video" && rueckwaertsCheck.checked ? "-rueckwaerts" : "";
     const name = `${dateiName}-${mitStufen ? "stufen" : "bild"}-${einst.ansicht}${richtung}`;
     if (art === "bild") {
-      await speichereBild(baueSzene(einst, q, false), name);
+      await speichereBild(baueSzene(einst, q, false), name, einst.bildTyp);
       return;
     }
     if (mitStufen) {
       q.toene = [];
-      for (let i = 0; i < stufen.length; i++) q.toene.push(await tonFuerStufe(stufen[i], i));
+      for (let i = 0; i < q.stufen.length; i++) q.toene.push(await tonFuerStufe(q.stufen[i], i));
       zeigeMeldung("");
     }
     const { codec, tonCodec } = await speichereVideo(baueSzene(einst, q, true), {
       name,
+      von: einst.von, // Bereich aus dem Export-Fenster
+      bis: einst.bis,
+      typ: einst.videoTyp, // mp4 oder webm
       beiFortschritt: (anteil) => (videoSpeichern.textContent = `Video ... ${Math.round(anteil * 100)} %`),
     });
     // nur H.264 + AAC läuft überall (Handy, WhatsApp, Instagram)
-    if (codec !== "avc" || tonCodec !== "aac") {
+    // (bei WebM ist das gewollt, dort gibt es kein H.264 und kein AAC)
+    if (einst.videoTyp === "mp4" && (codec !== "avc" || tonCodec !== "aac")) {
       zeigeMeldung(`Hinweis: Das Video ist ${codec} mit ${tonCodec}. Handys und WhatsApp spielen das vielleicht nicht ab, Chrome oder Edge machen H.264 mit AAC.`);
     }
   } catch (fehler) {

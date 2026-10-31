@@ -70,3 +70,8 @@ Export-Fenster (/lib/export-dialog.js): Vorschau links, Einstellungen rechts; am
 .export-dialog:not([data-art="video"]) .nur-video {
   display: none;
 }
+
+/* nur beim Bild sinnvoll (PNG oder WebP) */
+.export-dialog[data-art="video"] .nur-bild {
+  display: none;
+}

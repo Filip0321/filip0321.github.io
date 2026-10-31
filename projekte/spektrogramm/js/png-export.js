@@ -1,12 +1,13 @@
-import { canvas, ansicht, minDb, maxDb, zeigeMeldung } from "./seite.js";
+import { canvas, ansicht, minDb, maxDb, zeigeMeldung, LESEKOPF_FARBE } from "./seite.js";
 import { SKALA, frequenzZuAnteil, beschriftung } from "./frequenzen.js";
 import { FENSTER } from "/lib/fft.js";
 import { ANALYSE_RATE, SPRUNG, ZEILEN, dateiName, gesamtDb, gesamtStuecke, zeitZuSpalte } from "./datei.js";
 import { fertigesGesamtBild } from "./gesamtbild.js";
-import { exportBereich } from "./bereich.js";
+import { exportBereich, setzeBereich, loescheBereich } from "./bereich.js";
+import { originalTon } from "./datei.js";
 import { zeichneEinsaetze } from "./einsaetze.js";
 import { zeichneTakt } from "./tempo.js";
-import { ladeHerunter, zeitstempel } from "/lib/export.js";
+import { speichereCanvas, zeitstempel } from "/lib/export.js";
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 
 export const mitAchsen = hole("mitAchsen"); 
@@ -48,9 +49,10 @@ function bildBreite(breiteArt, spalten) {
   return Math.round(ZEILEN * verhaeltnis);
 }
 
-export function baueExport(achsen, breiteArt = exportBreite.value) {
+// bereich: { von, bis, ganz } in Sekunden; ohne Angabe der Exportbereich aus dem Bedienfeld
+export function baueExport(achsen, breiteArt = exportBreite.value, bereich = exportBereich()) {
   // Exportbereich -> Spalten des Gesamtbilds: alle Stücke, deren Mitte im Bereich liegt
-  const { von, bis, ganz } = exportBereich();
+  const { von, bis, ganz } = bereich;
   const ersteSpalte = Math.max(0, Math.ceil(zeitZuSpalte(von) - 0.5));
   const letzteSpalte = Math.min(gesamtStuecke - 1, Math.floor(zeitZuSpalte(bis) - 0.5));
   const spalten = Math.max(1, letzteSpalte - ersteSpalte + 1);
@@ -122,19 +124,76 @@ export function baueExport(achsen, breiteArt = exportBreite.value) {
   return ergebnis;
 }
 
-// Export-Fenster: Rahmen, Format und Größe; Achsen, Breite und Bereich bleiben im Bedienfeld
-// (auch video-export.js benutzt es). Beim Video ist die Breite immer "wie angezeigt", siehe dort
-let exportArt = "bild";
-const exportFenster = erstelleExportDialog({
-  zeitVorschau: false,
-  zeichneVorschau: (allgemein) =>
-    mitRahmen(baueExport(mitAchsen.checked, exportArt === "video" ? "anzeige" : exportBreite.value).bild, allgemein),
+const KOPF_BREITE = 3; // Pixel im Video
+
+// Ein Bild des Videos: der Strich steht bei zeitImTon (Sekunden in der Datei).
+// "aufbauen": das Spektrogramm ist nur zu sehen, wo der Strich schon war (rückwärts: rechts von ihm);
+// die Achsen bleiben stehen. Auch die Vorschau im Export-Fenster zeichnet so.
+export function zeichneVideoBild(c, exp, zeitImTon, { ablauf, rueckwaerts }) {
+  const { bild, links, oben, breite, hoehe, zeitZuX } = exp;
+  c.drawImage(bild, 0, 0);
+  // ganz am Anfang und Ende liegt die Zeit vor der ersten bzw. hinter der letzten Stückmitte
+  const x = Math.min(Math.max(Math.round(links + zeitZuX(zeitImTon)), links), links + breite - KOPF_BREITE);
+  if (ablauf === "aufbauen") {
+    c.fillStyle = "#111111"; // wie der Hintergrund in baueExport
+    if (rueckwaerts) c.fillRect(links, oben, x - links, hoehe);
+    else c.fillRect(x + KOPF_BREITE, oben, links + breite - x - KOPF_BREITE, hoehe);
+  }
+  c.fillStyle = LESEKOPF_FARBE;
+  c.fillRect(x, oben, KOPF_BREITE, hoehe);
+}
+
+// eigene Felder im Export-Fenster, nur beim Video: wie das Bild entsteht und in welche Richtung
+const felder = document.createElement("div");
+felder.className = "steuerung nur-video";
+felder.innerHTML = `
+  <label>Ablauf
+    <select name="ablauf">
+      <option value="lesekopf">Lesekopf darüber</option>
+      <option value="aufbauen">aufbauen (entsteht bis zum Strich)</option>
+    </select>
+  </label>
+  <label><input type="checkbox" name="rueckwaerts"> rückwärts</label>`;
+const videoArt = () => ({
+  ablauf: felder.querySelector("[name=ablauf]").value,
+  rueckwaerts: felder.querySelector("[name=rueckwaerts]").checked,
 });
 
-// öffnet das Fenster; ergibt die Einstellungen oder null (abgebrochen)
-export function frageExport(art) {
+// Export-Fenster: Rahmen, Format, Größe; beim Video Zeitleiste und Bereich über die ganze Datei
+// (der Bereich ist derselbe wie von/bis im Bedienfeld: er wird beim Öffnen übernommen und beim Speichern zurückgeschrieben)
+// Achsen und Breite bleiben im Bedienfeld. Beim Video ist die Breite immer "wie angezeigt" (H.264 schafft etwa 4096 Pixel)
+let exportArt = "bild";
+const exportFenster = erstelleExportDialog({
+  felder,
+  zeichneVorschau: (allgemein, zeit) => {
+    if (exportArt === "bild") return mitRahmen(baueExport(mitAchsen.checked).bild, allgemein);
+    const dauer = originalTon.duration;
+    const exp = baueExport(mitAchsen.checked, "anzeige", { von: 0, bis: dauer, ganz: true }); // die ganze Datei
+    const bild = document.createElement("canvas");
+    bild.width = exp.bild.width;
+    bild.height = exp.bild.height;
+    zeichneVideoBild(bild.getContext("2d"), exp, (zeit ?? 0) * dauer, videoArt());
+    return mitRahmen(bild, allgemein);
+  },
+});
+
+// öffnet das Fenster; ergibt die Einstellungen (beim Video mit ablauf und rueckwaerts) oder null (abgebrochen)
+export async function frageExport(art) {
   exportArt = art;
-  return exportFenster.oeffne({ art, ueberschrift: art === "video" ? "Video speichern" : "Bild speichern" });
+  if (art === "bild") return exportFenster.oeffne({ art, ueberschrift: "Bild speichern" });
+  const dauer = originalTon.duration;
+  const { von, bis } = exportBereich();
+  const einst = await exportFenster.oeffne({
+    art,
+    ueberschrift: "Video speichern",
+    laenge: dauer,
+    bereichStart: [von / dauer, bis / dauer],
+  });
+  if (!einst) return null;
+  // Bereich aus dem Fenster ins Bedienfeld: dort gilt er auch für Bild und Ton
+  if (einst.von === 0 && einst.bis === 1) loescheBereich();
+  else setzeBereich(einst.von * dauer, einst.bis * dauer);
+  return { ...einst, ...videoArt() };
 }
 
 bildSpeichern.addEventListener("click", async () => {
@@ -149,8 +208,9 @@ bildSpeichern.addEventListener("click", async () => {
   }
   const einst = await frageExport("bild");
   if (!einst) return; // abgebrochen
-  mitRahmen(baueExport(mitAchsen.checked).bild, einst).toBlob((blob) => {
-    if (blob) ladeHerunter(blob, `${dateiName}-spektrogramm-${zeitstempel()}.png`);
-    else zeigeMeldung("Das Bild konnte nicht erstellt werden.");
-  }, "image/png");
+  try {
+    await speichereCanvas(mitRahmen(baueExport(mitAchsen.checked).bild, einst), einst.bildTyp, `${dateiName}-spektrogramm-${zeitstempel()}`);
+  } catch (fehler) {
+    zeigeMeldung(fehler.message);
+  }
 });

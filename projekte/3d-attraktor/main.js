@@ -4,7 +4,7 @@
 import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.js";
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
-import { endbild, sichtbaresBild } from "/lib/effekt-schicht.js";
+import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
 import { richteExportEin } from "/lib/export.js";
 
 const MAX_PUNKTE = 10000000;
@@ -527,6 +527,21 @@ const render = {
     zeichne();
     starteLaufen();
   },
+  // Vorschau im Export-Fenster: Drehwinkel und Komet merken, die Vorschau springt hin und her
+  merke() {
+    const alt = { winkel, kopf: einstellung.kopf, travel: einstellung.travel };
+    return () => {
+      winkel = alt.winkel;
+      setze("kopf", alt.kopf);
+      setze("travel", alt.travel);
+    };
+  },
+  // Bild i direkt: Punkte wie nach i + 1 Schritten, Bewegung für (i + 1) · dt Sekunden auf einmal
+  vorschau(i, n, dt) {
+    sichtbar = Math.min(sichtbar + renderProBild * (i + 1), anzahl);
+    bewege((i + 1) * dt);
+    zeichne();
+  },
 };
 
 richteExportEin({
@@ -536,5 +551,5 @@ richteExportEin({
   anzeige: sichtbaresBild,
   endbild,
   render,
+  zuschnitt: crtZuschnitt,
 });
-
