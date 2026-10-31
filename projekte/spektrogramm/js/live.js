@@ -1,7 +1,7 @@
 import { canvas, ctx, ansicht, glaettung, einsaetzeZeigen, LESEKOPF_FARBE, lesekopfBreite } from "./seite.js";
 import { audio, analyser } from "./audio.js";
 import { fachTabelle, anteilZuFrequenz } from "./frequenzen.js";
-import { farbenZahlen, baueVerlauf } from "./farben.js";
+import { farbenZahlen, baueVerlauf } from "/lib/farben.js";
 import { zeichnePegel } from "./pegel.js";
 import { pruefeEinsatz, staerke } from "./einsaetze-live.js";
 

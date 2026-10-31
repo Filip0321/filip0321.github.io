@@ -12,7 +12,7 @@ import { berechneEinsaetze, setzeEmpfindlichkeit } from "./einsaetze.js";
 import { setzeEmpfindlichkeitLive } from "./einsaetze-live.js";
 import { berechneTempo, aendereTempo } from "./tempo.js";
 import { zeigeGesamt, markiereFarbenVeraltet, zeigeAlles } from "./gesamtbild.js";
-import { waehleFarbskala } from "./farben.js";
+import { waehleFarbskala } from "/lib/farben.js";
 import "./maus-info.js"; 
 import "./ton-export.js"; 
 import { vonFeld, bisFeld, loescheBereich } from "./bereich.js";

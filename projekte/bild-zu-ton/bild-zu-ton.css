@@ -1,0 +1,89 @@
+/*
+Bild zu Ton: nur was es nirgends sonst auf der Website gibt
+(Schriften, Farben, Regler, Knöpfe, Werkbank kommen aus /css/)
+*/
+
+/*
+Rahmen: zwei Canvas genau übereinander, unten das Bild, oben der Strich.
+--verhaeltnis = Spalten / Zeilen, setzt js/main.js, sobald sich das Raster ändert;
+/css/canvas.css nimmt es fürs Werkbank-Layout (nie höher als der Bildschirm).
+*/
+.bildton {
+  --verhaeltnis: 2;
+  aspect-ratio: var(--verhaeltnis);
+  border: 1px solid currentColor;
+}
+
+.bildton canvas {
+  position: absolute;
+  inset: 0; /* füllt den Rahmen */
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+
+/* Bild: jeder Rasterpunkt als scharfes Quadrat, nicht verwaschen (das hört man ja auch so) */
+#bild {
+  image-rendering: pixelated;
+}
+
+/* Strich: rechnet in Bildschirm-Auflösung, damit er dünn und scharf bleibt */
+/* Original (auch verzerrt): weich skalieren statt Blöcke (js/main.js setzt die Klasse am Rahmen) */
+.feld-rahmen.original #bild {
+  image-rendering: auto;
+}
+
+#kopf {
+  image-rendering: auto;
+  pointer-events: none; /* Klicks gehen durch zum Bild darunter */
+}
+
+audio {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/* Kreislauf: alle Stufen nebeneinander, bei vielen umbrechen */
+.stufen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.stufen figure {
+  margin: 0;
+  width: 6rem;
+  cursor: pointer;
+}
+
+.stufen canvas {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  border: 1px solid currentColor;
+}
+
+.stufen figcaption {
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Schild unter dem Mauszeiger: Frequenz, Note, Zeit, Lautstärke (js/maus-info.js setzt left/top) */
+.maus-info {
+  position: absolute;
+  z-index: 1; /* über beiden Canvas */
+  pointer-events: none; /* Klicks gehen durch zum Bild */
+  transform: translate(12px, -130%); /* rechts über dem Zeiger, nicht darunter */
+  padding: 0.15rem 0.4rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.maus-info.links {
+  transform: translate(calc(-100% - 12px), -130%); /* am rechten Rand links vom Zeiger */
+}

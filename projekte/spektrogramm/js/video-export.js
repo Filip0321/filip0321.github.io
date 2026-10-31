@@ -57,13 +57,13 @@ videoSpeichern.addEventListener("click", async () => {
       await Promise.all([aufnahme.bild(rahmen, t, 1 / FPS), tonStueck && aufnahme.ton(tonStueck)]);
 
       if (performance.now() - letztePause > 50) {
-        videoSpeichern.textContent = `Video … ${Math.round(((i + 1) / anzahl) * 100)} %`;
+        videoSpeichern.textContent = `Video ... ${Math.round(((i + 1) / anzahl) * 100)} %`;
         await warte();
         letztePause = performance.now();
       }
     }
 
-    videoSpeichern.textContent = "Speichern …";
+    videoSpeichern.textContent = "Speichern ...";
     ladeHerunter(await aufnahme.fertig(), `${dateiName}-spektrogramm-${zeitstempel()}.mp4`);
   } catch (fehler) {
     console.error(fehler);
