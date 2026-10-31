@@ -1,6 +1,7 @@
 import { zeigeMeldung, LESEKOPF_FARBE } from "./seite.js";
 import { gesamtDb, originalTon, dateiName } from "./datei.js";
-import { baueExport, mitAchsen } from "./png-export.js";
+import { baueExport, mitAchsen, frageExport } from "./png-export.js";
+import { mitRahmen } from "/lib/export-dialog.js";
 import { exportBereich } from "./bereich.js";
 import { neueAufnahme, schneideTon, ladeHerunter, zeitstempel, warte, FPS } from "/lib/export.js";
 
@@ -22,6 +23,9 @@ videoSpeichern.addEventListener("click", async () => {
     return;
   }
 
+  const einst = await frageExport("video"); // Rahmen, Format, Größe
+  if (!einst) return; // abgebrochen
+
   videoSpeichern.disabled = true; // nicht zweimal gleichzeitig
   let aufnahme = null;
   try {
@@ -34,8 +38,9 @@ videoSpeichern.addEventListener("click", async () => {
     rahmen.height = bild.height;
     const c = rahmen.getContext("2d");
 
+    const mitRand = document.createElement("canvas"); // jedes Bild mit Rahmen hier hinein (ein Canvas für alle)
     const ton = { kanaele: originalTon.numberOfChannels, rate: originalTon.sampleRate };
-    aufnahme = await neueAufnahme(rahmen, FPS, "#111111", ton);
+    aufnahme = await neueAufnahme(mitRahmen(rahmen, einst, mitRand), FPS, "#111111", ton);
 
     const anzahl = Math.ceil((bis - von) * FPS); // so viele Bilder, wie der Bereich lang ist
     const rate = originalTon.sampleRate;
@@ -54,7 +59,7 @@ videoSpeichern.addEventListener("click", async () => {
       const ende = Math.round(Math.min(von + (i + 1) / FPS, bis) * rate);
       const tonStueck = schneideTon(originalTon, anfang, ende);
       // Bild und Ton gleichzeitig abgeben und auf beide warten
-      await Promise.all([aufnahme.bild(rahmen, t, 1 / FPS), tonStueck && aufnahme.ton(tonStueck)]);
+      await Promise.all([aufnahme.bild(mitRahmen(rahmen, einst, mitRand), t, 1 / FPS), tonStueck && aufnahme.ton(tonStueck)]);
 
       if (performance.now() - letztePause > 50) {
         videoSpeichern.textContent = `Video ... ${Math.round(((i + 1) / anzahl) * 100)} %`;
