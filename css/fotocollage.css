@@ -99,3 +99,123 @@ Handy hochkant 2 Spalten, ab 40rem Breite 3
   opacity: 0.6;
   margin-top: 0.35rem;
 }
+
+/*
+Großansicht (/lib/grossansicht.js): ein Bild groß über der Seite, dunkel dahinter
+
+  ┌──────────────────────────────┐
+  │ 3 / 12                    ×  │
+  │                              │
+  │ ←        [ Bild ]         →  │
+  │       Bildunterschrift       │
+  └──────────────────────────────┘
+*/
+
+.grossansicht {
+  /* der Dialog füllt den ganzen Bildschirm, ohne eigenen Rand */
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgb(0 0 0 / 0.96); /* fast schwarz, die Seite dahinter ahnt man nur noch */
+  color: #eeeeee;
+}
+
+.grossansicht:not([open]) {
+  display: none;
+}
+
+.grossansicht::backdrop {
+  background: transparent; /* das Dunkle macht schon der Dialog selbst */
+}
+
+.grossansicht figure {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3.5rem 1rem 1.5rem; /* oben Platz für Zähler und × */
+}
+
+.grossansicht img {
+  display: block;
+  min-height: 0; /* sonst darf das Bild in der Flex-Spalte nicht kleiner werden als seine echte Größe */
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  touch-action: pan-y; /* waagerecht wischen blättert, senkrecht scrollt der Browser */
+}
+
+.grossansicht figcaption {
+  max-width: 65ch;
+  font-size: 0.9rem;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.grossansicht-zaehler {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.grossansicht button {
+  position: absolute;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  width: 2.75rem;
+  height: 2.75rem; /* groß genug für den Finger */
+  cursor: pointer;
+}
+
+.grossansicht button:hover,
+.grossansicht button:focus-visible {
+  background: #eeeeee;
+  color: #000000;
+}
+
+.grossansicht-zurueck,
+.grossansicht-weiter {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.grossansicht-zurueck {
+  left: 1rem;
+}
+
+.grossansicht-weiter {
+  right: 1rem;
+}
+
+.grossansicht-zu {
+  top: 0.75rem;
+  right: 1rem;
+}
+
+/* am Handy: Pfeile unten, damit sie nicht übers Bild ragen; Blättern geht dort auch per Wischen */
+@media (max-width: 40rem) {
+  .grossansicht-zurueck,
+  .grossansicht-weiter {
+    top: auto;
+    bottom: 1rem;
+    translate: none;
+  }
+
+  .grossansicht figure {
+    padding-bottom: 4.5rem;
+  }
+}

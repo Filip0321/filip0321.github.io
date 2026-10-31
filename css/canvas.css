@@ -1,6 +1,6 @@
 /*
 Simulationen: Canvas, Effekt-Schicht darüber und das Werkbank-Layout
-(Game of Life, 2D- und 3D-Attraktor, Foto-Effekte)
+(Game of Life, 2D- und 3D-Attraktor, Foto-Effekte, Spektrogramm, Bild zu Ton)
 */
 
 canvas {
@@ -33,9 +33,40 @@ canvas {
 /* Foto-Effekte */
 
 .bild-feld {
-  margin-top: 1rem;
   image-rendering: auto;
   cursor: default;
+}
+
+/* solange nichts geladen ist: ein leeres Feld zum Klicken oder Hineinziehen.
+   Das Datei-Feld liegt unsichtbar darüber, wie beim Knopf "Öffnen" */
+.leer-feld {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  aspect-ratio: 4 / 3;
+  border: 1px dashed currentColor;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.leer-feld input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.leer-feld:hover,
+.leer-feld:focus-within,
+.zieht-datei .leer-feld {
+  opacity: 1;
+}
+
+.zieht-datei {
+  outline: 1px dashed currentColor; /* auch über einem schon geladenen Bild: hier fallen lassen */
+  outline-offset: 4px;
 }
 
 /*
@@ -77,6 +108,11 @@ HTML dazu:
     <div class="bedienung"> alle Regler </div>
   </main>
 */
+
+/* hochkant: etwas Luft zwischen Bild und Bedienung */
+.werkbank .bedienung {
+  margin-top: 1.5rem;
+}
 
 @media (orientation: landscape) and (min-width: 40rem) {
   .werkbank {
@@ -128,6 +164,7 @@ HTML dazu:
 
   .werkbank .bedienung {
     grid-area: bedienung;
+    margin-top: 0;
     min-width: 0; /* lange Inhalte (Formel) dürfen die Spalte nicht sprengen */
   }
 
@@ -136,13 +173,12 @@ HTML dazu:
     grid-column: 1 / -1;
   }
 
-  .werkbank .bedienung .steuerung {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .werkbank .bedienung .steuerung label {
-    justify-content: space-between; /* Text links, Feld rechts */
+  /* jede Einstellung (label) eine eigene Zeile, Text links, Feld rechts;
+     Knöpfe dagegen nebeneinander in ihrer eigenen Breite, damit die Spalte nicht so lang wird */
+  .werkbank .bedienung .steuerung > label:not(.datei-knopf),
+  .werkbank .bedienung .steuerung > .steuerung-gruppe {
+    flex: 1 1 100%;
+    justify-content: space-between;
   }
 
   /* Häkchen gehören direkt vor ihren Text, nicht ans andere Ende */

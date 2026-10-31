@@ -76,6 +76,34 @@ document.querySelectorAll("[data-zeigt]").forEach((schalter) => {
   aktualisiere();
 });
 
+// Abschnitte der Bedienung (<details class="abschnitt">): welche offen sind, merkt sich der Browser pro Seite.
+// Gespeichert als { "Quelle": true, "Export": false, … } unter dem Pfad der Seite.
+// Ohne Speicher (privates Fenster) gilt einfach, was im HTML steht (open oder nicht).
+const abschnitte = document.querySelectorAll("details.abschnitt");
+if (abschnitte.length > 0) {
+  const schluessel = `abschnitte:${location.pathname}`;
+  let offen = {};
+  try {
+    offen = JSON.parse(localStorage.getItem(schluessel)) ?? {};
+  } catch {
+    // kaputter Eintrag oder kein Speicher: wie im HTML
+  }
+  // Name: die id, sonst die Überschrift (die id, wenn sich die Überschrift ändert, z. B. beim Overlay)
+  const name = (abschnitt) => abschnitt.id || abschnitt.querySelector("summary").textContent.trim();
+
+  abschnitte.forEach((abschnitt) => {
+    if (name(abschnitt) in offen) abschnitt.open = offen[name(abschnitt)];
+    abschnitt.addEventListener("toggle", () => {
+      offen[name(abschnitt)] = abschnitt.open;
+      try {
+        localStorage.setItem(schluessel, JSON.stringify(offen));
+      } catch {
+        // geht nicht: dann eben nur für dieses Mal
+      }
+    });
+  });
+}
+
 function stelleVideosEin() {
   document.querySelectorAll(".karte video").forEach((video) => {
     if (wenigBewegung.matches) {
