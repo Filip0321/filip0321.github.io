@@ -106,7 +106,7 @@ async function berechneGesamt() {
       gesamtDb[spalte + y] = zuDb(lautester);
     }
     if (performance.now() - letztePause > 50) {
-      aufnahmeInfo.textContent = `Rechne … ${Math.round((s / gesamtStuecke) * 100)} %`;
+      aufnahmeInfo.textContent = `Rechne ... ${Math.round((s / gesamtStuecke) * 100)} %`;
       await warte();
       if (meine !== rechenNummer) return false; // während der Pause kam eine neue Datei
       letztePause = performance.now();

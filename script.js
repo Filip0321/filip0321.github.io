@@ -25,11 +25,14 @@ if (el) {
 const btn = document.querySelector(".menu-btn");
 const menu = document.getElementById("menu");
 
-btn.addEventListener("click", () => {
-  const offen = menu.classList.toggle("offen");
-  btn.setAttribute("aria-expanded", offen);
-  btn.textContent = offen ? "✖" : "Menü";
-});
+// nur wenn es auf der Seite ein Menü gibt (sonst bricht hier das ganze Skript ab)
+if (btn && menu) {
+  btn.addEventListener("click", () => {
+    const offen = menu.classList.toggle("offen");
+    btn.setAttribute("aria-expanded", offen);
+    btn.textContent = offen ? "✖" : "Menü";
+  });
+}
 
 // den Code in den Details-Boxen erst laden, wenn sie geöffnet werden
 

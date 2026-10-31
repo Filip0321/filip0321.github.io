@@ -1,0 +1,72 @@
+/*
+Export-Fenster (/lib/export-dialog.js): Vorschau links, Einstellungen rechts; am Handy untereinander
+*/
+
+.export-dialog {
+  margin: auto; /* style.css setzt überall margin: 0, damit rutscht das Fenster sonst in die Ecke oben links */
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid currentColor;
+  padding: 1rem;
+  width: min(72rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+}
+
+/* zu: ganz weg, egal was andere Regeln sagen */
+.export-dialog:not([open]) {
+  display: none;
+}
+
+.export-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.export-dialog .gruppe:first-child {
+  margin-top: 0;
+}
+
+.export-inhalt {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 50rem) {
+  .export-inhalt {
+    /* minmax(0, …): sonst macht ein großes Vorschaubild (100 %) seine Spalte breiter und schiebt die Felder weg */
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+
+/* eingepasst: das ganze Bild auf einen Blick */
+.export-vorschau {
+  display: grid;
+  place-items: center; /* mittig, ohne das Bild zu dehnen */
+  min-width: 0;
+  border: 1px solid currentColor;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.export-vorschau canvas {
+  display: block;
+  max-width: 100%;
+  max-height: calc(70vh - 2px);
+  object-fit: contain; /* falls ein Browser doch eine Seite staucht: das Bild bleibt im Verhältnis */
+}
+
+/* 100 %: ein Pixel des Bilds = ein Pixel des Bildschirms, zum Prüfen von Details; scrollen statt einpassen */
+.export-vorschau.voll {
+  display: block;
+}
+
+.export-vorschau.voll canvas {
+  max-width: none;
+  max-height: none;
+}
+
+/* nur beim Video sinnvoll (Videobreite, Vorschau-Zeitpunkt) */
+.export-dialog:not([data-art="video"]) .nur-video {
+  display: none;
+}

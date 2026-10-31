@@ -1,5 +1,5 @@
 import { canvas, einsaetzeZeigen, ctx, ansicht, spieler, minDb, maxDb, LESEKOPF_FARBE, lesekopfBreite } from "./seite.js";
-import { farbenZahlen } from "./farben.js";
+import { farbenZahlen } from "/lib/farben.js";
 import { ZEILEN, gesamtDb, gesamtStuecke, zeitZuSpalte, spalteZuZeit } from "./datei.js";
 import { zeichneEinsaetze } from "./einsaetze.js";
 import { zeichneTakt } from "./tempo.js";

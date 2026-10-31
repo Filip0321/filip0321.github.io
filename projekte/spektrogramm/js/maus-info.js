@@ -15,7 +15,7 @@ export function notenName(f) {
   const cent = Math.round((midi - naechste) * 100); 
   const oktave = Math.floor(naechste / 12) - 1; 
   const name = NOTEN[naechste % 12];
-  const abweichung = cent === 0 ? "" : ` ${cent > 0 ? "+" : "−"}${Math.abs(cent)} ct`;
+  const abweichung = cent === 0 ? "" : ` ${cent > 0 ? "+" : "-"}${Math.abs(cent)} ct`;
   return `${name}${oktave}${abweichung}`;
 }
 

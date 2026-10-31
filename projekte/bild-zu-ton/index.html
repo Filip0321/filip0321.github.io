@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bild zu Ton - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="bild-zu-ton.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- werkbank: hochkant untereinander, quer Canvas links und Bedienung rechts (css/canvas.css) -->
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Bild zu Ton</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <!-- #feld bekommt die Klasse "original" (weich skalieren), #stapel das Seitenverhältnis --verhaeltnis (js/main.js, bild-zu-ton.css) -->
+    <div class="feld-rahmen" id="feld">
+      <div class="feld-stapel bildton" id="stapel">
+        <canvas id="bild"></canvas> <!-- das verpixelte Bild: eine Canvas-Pixel pro Spalte und Zeile -->
+        <canvas id="kopf"></canvas> <!-- darüber: der Strich, wo der Ton gerade herkommt -->
+        <div class="maus-info" id="mausInfo" hidden></div> <!-- Frequenz, Note, Zeit, Lautstärke unter dem Zeiger (js/maus-info.js) -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <h2 class="gruppe">Bild</h2>
+      <div class="steuerung">
+        <label class="datei-knopf">Bild öffnen <input type="file" id="datei" accept="image/*"></label>
+        <label>Spalten (Zeit)
+          <input type="range" id="spalten" min="16" max="1024" step="16" value="256">
+          <output id="spaltenAnzeige"></output>
+        </label>
+        <label>Zeilen (Frequenz)
+          <input type="range" id="zeilen" min="16" max="512" step="16" value="128">
+          <output id="zeilenAnzeige"></output>
+        </label>
+        <label><input type="checkbox" id="invertieren"> invertieren</label>
+        <!-- nur Helligkeiten zwischen ab und bis klingen, alles andere wird still (0) -->
+        <label>Schwelle ab
+          <input type="range" id="schwelleAb" min="0" max="1" step="0.01" value="0">
+          <output id="schwelleAbAnzeige"></output>
+        </label>
+        <label>Schwelle bis
+          <input type="range" id="schwelleBis" min="0" max="1" step="0.01" value="1">
+          <output id="schwelleBisAnzeige"></output>
+        </label>
+        <!-- erst sichtbar, wenn ein Bild geladen ist; Export nimmt später dieselbe Ansicht -->
+        <label id="anzeigeLabel" hidden>Anzeige
+          <select id="anzeige">
+            <option value="raster">Raster (wie es klingt)</option>
+            <option value="verzerrt">Original verzerrt</option>
+            <option value="original">Original</option>
+          </select>
+        </label>
+        <label id="farbenLabel">Farben
+          <select id="farbskala">
+            <option value="grau">Grau</option>
+            <option value="glut">Glut</option>
+            <option value="viridis">Viridis</option>
+            <option value="eis">Eis</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="skalaZeigen" checked> Skala</label> <!-- Frequenzen über dem Bild (js/kopf.js) -->
+      </div>
+      <p class="hinweis" id="bildInfo"></p> 
+      
+      <h2 class="gruppe">Ton</h2>
+      <div class="steuerung">
+        <label>Dauer
+          <input type="range" id="dauer" min="1" max="60" step="1" value="10">
+          <output id="dauerAnzeige"></output>
+        </label>
+        <label>tiefste (Hz) <input type="number" id="tiefste" min="20" max="20000" step="1" value="50"></label>
+        <label>höchste (Hz) <input type="number" id="hoechste" min="20" max="20000" step="1" value="12000"></label>
+        <label>Dynamik
+          <input type="range" id="dynamik" min="10" max="90" step="1" value="60">
+          <output id="dynamikAnzeige"></output>
+        </label>
+        <!-- Töne: pro Zeile ein Sinus (klar); Rauschen: inverse FFT, jedes Fach ein schmales Band Rauschen (luftig) -->
+        <div class="modus" id="syntheseArt">
+          <button type="button" data-art="toene" aria-pressed="true">Töne</button>
+          <button type="button" data-art="rauschen" aria-pressed="false">Rauschen</button>
+        </div>
+        <!-- nur bei Rauschen: wie oft Griffin-Lim die Phase nachbessert (0 = reines Zufallsrauschen) -->
+        <label id="durchgaengeLabel" hidden>Durchgänge
+          <input type="range" id="durchgaenge" min="0" max="50" step="1" value="10">
+          <output id="durchgaengeAnzeige"></output>
+        </label>
+        <label><input type="checkbox" id="schleife"> Schleife</label> <!-- Player fängt am Ende wieder vorne an -->
+        <label><input type="checkbox" id="rueckwaerts"> rückwärts</label> <!-- Strich von rechts nach links, Ton umgedreht -->
+        <button type="button" id="erzeugen">Ton erzeugen</button>
+      </div>
+      <h2 class="gruppe">Kreislauf</h2>
+      <div class="steuerung">
+        <!-- aus: das Bild bleibt, wie es ist; an: jede Runde kippt es ins Negativ und zurück -->
+        <label><input type="checkbox" id="kippen"> jede Runde invertieren</label>
+        <button type="button" id="zurueckInsBild">Ton zurück ins Bild</button>
+        <label>Runden <input type="number" id="runden" min="1" max="50" step="1" value="5"></label>
+        <button type="button" id="rundenStarten">Runden starten</button>
+      </div>
+      <!-- Runde 0 (Start) bis N, Klick = diese Stufe weiterbenutzen -->
+      <div class="stufen" id="stufen"></div>
+      <audio id="spieler" controls></audio>
+      <p class="meldung" id="meldung" hidden></p> 
+      
+      <h2 class="gruppe">Export</h2>
+      <div class="steuerung">
+        <button type="button" id="bildSpeichern">Bild speichern</button>
+        <button type="button" id="wavSpeichern">WAV speichern</button>
+        <button type="button" id="videoSpeichern">Video speichern</button>
+      </div>
+    </div>
+  
+    <!-- eigene Felder fürs Export-Fenster: /lib/export-dialog.js verschiebt sie beim Start dorthin -->
+    <div id="exportFelder" hidden>
+      <h3 class="gruppe">Inhalt</h3>
+      <div class="steuerung">
+        <label>Was
+          <select id="exportInhalt">
+            <option value="ansicht">Ansicht (wie gerade zu sehen)</option>
+            <option value="stufen">Stufen des Kreislaufs</option>
+          </select>
+        </label>
+        <!-- wie die Anzeige auf der Seite; bei den Stufen heißt verzerrt und original: in den Farben des Fotos -->
+        <label>Ansicht
+          <select id="exportAnsicht">
+            <option value="raster">Raster (Farbskala)</option>
+            <option value="verzerrt">Original verzerrt</option>
+            <option value="original">Original</option>
+          </select>
+        </label>
+        <label id="exportAblaufLabel">Ablauf
+          <select id="exportAblauf">
+            <option value="gesehen">wie gesehen</option>
+            <option value="aufbauen">aufbauen (entsteht bis zum Strich)</option>
+          </select>
+        </label>
+        <label id="exportAnordnungLabel">Anordnung
+          <select id="exportAnordnung">
+            <option value="paar">Paar (zwei übereinander, rücken nach)</option>
+            <option value="gitter">Gitter (alle Stufen)</option>
+          </select>
+        </label>
+        <label id="exportSpaltenLabel">nebeneinander (0 = automatisch) <input type="number" id="exportSpalten" min="0" max="12" step="1" value="0"></label>
+        <label id="exportBeschriftungLabel"><input type="checkbox" id="exportBeschriftung" checked> Start, Runde 1 … darüber</label>
+        <label>Hintergrund
+          <select id="exportHintergrund">
+            <option value="#000000">schwarz</option>
+            <option value="#ffffff">weiß</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!--
+    <section class="lesetext doku">
+      <h2>Dein Titel</h2>
+      <p>Dein Text.</p>
+    </section>
+    -->
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script> <!-- hole() und das Menü, wie bei allen Projekten -->
+  <script src="/lib/mediabunny.js"></script> <!-- klassisches Skript, setzt die globale Variable Mediabunny -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
