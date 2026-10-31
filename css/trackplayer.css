@@ -1,5 +1,5 @@
 /*
-Tracks: Cover und Audio-Player (player.js)
+Tracks: Cover und Audio-Player (player.js), auch für Feldaufnahmen in Fotoserien
 */
 
 .cover {
@@ -13,11 +13,28 @@ Tracks: Cover und Audio-Player (player.js)
   height: auto;
 }
 
+/* ein Player: der des Browsers (ohne JavaScript) oder die eigene Leiste (player.js) */
 .player {
+  max-width: 40rem;
+  margin-bottom: 2rem;
+}
+
+.player audio {
+  display: block;
+  width: 100%;
+}
+
+.player-leiste {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
+}
+
+/* kleiner Titel über einem Player, z. B. "Feldaufnahme" in der Fotoserie */
+.player-titel {
+  font-size: 0.9rem;
+  opacity: 0.6;
+  margin-bottom: 0.5rem;
 }
 
 .play {

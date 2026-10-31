@@ -2,13 +2,16 @@ import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
 import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig } from "./kette.js";
-import { renderVideo } from "./export-video.js";
+import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
-import { ladeHerunter, zeitstempel, neueAufnahme, FPS, warte } from "/lib/export.js";
+import { crtAnteil } from "/lib/effekte/crt.js";
+import { verbindeRegler } from "/lib/effekt-regler.js"; // baut die Regler für VHS und CRT ins HTML, vor allem anderen
 import { neuesOverlay,farbFlaeche, neuesFenster, trifft, stelleOverlaysAuf, stelleOverlaysZurueck, synchronisiere, gibOverlayFrei } from "./effekte/overlay.js";
 // die ganzen HTML Elemente für die basic Einstellungen
 
 const canvas = hole("bild");
+const stapel = hole("stapel"); // um den Canvas, bekommt --verhaeltnis fürs Werkbank-Layout
+const leer = hole("leer"); // "Bild oder Video öffnen", solange nichts geladen ist
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 const overlayFeld = hole("overlay-datei");
@@ -17,6 +20,7 @@ const overlayFeld = hole("overlay-datei");
 
 // Die ganzen HTML Elemente schonmal holen dass ich sie einfach nutzen kann
 const dateiFeld = hole("datei"); // upload Feld
+const dateiLeerFeld = hole("datei-leer"); // dasselbe, im leeren Feld links
 
 const pixelFeld = hole("pixelgroesse"); // verpixeln
 const pixelWert = hole("pixelwert");
@@ -62,12 +66,7 @@ let ausgewaehlt = null;   // der Zettel des gerade ausgewählten Overlays
 const vergleichFeld = hole("vergleich"); // slider für vorher/nachher
 const vergleichWert = hole("vergleichwert");
 
-const speichernKnopf = hole("speichern"); // export optionen
 const abspielKnopf = hole("abspielen");
-const frameKnopf = hole("frame-speichern");
-const videoKnopf = hole("video-speichern");
-const videoSekundenFeld = hole("video-sekunden");
-const bildVideoKnopf = hole("bild-video-speichern");
 
 const formatFeld = hole("format");
 
@@ -120,6 +119,14 @@ function passeCanvasAn(qw, qh) {
   const r = berechneRahmen(qw, qh);
   canvas.width = r.w;
   canvas.height = r.h;
+  // Werkbank: das Bild wird so breit, dass es nie höher als der Bildschirm ist (css/canvas.css)
+  stapel.style.setProperty("--verhaeltnis", r.w / r.h);
+}
+
+// statt des Platzhalters das Bild zeigen
+function zeigeCanvas() {
+  canvas.hidden = false;
+  leer.hidden = true;
 }
 
 fensterNeuKnopf.addEventListener("click", () => {
@@ -140,11 +147,10 @@ async function ladeBild(datei) {
 
   bereiteBildVor();
 
-  canvas.hidden = false;
-  speichernKnopf.disabled = false;
-  bildVideoKnopf.disabled = false;
+  zeigeCanvas();
   zeigeModus("bild");
   wendeAn();
+  exportKnoepfe.aktualisiere();
 }
 
 function bereiteBildVor() {
@@ -180,12 +186,13 @@ function ladeVideo(datei) {
     "loadedmetadata",
     () => {
       passeCanvasAn(neuesVideo.videoWidth, neuesVideo.videoHeight);
-      canvas.hidden = false;
+      zeigeCanvas();
 
       video = neuesVideo;
       zeigeModus("video");
       video.play();
       starteVideoSchleife(video);
+      exportKnoepfe.aktualisiere();
     },
     { once: true },
   );
@@ -454,107 +461,95 @@ function planeAnwenden() {
   });
 }
 
-// Mediabunny kann im Browser videos rendern - im zustand.hintergrund
-// also wartet auch jedes Bild ab
+// Export: das fertige Bild zur Zeit t, ohne Vergleichslinie (export.js zeichnet daraus Vorschau, Bild und Video)
 
-async function speichereVideo() {
-  if (!videoDatei) return;
+const arbeit = document.createElement("canvas"); // eigener Canvas, die Anzeige bleibt, wie sie ist
+const arbeitCtx = arbeit.getContext("2d", { willReadFrequently: true });
 
-  const w = canvas.width;
-  const h = canvas.height;
-
-  videoKnopf.disabled = true;
-  frameKnopf.disabled = true;
-  abspielKnopf.disabled = true;
-  dateiFeld.disabled = true;
-  videoKnopf.textContent = "Wird vorbereitet …";
-  video.pause();
-
-  const arbeit = new OffscreenCanvas(w, h); // das rendern wird nicht gezeigt (neuer Canvas)
-  const arbeitCtx = arbeit.getContext("2d", { willReadFrequently: true });
-
-  const verarbeite = async (sample) => {
-    await stelleOverlaysAuf(kette, sample.timestamp);
-    sample.draw(arbeitCtx, 0, 0);
-    const original = arbeitCtx.getImageData(0, 0, w, h);
-    arbeitCtx.putImageData(wendeEffekteAn(original, sample.timestamp), 0, 0);
-    return arbeit;
-  };
-
-  try {
-    const fit = { original: "fill", "4:3": "cover", balken: "contain" }[zustand.format];
-
-    const { blob, endung } = await renderVideo(
-      videoDatei, w, h, fit, verarbeite,
-      (anteil) => {
-        videoKnopf.textContent = `Rendern … ${Math.round(anteil * 100)} %`;
-      },
-    );
-    ladeHerunter(blob, `foto-effekte-${zeitstempel()}.${endung}`);
-  } catch (fehler) {
-    console.error(fehler);
-    alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
-  } finally {
-    stelleOverlaysZurueck(kette);
-    videoKnopf.textContent = "Video speichern";
-    videoKnopf.disabled = false;
-    frameKnopf.disabled = false;
-    abspielKnopf.disabled = false;
-    dateiFeld.disabled = false;
-  }
+// Video an eine Stelle springen lassen und warten, bis das Bild dort da ist
+function springe(v, t) {
+  return new Promise((fertig) => {
+    if (Math.abs(v.currentTime - t) < 0.001) return fertig();
+    v.addEventListener("seeked", fertig, { once: true });
+    v.currentTime = t;
+  });
 }
 
-async function speichereBildAlsVideo() {
-  if (!quelle) return;
+function zeigeErgebnis(bild) {
+  if (arbeit.width !== bild.width || arbeit.height !== bild.height) {
+    arbeit.width = bild.width;
+    arbeit.height = bild.height;
+  }
+  arbeitCtx.putImageData(bild, 0, 0);
+  return arbeit;
+}
 
-  let sekunden = Math.round(Number(videoSekundenFeld.value));
-  if (!Number.isFinite(sekunden)) sekunden = 5;
-  sekunden = Math.min(Math.max(sekunden, 1), 30);
-  videoSekundenFeld.value = sekunden;
-  const n = Math.round(sekunden * FPS);
-
-  const arbeit = document.createElement("canvas");
-  arbeit.width = quelle.width;
-  arbeit.height = quelle.height;
-  const arbeitCtx = arbeit.getContext("2d");
-
-  // alles bis zum ersten zeitabhängigen Effekt nur einmal rechnen
+// gibt eine Funktion (t) => Canvas zurück; einmal pro Export-Fenster, weil die Effekte dann feststehen
+function bildRechner() {
+  if (video) {
+    return async (t) => {
+      await springe(video, Math.min(t, video.duration - 0.001));
+      await stelleOverlaysAuf(kette, t);
+      arbeit.width = canvas.width;
+      arbeit.height = canvas.height;
+      zeichneQuelle(arbeitCtx, video, video.videoWidth, video.videoHeight);
+      return zeigeErgebnis(wendeEffekteAn(arbeitCtx.getImageData(0, 0, arbeit.width, arbeit.height), t));
+    };
+  }
+  // Foto: alles bis zum ersten zeitabhängigen Effekt nur einmal rechnen
   const schritte = aktiveSchritte();
   let erster = schritte.findIndex(istZeitabhaengig);
   if (erster === -1) erster = schritte.length;
   const fest = wendeEffekteAn(quelle, 0, schritte.slice(0, erster));
   const bewegt = schritte.slice(erster);
-
-  const bedienung = [speichernKnopf, bildVideoKnopf, videoSekundenFeld, dateiFeld, overlayFeld];
-  bedienung.forEach((element) => { element.disabled = true; });
-  let aufnahme = null;
-
-  try {
-    aufnahme = await neueAufnahme(arbeit, FPS, zustand.hintergrund);
-
-    for (let i = 0; i < n; i++) {
-      const t = i / FPS;
-      await stelleOverlaysAuf(kette, t);
-      arbeitCtx.putImageData(wendeEffekteAn(fest, t, bewegt), 0, 0);
-      await aufnahme.bild(arbeit, t, 1 / FPS);
-      bildVideoKnopf.textContent = `Rendern … ${Math.round(((i + 1) / n) * 100)} %`;
-      await warte();
-    }
-
-    bildVideoKnopf.textContent = "Speichern …";
-    ladeHerunter(await aufnahme.fertig(), `foto-effekte-${zeitstempel()}.mp4`);
-  } catch (fehler) {
-    console.error(fehler);
-    await aufnahme?.abbrechen();
-    alert(`Beim Rendern ist ein Fehler aufgetreten: ${fehler.message}`);
-  } finally {
-    stelleOverlaysZurueck(kette);
-    bildVideoKnopf.textContent = "Als Video speichern";
-    bedienung.forEach((element) => { element.disabled = false; });
-  }
+  return async (t) => {
+    await stelleOverlaysAuf(kette, t);
+    return zeigeErgebnis(wendeEffekteAn(fest, t, bewegt));
+  };
 }
 
-bildVideoKnopf.addEventListener("click", speichereBildAlsVideo);
+const exportKnoepfe = richteFotoExportEin({
+  ziel: hole("export"),
+  art: () => (video ? "video" : quelle ? "bild" : null),
+  rechner: bildRechner,
+  // ein Bild aus der Konvertierung (schon auf Canvas-Größe gebracht) durch die Effekte
+  zeichneSample: async (sample, t) => {
+    await stelleOverlaysAuf(kette, t);
+    arbeit.width = canvas.width;
+    arbeit.height = canvas.height;
+    sample.draw(arbeitCtx, 0, 0);
+    return zeigeErgebnis(wendeEffekteAn(arbeitCtx.getImageData(0, 0, arbeit.width, arbeit.height), t));
+  },
+  video: () => ({
+    datei: videoDatei,
+    dauer: video.duration,
+    jetzt: video.currentTime,
+    breite: canvas.width,
+    hoehe: canvas.height,
+    fit: { original: "fill", "4:3": "cover", balken: "contain" }[zustand.format],
+  }),
+  // solange das Fenster offen ist, steht das Video; danach läuft es weiter, wo es war
+  anhalten: () => {
+    if (!video) return () => stelleOverlaysZurueck(kette);
+    const v = video;
+    const lief = !v.paused;
+    const stelle = v.currentTime;
+    v.pause();
+    return () => {
+      stelleOverlaysZurueck(kette);
+      if (v !== video) return; // inzwischen ein anderes geladen
+      v.currentTime = stelle;
+      if (lief) v.play();
+    };
+  },
+  // CRT als letzter Effekt: dann gibt es gewölbte Ränder, die man abschneiden kann (sonst liegt etwas darüber)
+  zuschnitt: () => (aktiveSchritte().at(-1)?.typ === "crt" ? crtAnteil(zustand.werte.crt.woelbung) : null),
+  hintergrund: () => zustand.hintergrund,
+  durchsichtig: () => zustand.transparent,
+  sperre: (gesperrt) => {
+    for (const element of [dateiFeld, dateiLeerFeld, overlayFeld, abspielKnopf]) element.disabled = gesperrt;
+  },
+});
 
 // Buttons
 // Listener
@@ -574,16 +569,30 @@ transparentFeld.addEventListener("change", () => {
   baueQuelleNeu();
 });
 
-dateiFeld.addEventListener("change", () => {
-  const datei = dateiFeld.files[0];
+function ladeDatei(datei) {
   if (!datei) return;
-
   if (datei.type.startsWith("video/")) {
     ladeVideo(datei);
-  } else {
+  } else if (datei.type.startsWith("image/")) {
     ladeBild(datei);
   }
-}); // wenn ein Video muss ich Video laden, sonst Bild
+} // wenn ein Video muss ich Video laden, sonst Bild
+
+dateiFeld.addEventListener("change", () => ladeDatei(dateiFeld.files[0]));
+dateiLeerFeld.addEventListener("change", () => ladeDatei(dateiLeerFeld.files[0]));
+
+// Datei aufs Feld ziehen: dragover muss abgebrochen werden, sonst erlaubt der Browser kein drop
+// (er würde die Datei selbst öffnen)
+stapel.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  stapel.classList.add("zieht-datei");
+});
+stapel.addEventListener("dragleave", () => stapel.classList.remove("zieht-datei"));
+stapel.addEventListener("drop", (e) => {
+  e.preventDefault();
+  stapel.classList.remove("zieht-datei");
+  ladeDatei(e.dataTransfer.files[0]);
+});
 
 pixelFeld.addEventListener("input", () => {
   zustand.pixelgroesse = Number(pixelFeld.value);
@@ -736,21 +745,9 @@ overlayFarbeFeld.addEventListener("input", () => {
 
 // auf Änderungen im HTML reagieren
 
-document.querySelectorAll("[data-regler]").forEach((feld) => {
-  const [effekt, name] = feld.dataset.regler.split(".");
-  const anzeige = feld.nextElementSibling;
-  // console.log([effekt, name]);
-
-  // zustand.werte aus reglern übergeben
-  zustand.werte[effekt][name] = Number(feld.value);
-  anzeige.textContent = feld.value;
-
-  feld.addEventListener("input", () => {
-    zustand.werte[effekt][name] = Number(feld.value);
-    anzeige.textContent = feld.value;
-    planeAnwenden();
-  });
-});
+// zustand.werte aus den Reglern übernehmen, bei jeder Änderung neu rechnen
+// (die Regler für VHS und CRT baut /lib/effekt-regler.js, die für das Fenster stehen im HTML)
+verbindeRegler(zustand.werte, planeAnwenden);
 
 vergleichFeld.addEventListener("input", () => {
   zustand.teilung = Number(vergleichFeld.value) / 100;
@@ -768,28 +765,8 @@ abspielKnopf.addEventListener("click", () => {
   }
 });
 
-speichernKnopf.addEventListener("click", () => {
-  if (!ergebnis) return;
 
-  const speicher = document.createElement("canvas");
-  speicher.width = ergebnis.width;
-  speicher.height = ergebnis.height;
-  speicher.getContext("2d").putImageData(ergebnis, 0, 0);
-
-  speicher.toBlob((blob) => {
-    if (blob) ladeHerunter(blob, `foto-effekte-${zeitstempel()}.png`);
-  }, "image/png");
-});
-
-frameKnopf.addEventListener("click", () => {
-  canvas.toBlob((blob) => {
-    if (blob) ladeHerunter(blob, `foto-effekte-${zeitstempel()}.png`);
-  }, "image/png");
-});
-
-videoKnopf.addEventListener("click", speichereVideo);
 
 // Start
 beiGeladen(planeAnwenden)
 zeigeModus("bild"); // starte mit Bild, wenn Video wird es auch geändert
-

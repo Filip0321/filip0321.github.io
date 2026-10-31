@@ -52,6 +52,85 @@ Gruppen
   margin-top: 1rem;
 }
 
+/*
+Abschnitte der Bedienung: einklappbar, so ist nicht alles auf einmal offen
+(script.js merkt sich pro Seite, welche offen sind)
+
+HTML dazu:
+  <details class="abschnitt" open>
+    <summary>Quelle</summary>
+    … Regler …
+  </details>
+
+  Quelle                              −
+  ────────────────────────────────────
+  Ton                                 +
+*/
+
+.abschnitt {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); /* Linie leiser als der Text, Regel 4 */
+}
+
+.abschnitt > summary {
+  list-style: none; /* das Dreieck weg, rechts steht stattdessen + oder − */
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  font-size: 0.9rem;
+  opacity: 0.6; /* Überschrift ist Orientierung, nicht Inhalt */
+  cursor: pointer;
+}
+
+.abschnitt > summary::-webkit-details-marker {
+  display: none; /* Safari zeigt das Dreieck sonst trotzdem */
+}
+
+.abschnitt > summary::after {
+  content: "+";
+}
+
+.abschnitt[open] > summary::after {
+  content: "−";
+}
+
+.abschnitt > summary:hover,
+.abschnitt > summary:focus-visible {
+  opacity: 1;
+}
+
+.abschnitt[open] {
+  padding-bottom: 1rem;
+}
+
+/* der erste Inhalt direkt unter der Überschrift braucht keinen eigenen Abstand nach oben */
+.abschnitt > summary + * {
+  margin-top: 0;
+}
+
+/*
+Bedienung etwas kleiner und dichter als der Text der Seite
+*/
+
+.bedienung {
+  font-size: 0.9rem;
+}
+
+.bedienung .steuerung,
+.bedienung .presets {
+  margin-top: 0.6rem;
+  gap: 0.4rem;
+}
+
+.bedienung .steuerung button,
+.bedienung .presets button,
+.bedienung .datei-knopf {
+  padding: 0.3rem 0.7rem;
+}
+
+.bedienung .steuerung input {
+  padding: 0.2rem 0.4rem;
+}
+
 /* mehrere Teile als eins in der Steuerung (z. B. Häkchen mit zwei Knöpfen daneben) */
 .steuerung-gruppe {
   display: inline-flex;
@@ -169,7 +248,7 @@ den Regler nicht hin und her, am Desktop und am Handy hochkant gleich.
 
 .steuerung label:has(> input[type="range"]) {
   display: grid;
-  grid-template-columns: 1fr 5em; /* Regler bekommt den Rest, Zahl immer 5 Zeichen breit */
+  grid-template-columns: 1fr minmax(5em, auto); /* Regler bekommt den Rest, Zahl mindestens 5 Zeichen breit (längere wie "10 s (39 ms pro Spalte)" schieben den Regler, statt aus der Spalte zu ragen) */
   align-items: center;
   column-gap: 0.75rem;
   row-gap: 0.2rem;

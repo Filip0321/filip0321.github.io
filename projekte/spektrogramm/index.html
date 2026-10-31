@@ -43,171 +43,178 @@
     </div>
 
     <div class="bedienung">
-      <h2 class="gruppe">Quelle</h2>
-      <div class="steuerung">
-        <label>Quelle
-          <select id="quelle">
-            <option value="datei">Datei</option>
-            <option value="mikrofon">Mikrofon / Interface</option>
-            <option value="system">Systemton (Browser, Ableton …)</option>
-          </select>
-        </label>
-        <label class="datei-knopf" id="dateiKnopf">Audio öffnen <input type="file" id="datei" accept="audio/*"></label>
-        <!-- nur bei Mikrofon sichtbar (js/quelle.js, zeigeQuelle) -->
-        <label id="eingangLabel" hidden>Eingang
-          <select id="eingang">
-            <option value="">Standard</option>
-          </select>
-        </label>
-        <label id="mithoerenLabel" hidden>
-          <input type="checkbox" id="mithoeren"> Mithören (nur mit Kopfhörer)
-        </label>
-        <button type="button" id="startBtn">Start</button>
-        <!-- nur bei Mikrofon und Systemton (js/quelle.js, zeigeQuelle) -->
-        <span class="steuerung-gruppe" id="aufnehmenFeld" hidden>
-          <button type="button" id="aufnehmenKnopf">Aufnehmen</button>
-        </span>
-      </div>
-      <audio id="spieler" controls></audio>
-      <p class="hinweis"><output id="aufnahmeInfo"></output></p> <!-- Infos zur geladenen Datei -->
-      <!-- nur beim Systemton sichtbar (js/quelle.js, zeigeQuelle) -->
-      <p class="hinweis" id="systemHinweis" hidden>
-        Nur in Chrome oder Edge. Nach Start wählen, was geteilt wird: für Ableton und alles
-        andere „Gesamter Bildschirm“ und „Systemaudio teilen“ anhaken; für einen einzelnen
-        Chrome-Tab den Tab wählen und „Tab-Audio teilen“ anhaken. Einzelne Fenster haben keinen Ton.
-      </p>
-      <p class="meldung" id="meldung" hidden></p>
+      <p class="meldung" id="meldung" hidden></p> <!-- Fehler und Hinweise, über allen Abschnitten, damit man sie sieht -->
+      <details class="abschnitt" open>
+        <summary>Quelle</summary>
+        <div class="steuerung">
+          <label>Quelle
+            <select id="quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Browser, Ableton …)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="dateiKnopf">Audio öffnen <input type="file" id="datei" accept="audio/*"></label>
+          <!-- nur bei Mikrofon sichtbar (js/quelle.js, zeigeQuelle) -->
+          <label id="eingangLabel" hidden>Eingang
+            <select id="eingang">
+              <option value="">Standard</option>
+            </select>
+          </label>
+          <label id="mithoerenLabel" hidden>
+            <input type="checkbox" id="mithoeren"> Mithören (nur mit Kopfhörer)
+          </label>
+          <button type="button" id="startBtn">Start</button>
+          <!-- nur bei Mikrofon und Systemton (js/quelle.js, zeigeQuelle) -->
+          <span class="steuerung-gruppe" id="aufnehmenFeld" hidden>
+            <button type="button" id="aufnehmenKnopf">Aufnehmen</button>
+          </span>
+        </div>
+        <audio id="spieler" controls></audio>
+        <p class="hinweis"><output id="aufnahmeInfo"></output></p> <!-- Infos zur geladenen Datei -->
+        <!-- nur beim Systemton sichtbar (js/quelle.js, zeigeQuelle) -->
+        <p class="hinweis" id="systemHinweis" hidden>
+          Nur in Chrome oder Edge. Nach Start wählen, was geteilt wird: für Ableton und alles
+          andere „Gesamter Bildschirm“ und „Systemaudio teilen“ anhaken; für einen einzelnen
+          Chrome-Tab den Tab wählen und „Tab-Audio teilen“ anhaken. Einzelne Fenster haben keinen Ton.
+        </p>
+      </details>
 
-      <h2 class="gruppe">Bild</h2>
-      <div class="steuerung">
-        <label>Ansicht
-          <select id="ansicht">
-            <option value="spektrogramm">Spektrogramm</option>
-            <option value="spektrum">Spektrum</option>
-            <option value="wasserfall">Wasserfall</option>
-            <option value="aufnahme">Ganze Aufnahme</option>
-          </select>
-        </label>
-        <label>Farben
-          <select id="farbskala">
-            <option value="glut">Glut</option>
-            <option value="viridis">Viridis</option>
-            <option value="eis">Eis</option>
-            <option value="grau">Grau</option>
-          </select>
-        </label>
-        <label id="spektrumObenLabel" hidden>
-          <input type="checkbox" id="spektrumOben"> Spektrum oben
-        </label>
-        <label id="spektrumGlattLabel" hidden>
-          <input type="checkbox" id="spektrumGlatt" checked> Spektrum glatt
-        </label>
-        <label id="laufrichtungLabel">Laufrichtung
-          <select id="laufrichtung">
-            <option value="schieben">schieben</option>
-            <option value="umlaufen">umlaufen</option>
-          </select>
-        </label>
-        <label id="tempoLabel">Sekunden im Bild
-          <input type="range" id="tempo" min="2" max="60" step="1" value="15">
-          <output id="tempoAnzeige"></output>
-        </label>
-        <label>
-          <input type="checkbox" id="einsaetzeZeigen" checked> Einsätze
-          <span class="lampe" id="einsatzLampe" aria-hidden="true"></span>
-        </label>
-        <!-- Knöpfe nicht IN das label: ein Klick darauf soll nicht das Häkchen umschalten -->
-        <span class="steuerung-gruppe" id="taktLabel">
+      <details class="abschnitt" open>
+        <summary>Bild</summary>
+        <div class="steuerung">
+          <label>Ansicht
+            <select id="ansicht">
+              <option value="spektrogramm">Spektrogramm</option>
+              <option value="spektrum">Spektrum</option>
+              <option value="wasserfall">Wasserfall</option>
+              <option value="aufnahme">Ganze Aufnahme</option>
+            </select>
+          </label>
+          <label>Farben
+            <select id="farbskala">
+              <option value="glut">Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="grau">Grau</option>
+            </select>
+          </label>
+          <label id="spektrumObenLabel" hidden>
+            <input type="checkbox" id="spektrumOben"> Spektrum oben
+          </label>
+          <label id="spektrumGlattLabel" hidden>
+            <input type="checkbox" id="spektrumGlatt" checked> Spektrum glatt
+          </label>
+          <label id="laufrichtungLabel">Laufrichtung
+            <select id="laufrichtung">
+              <option value="schieben">schieben</option>
+              <option value="umlaufen">umlaufen</option>
+            </select>
+          </label>
+          <label id="tempoLabel">Sekunden im Bild
+            <input type="range" id="tempo" min="2" max="60" step="1" value="15">
+            <output id="tempoAnzeige"></output>
+          </label>
           <label>
-            <input type="checkbox" id="taktZeigen" checked> Taktraster
-            <output id="tempoBpm"></output>
+            <input type="checkbox" id="einsaetzeZeigen" checked> Einsätze
+            <span class="lampe" id="einsatzLampe" aria-hidden="true"></span>
           </label>
-          <button type="button" id="tempoHalb" aria-label="Tempo halbieren">×½</button>
-          <button type="button" id="tempoDoppelt" aria-label="Tempo verdoppeln">×2</button>
-        </span>
-        <label>FFT-Größe
-          <input type="range" id="fftRegler" min="11" max="15" step="1" value="14">
-          <output id="fftAnzeige"></output>
-        </label>
-      </div>
-
-      <!-- Pult: links die Drehknöpfe, rechts der Fader mit Pegel (js/main.js macht aus
-           den Reglern Knöpfe und Fader, /lib/knopfRegler.js; ohne JS bleiben es normale Regler) -->
-      <h2 class="gruppe">Pult</h2>
-      <div class="pult">
-        <div class="knoepfe">
-          <label>Glättung
-            <input type="range" id="glaettung" min="0" max="0.95" step="0.01" value="0.8">
-            <output id="glaettungAnzeige"></output>
-          </label>
-          <label>Schwarzpunkt
-            <input type="range" id="minDb" min="-140" max="-40" step="1" value="-100">
-            <output id="minDbAnzeige"></output>
-          </label>
-          <label>Weißpunkt
-            <input type="range" id="maxDb" min="-80" max="0" step="1" value="-30">
-            <output id="maxDbAnzeige"></output>
-          </label>
-          <label>Tiefen bis
-            <input type="range" id="tiefen" min="0" max="1" step="0.0001" value="0.36">
-            <output id="tiefenAnzeige"></output>
-          </label>
-          <label>Höhen ab
-            <input type="range" id="hoehen" min="0" max="1" step="0.0001" value="0.77">
-            <output id="hoehenAnzeige"></output>
-          </label>
-          <label>Empfindlichkeit
-            <input type="range" id="empfindlichkeit" min="0" max="1" step="0.01" value="0.5">
-            <output id="empfindlichkeitAnzeige"></output>
+          <!-- Knöpfe nicht IN das label: ein Klick darauf soll nicht das Häkchen umschalten -->
+          <span class="steuerung-gruppe" id="taktLabel">
+            <label>
+              <input type="checkbox" id="taktZeigen" checked> Taktraster
+              <output id="tempoBpm"></output>
+            </label>
+            <button type="button" id="tempoHalb" aria-label="Tempo halbieren">×½</button>
+            <button type="button" id="tempoDoppelt" aria-label="Tempo verdoppeln">×2</button>
+          </span>
+          <label>FFT-Größe
+            <input type="range" id="fftRegler" min="11" max="15" step="1" value="14">
+            <output id="fftAnzeige"></output>
           </label>
         </div>
+      </details>
 
-        <div class="fader-feld">
-          <label class="fader-label">
-            <span class="fader-titel">Lautstärke</span>
-            <input type="range" id="lautstaerke" min="-24" max="24" step="1" value="0">
-            <output id="lautstaerkeAnzeige"></output>
-          </label>
-          <!-- Pegel: wie laut die Quelle ankommt (vor Filtern und Lautstärke) -->
-          <div class="pegel-feld">
-            <span class="fader-titel">Pegel</span>
-            <span class="pegel" id="pegel" role="meter" aria-label="Eingangspegel"
-                  aria-valuemin="-60" aria-valuemax="0"></span>
-            <output id="pegelAnzeige">–∞</output>
+      <details class="abschnitt" open>
+        <summary>Pult</summary>
+        <!-- Pult: links die Drehknöpfe, rechts der Fader mit Pegel (js/main.js macht aus
+             den Reglern Knöpfe und Fader, /lib/knopfRegler.js; ohne JS bleiben es normale Regler) -->
+        <div class="pult">
+          <div class="knoepfe">
+            <label>Glättung
+              <input type="range" id="glaettung" min="0" max="0.95" step="0.01" value="0.8">
+              <output id="glaettungAnzeige"></output>
+            </label>
+            <label>Schwarzpunkt
+              <input type="range" id="minDb" min="-140" max="-40" step="1" value="-100">
+              <output id="minDbAnzeige"></output>
+            </label>
+            <label>Weißpunkt
+              <input type="range" id="maxDb" min="-80" max="0" step="1" value="-30">
+              <output id="maxDbAnzeige"></output>
+            </label>
+            <label>Tiefen bis
+              <input type="range" id="tiefen" min="0" max="1" step="0.0001" value="0.36">
+              <output id="tiefenAnzeige"></output>
+            </label>
+            <label>Höhen ab
+              <input type="range" id="hoehen" min="0" max="1" step="0.0001" value="0.77">
+              <output id="hoehenAnzeige"></output>
+            </label>
+            <label>Empfindlichkeit
+              <input type="range" id="empfindlichkeit" min="0" max="1" step="0.01" value="0.5">
+              <output id="empfindlichkeitAnzeige"></output>
+            </label>
+          </div>
+
+          <div class="fader-feld">
+            <label class="fader-label">
+              <span class="fader-titel">Lautstärke</span>
+              <input type="range" id="lautstaerke" min="-24" max="24" step="1" value="0">
+              <output id="lautstaerkeAnzeige"></output>
+            </label>
+            <!-- Pegel: wie laut die Quelle ankommt (vor Filtern und Lautstärke) -->
+            <div class="pegel-feld">
+              <span class="fader-titel">Pegel</span>
+              <span class="pegel" id="pegel" role="meter" aria-label="Eingangspegel"
+                    aria-valuemin="-60" aria-valuemax="0"></span>
+              <output id="pegelAnzeige">–∞</output>
+            </div>
           </div>
         </div>
-      </div>
+        <div class="steuerung">
+          <label>Hören
+            <select id="hoeren">
+              <option value="alles">alles</option>
+              <option value="tiefen">nur Tiefen</option>
+              <option value="mitten">nur Mitten</option>
+              <option value="hoehen">nur Höhen</option>
+            </select>
+          </label>
+        </div>
+      </details>
 
-      <div class="steuerung">
-        <label>Hören
-          <select id="hoeren">
-            <option value="alles">alles</option>
-            <option value="tiefen">nur Tiefen</option>
-            <option value="mitten">nur Mitten</option>
-            <option value="hoehen">nur Höhen</option>
-          </select>
-        </label>
-      </div>
-
-      <h2 class="gruppe">Export</h2>
-      <div class="steuerung">
-        <label><input type="checkbox" id="mitAchsen" checked> mit Achsen</label>
-        <label><input type="checkbox" id="mitEinsaetzen"> mit Einsätzen</label>
-        <label><input type="checkbox" id="mitTakt"> mit Taktraster</label>
-        <label>Breite
-          <select id="exportBreite">
-            <option value="anzeige">wie angezeigt</option>
-            <option value="voll">eine Spalte pro Stück</option>
-          </select>
-        </label>
-        <!-- Bereich: leer = ganze Aufnahme; im Gesamtbild auch mit Alt + Ziehen (js/gesamtbild.js) -->
-        <label>von (s) <input type="number" id="exportVon" min="0" step="0.1" placeholder="Anfang"></label>
-        <label>bis (s) <input type="number" id="exportBis" min="0" step="0.1" placeholder="Ende"></label>
-        <button type="button" id="bereichLoeschen">ganze Aufnahme</button>
-        <button type="button" id="bildSpeichern">Bild speichern</button>
-        <button type="button" id="videoSpeichern">Video speichern</button>
-        <button type="button" id="tonSpeichern">Ton speichern</button>
-      </div>
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" id="mitAchsen" checked> mit Achsen</label>
+          <label><input type="checkbox" id="mitEinsaetzen"> mit Einsätzen</label>
+          <label><input type="checkbox" id="mitTakt"> mit Taktraster</label>
+          <label>Breite
+            <select id="exportBreite">
+              <option value="anzeige">wie angezeigt</option>
+              <option value="voll">eine Spalte pro Stück</option>
+            </select>
+          </label>
+          <!-- Bereich: leer = ganze Aufnahme; im Gesamtbild auch mit Alt + Ziehen (js/gesamtbild.js) -->
+          <label>von (s) <input type="number" id="exportVon" min="0" step="0.1" placeholder="Anfang"></label>
+          <label>bis (s) <input type="number" id="exportBis" min="0" step="0.1" placeholder="Ende"></label>
+          <button type="button" id="bereichLoeschen">ganze Aufnahme</button>
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="videoSpeichern">Video speichern</button>
+          <button type="button" id="tonSpeichern">Ton speichern</button>
+        </div>
+      </details>
     </div>
 
     <!--
