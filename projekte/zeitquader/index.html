@@ -69,6 +69,7 @@
               <option value="schlitz">Schlitz (Zielfoto)</option>
               <option value="versatz">Zeitversatz</option>
               <option value="quader">Quader</option>
+              <option value="stepp">Stepprinting</option>
             </select>
           </label>
 
@@ -100,10 +101,26 @@
               <option value="mitte-aussen">Mitte jetzt, außen früher</option>
               <option value="helligkeit">hell = früher</option>
               <option value="welle">Welle</option>
+              <option value="farbkanaele">Rot, Grün, Blau versetzt (Harris)</option>
             </select>
           </label>
           <label data-nur="ansicht=versatz">Tiefe (Bilder)
             <input type="range" data-wert="tiefe" min="2" max="240" step="1" value="60">
+            <output></output>
+          </label>
+
+          <!-- Stepprinting: nur jedes „Schritt“-te Bild ist eine neue Aufnahme, lang belichtet (verwischt),
+               dazwischen steht sie still. Das Stottern mit Schlieren aus Chungking Express -->
+          <label data-nur="ansicht=stepp">Schritt (jede Aufnahme so viele Bilder lang)
+            <input type="range" data-wert="schritt" min="1" max="12" step="1" value="4">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=stepp">Belichtung (so viele Bilder verwischt)
+            <input type="range" data-wert="belichtung" min="1" max="24" step="1" value="4">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=stepp">Überblenden
+            <input type="range" data-wert="ueberblenden" min="0" max="1" step="0.05" value="0">
             <output></output>
           </label>
 
@@ -117,6 +134,8 @@
               <option value="256">256 breit</option>
               <option value="384" selected>384 breit</option>
               <option value="512">512 breit</option>
+              <option value="768">768 breit</option>
+              <option value="1024">1024 breit</option>
             </select>
           </label>
           <label data-nur="ansicht=quader">Darstellung
@@ -138,6 +157,16 @@
             <input type="range" data-wert="laenge" min="0.3" max="5" step="0.1" value="2">
             <output></output>
           </label>
+          <!-- kreisen: um die Mitte drehen (ziehen), Rad zoomt; fliegen: ziehen schaut, W A S D (oder Pfeile)
+               bewegt, Q und E runter und hoch, Umschalt schneller, Rad vor und zurück -->
+          <label data-nur="ansicht=quader">Kamera
+            <select data-wert="steuerung">
+              <option value="kreisen">kreisen</option>
+              <option value="fliegen">fliegen (auch hinein)</option>
+            </select>
+          </label>
+          <button type="button" id="flugVor" data-nur="ansicht=quader steuerung=fliegen">▲ vor</button>
+          <button type="button" id="flugZurueck" data-nur="ansicht=quader steuerung=fliegen">▼ zurück</button>
           <!-- Schnitt: den Quader an einer Stelle aufschneiden; ein Schnitt quer zur Zeit ist ein Bild,
                längs zur Zeit ist es ein Schlitz -->
           <label data-nur="ansicht=quader">Schnitt
@@ -166,15 +195,22 @@
               <option value="3840">3840 breit</option>
             </select>
           </label>
-          <label data-nur="ansicht=quader">Kamerafahrt (s)
+          <label data-nur="ansicht=quader">Fahrt
+            <select data-wert="fahrtArt">
+              <option value="kreis">einmal herum</option>
+              <option value="durchflug">durch die Zeit fliegen</option>
+              <option value="schnitt">Schnitt fährt durch</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=quader">Dauer der Fahrt (s)
             <input type="range" data-wert="fahrt" min="2" max="30" step="1" value="8">
             <output></output>
           </label>
-          <label data-nur="ansicht=schlitz,versatz"><input type="checkbox" data-wert="mitTon" checked> Ton des Videos</label>
+          <label data-nur="ansicht=schlitz,versatz,stepp"><input type="checkbox" data-wert="mitTon" checked> Ton des Videos</label>
           <button type="button" id="videoRendern">Video rendern</button>
           <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
         </div>
-        <p class="hinweis">Schlitz: das Bild wächst im Video. Zeitversatz: Bild für Bild. Quader: die Kamera fährt einmal herum.</p>
+        <p class="hinweis">Schlitz: das Bild wächst im Video. Zeitversatz und Stepprinting: Bild für Bild. Quader: eine der Fahrten, oder „Live aufnehmen“ und selbst fliegen.</p>
       </details>
     </div>
   </main>

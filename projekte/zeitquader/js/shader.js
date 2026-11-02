@@ -4,7 +4,8 @@
 // Jede Ansicht ist ein anderer Schnitt durch diesen Quader:
 //   Schlitz      eine Spalte (oder Zeile) aus jedem Bild nebeneinander: der Schnitt x = fest
 //   Zeitversatz  jedes Pixel kommt aus einer anderen Zeit: eine gekrümmte Fläche durch den Quader
-//   Quader       der ganze Block im Raum, von außen angesehen (Raymarching)
+//   Quader       der ganze Block im Raum, von außen oder von innen angesehen (Raymarching)
+//   Stepprinting die Zeit in Stufen: wenige, lang belichtete Bilder, jedes mehrmals gezeigt
 
 const HELLIGKEIT = /* glsl */ `
 float helligkeit(vec3 f) { return dot(f, vec3(0.2126, 0.7152, 0.0722)); }
@@ -45,7 +46,7 @@ uniform sampler2DArray stapel;
 uniform int neueste;       // Ebene des neuesten Bildes
 uniform int plaetze;       // Ebenen im Puffer
 uniform float tiefe;       // so viele Bilder zurück geht es höchstens
-uniform int muster;        // 0 links→rechts, 1 rechts→links, 2 oben→unten, 3 unten→oben, 4 Mitte→außen, 5 außen→Mitte, 6 Helligkeit, 7 Welle
+uniform int muster;        // 0 links→rechts, 1 rechts→links, 2 oben→unten, 3 unten→oben, 4 Mitte→außen, 5 außen→Mitte, 6 Helligkeit, 7 Welle, 8 Farbkanäle (Harris)
 uniform float zeit;        // Sekunden (für die Welle)
 uniform vec2 aufloesung;
 out vec4 farbe;
@@ -66,10 +67,54 @@ void main() {
   else if (muster == 5) d = 1.0 - clamp(length(uv - 0.5) * 1.414, 0.0, 1.0);
   else if (muster == 6) d = helligkeit(ebene(0.0, uv)); // hell = alt: Lichter ziehen Schlieren
   else d = 0.5 + 0.5 * sin(uv.y * 12.0 + zeit * 2.0);   // Welle: die Zeit schwappt durchs Bild
+  if (muster == 8) {
+    // Harris-Verschluss: Rot, Grün und Blau zu verschiedenen Zeiten. Was stillsteht, ist in allen drei
+    // gleich und bleibt farbtreu; was sich bewegt, zerfällt in drei farbige Abbilder
+    farbe = vec4(ebene(0.0, uv).r, ebene(floor(tiefe * 0.5), uv).g, ebene(tiefe, uv).b, 1.0);
+    return;
+  }
   float alter = d * tiefe;
   float a0 = floor(alter);
   // die beiden Bilder um "alter" herum, gemischt
   farbe = vec4(mix(ebene(a0, uv), ebene(a0 + 1.0, uv), alter - a0), 1.0);
+}`;
+
+// Stepprinting, Schritt 1: eine „Aufnahme mit langem Verschluss“. Mittelwert der letzten "belichtung"
+// Bilder im Ring: was sich bewegt, verwischt, was stillsteht, bleibt scharf. So sieht ein Bild aus, das
+// mit 1/8 Sekunde statt 1/50 belichtet wurde (bei Wong Kar-wai: wenige Bilder pro Sekunde gedreht,
+// lange belichtet, dann jedes Bild mehrfach kopiert).
+export const BELICHTEN_SHADER = /* glsl */ `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+uniform sampler2DArray stapel;
+uniform int neueste;
+uniform int plaetze;
+uniform int belichtung; // so viele Bilder (1 = gar nicht verwischt)
+uniform vec2 aufloesung;
+out vec4 farbe;
+void main() {
+  vec2 uv = gl_FragCoord.xy / aufloesung;
+  vec3 summe = vec3(0.0);
+  for (int i = 0; i < 64; i++) {
+    if (i >= belichtung) break;
+    int e = (neueste - i + plaetze * 2) % plaetze;
+    summe += texture(stapel, vec3(uv, float(e))).rgb;
+  }
+  farbe = vec4(summe / float(belichtung), 1.0);
+}`;
+
+// Stepprinting, Schritt 2: zeigen. Zwischen zwei Aufnahmen steht das Bild still (das ist das Stottern);
+// anteil < 1 blendet von der vorigen Aufnahme über
+export const UEBERBLENDEN_SHADER = /* glsl */ `#version 300 es
+precision highp float;
+uniform sampler2D alt;
+uniform sampler2D neu;
+uniform float anteil;
+uniform vec2 aufloesung;
+out vec4 farbe;
+void main() {
+  vec2 uv = gl_FragCoord.xy / aufloesung;
+  farbe = vec4(mix(texture(alt, uv).rgb, texture(neu, uv).rgb, anteil), 1.0);
 }`;
 
 // ein Bild aufs Canvas; verschiebung: im Kreis verschoben (live: der neueste Schlitz steht immer rechts)
@@ -110,6 +155,7 @@ uniform float deckkraft;
 uniform float schwelle;
 uniform int schnitt;        // 0 aus, 1 x, 2 y, 3 Zeit
 uniform float schnittLage;  // 0 bis 1
+uniform int schritte;      // Schritte pro Strahl (main.js: mindestens so viele wie Bilder, höchstens 1024)
 uniform vec2 aufloesung;
 out vec4 farbe;
 
@@ -158,10 +204,11 @@ void main() {
   vec3 erstesBild = vec3(0.0);
   vec3 farbeSumme = vec3(0.0);
   float deckung = 0.0;
-  const int SCHRITTE = 256;
-  float schritt = (raus - rein) / float(SCHRITTE);
+  float schritt = (raus - rein) / float(schritte);
   float dichte = schritt * 60.0; // gleich dicht, egal wie lang der Weg durch den Block ist
-  for (int i = 0; i < SCHRITTE; i++) {
+  // feste Obergrenze, damit jede Grafikkarte die Schleife übersetzt; die echte Anzahl bricht ab
+  for (int i = 0; i < 1024; i++) {
+    if (i >= schritte) break;
     float t = rein + (float(i) + 0.5) * schritt;
     if (t > tSchnitt) {
       // die Schnittfläche ist undurchsichtig: dort das Bild, dann Schluss

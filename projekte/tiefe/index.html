@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tiefe aus Fotos - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="tiefe.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Tiefe aus Fotos</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel tiefenfeld" id="stapel">
+        <canvas id="bild"></canvas> <!-- WebGL2, js/gpu.js -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="meldung" id="fortschritt" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Fotos</summary>
+        <!-- zwei Fotos vom selben Standpunkt, nur seitlich verschoben (5 bis 10 cm, gleiche Höhe, gleiche Richtung) -->
+        <div class="steuerung">
+          <label class="datei-knopf">links <input type="file" id="datei-links" accept="image/*"></label>
+          <label class="datei-knopf">Mitte (wahlweise) <input type="file" id="datei-mitte" accept="image/*"></label>
+          <label class="datei-knopf">rechts <input type="file" id="datei-rechts" accept="image/*"></label>
+          <button type="button" id="tauschen">links und rechts tauschen</button>
+        </div>
+        <p class="hinweis">links: <span id="name-links">–</span> · Mitte: <span id="name-mitte">–</span> · rechts: <span id="name-rechts">–</span></p>
+        <div class="steuerung">
+          <label>Arbeitsbreite
+            <select data-wert="breite">
+              <option value="480">480</option>
+              <option value="640">640</option>
+              <option value="960" selected>960</option>
+              <option value="1280">1280</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="ausrichten" checked> automatisch ausrichten</label>
+          <button type="button" id="neuAusrichten">neu ausrichten</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Block Matching</summary>
+        <div class="steuerung">
+          <!-- Disparität: um wie viele Pixel ein Punkt im rechten Foto weiter links liegt; nah = viel -->
+          <label>Suche ab (px)
+            <input type="range" data-wert="dMin" min="-20" max="250" step="1" value="0">
+            <output></output>
+          </label>
+          <label>Suche bis (px)
+            <input type="range" data-wert="dMax" min="-20" max="250" step="1" value="64">
+            <output></output>
+          </label>
+          <label>Fenster (Radius)
+            <input type="range" data-wert="radius" min="1" max="6" step="1" value="3">
+            <output></output>
+          </label>
+          <label>Abschneiden
+            <input type="range" data-wert="abschneiden" min="0.02" max="0.5" step="0.01" value="0.12">
+            <output></output>
+          </label>
+          <label>Eindeutigkeit
+            <input type="range" data-wert="eindeutigkeit" min="0.6" max="1" step="0.01" value="0.95">
+            <output></output>
+          </label>
+          <label>Median (Radius)
+            <input type="range" data-wert="median" min="0" max="4" step="1" value="2">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="loecherZeigen"> Löcher zeigen statt füllen</label>
+          <!-- nur mit drei Fotos: an Kanten ist ein Punkt oft nur in einem der äußeren Fotos zu sehen -->
+          <label><input type="checkbox" data-wert="besseresPaar" checked> drei Fotos: nur das bessere Paar</label>
+          <button type="button" id="rechnen">Rechnen</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ansicht</summary>
+        <div class="steuerung">
+          <label>Ansicht
+            <select data-wert="ansicht">
+              <option value="anaglyph">Rot-Cyan (Ausrichtung prüfen)</option>
+              <option value="tiefenkarte">Tiefenkarte</option>
+              <option value="schaerfe">Schärfentiefe</option>
+              <option value="nebel">Nebel</option>
+              <option value="farbe">Farbe nach Tiefe</option>
+              <option value="wolke">Punktwolke</option>
+              <option value="stereogramm">Autostereogramm</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=tiefenkarte,farbe">Farben
+            <select data-wert="skala">
+              <option value="grau">Grau</option>
+              <option value="glut">Glut</option>
+              <option value="viridis" selected>Viridis</option>
+              <option value="eis">Eis</option>
+            </select>
+          </label>
+          <!-- Schärfentiefe: ins Bild klicken stellt dort scharf -->
+          <label data-nur="ansicht=schaerfe">Fokus (ins Bild klicken)
+            <input type="range" data-wert="fokus" min="0" max="1" step="0.01" value="0.8">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=schaerfe,nebel">Stärke
+            <input type="range" data-wert="staerke" min="0" max="3" step="0.05" value="1">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=nebel">Nebelfarbe <input type="color" data-wert="nebelFarbe" value="#d4d8dc"></label>
+          <label data-nur="ansicht=farbe">Mischung
+            <input type="range" data-wert="mischung" min="0" max="1" step="0.01" value="0.7">
+            <output></output>
+          </label>
+
+          <!-- Punktwolke: ziehen dreht, Rad zoomt; fliegen wie im Zeitquader (W A S D, Q E) -->
+          <label data-nur="ansicht=wolke">Form
+            <select data-wert="form">
+              <option value="perspektive">Perspektive (Z = 1 / Disparität)</option>
+              <option value="relief">Relief (Disparität als Höhe)</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=wolke form=perspektive">Brennweite (mm, Kleinbild)
+            <input type="range" data-wert="brennweite" min="12" max="85" step="1" value="26">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=wolke">Tiefe
+            <input type="range" data-wert="tiefenFaktor" min="0" max="1" step="0.01" value="0.5">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=wolke">Punktgröße
+            <input type="range" data-wert="punktgroesse" min="0.5" max="4" step="0.1" value="1.4">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=wolke">jeder n-te Pixel
+            <input type="range" data-wert="schritt" min="1" max="6" step="1" value="1">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=wolke">Hintergrund <input type="color" data-wert="wolkeGrund" value="#111111"></label>
+          <label data-nur="ansicht=wolke">Kamera
+            <select data-wert="steuerung">
+              <option value="kreisen">kreisen</option>
+              <option value="fliegen">fliegen</option>
+            </select>
+          </label>
+
+          <label data-nur="ansicht=stereogramm">Muster
+            <select data-wert="muster">
+              <option value="zufall">Zufallspunkte</option>
+              <option value="foto">Streifen aus dem Foto</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=stereogramm">Breite einer Wiederholung (px)
+            <input type="range" data-wert="augenabstand" min="40" max="200" step="1" value="110">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=stereogramm">Tiefe
+            <input type="range" data-wert="stereoTiefe" min="0.05" max="0.5" step="0.01" value="0.3">
+            <output></output>
+          </label>
+        </div>
+        <p class="hinweis" id="ohneTiefe">Diese Ansicht braucht eine Tiefe: erst „Rechnen“.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <button type="button" id="tiefenkarte">Tiefenkarte (PNG)</button>
+          <button type="button" id="ply">Punktwolke (PLY, für Blender)</button>
+          <label>Kamerafahrt
+            <select data-wert="fahrt">
+              <option value="wackeln">wackeln</option>
+              <option value="schwenk">seitlich schwenken</option>
+              <option value="hinein">hineinfahren</option>
+            </select>
+          </label>
+          <label>Dauer (s)
+            <input type="range" data-wert="fahrtDauer" min="2" max="20" step="1" value="6">
+            <output></output>
+          </label>
+          <label>Breite
+            <select data-wert="exportBreite">
+              <option value="1280">1280</option>
+              <option value="1920" selected>1920</option>
+              <option value="3840">3840</option>
+            </select>
+          </label>
+          <button type="button" id="videoRendern">Kamerafahrt rendern</button>
+          <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
+        </div>
+        <p class="hinweis">Die Tiefenkarte (nah = hell) lässt sich in Bild zu Ton laden: dann klingt die Tiefe statt der Helligkeit.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

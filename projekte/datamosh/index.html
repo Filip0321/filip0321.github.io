@@ -57,9 +57,11 @@
           </label>
           <!-- wenig Bitrate: grobe Blöcke, kräftiger Mosh; viel: feiner, aber der Mosh „heilt“ schneller -->
           <label>Bitrate (Mbit/s)
-            <input type="range" data-wert="bitrate" min="0.3" max="8" step="0.1" value="2">
+            <input type="range" data-wert="bitrate" min="0.2" max="8" step="0.1" value="1">
             <output></output>
           </label>
+          <!-- wild: der Dekoder liest nach einem Sprung die Bits falsch, das gibt Rauschen statt wandernder Blöcke -->
+          <label><input type="checkbox" data-wert="wild"> wild (Rauschen statt Blöcke)</label>
           <button type="button" id="vorbereiten" disabled>Vorbereiten</button>
         </div>
         <ol class="clip-liste" id="clipListe"></ol>
@@ -73,6 +75,7 @@
           <button type="button" id="vonVorn">Von vorn</button>
           <button type="button" id="springen" title="Taste S">Springen (S)</button>
           <button type="button" id="halten" title="Taste H gedrückt halten">Halten (H)</button>
+          <button type="button" id="heilen" title="Taste K">Heilen (K)</button>
           <label>Sprung nach
             <select data-wert="sprungArt">
               <option value="anfang">Anfang des nächsten Clips</option>
@@ -81,9 +84,19 @@
             </select>
           </label>
           <label><input type="checkbox" data-wert="schnitte"> an jedem Schnitt moshen</label>
+          <!-- nach jedem Sprung von selbst heilen: der Mosh dauert so viele Bilder, dann ist das Bild wieder sauber -->
+          <label>Heilen nach (Bildern, 0 = nie)
+            <input type="range" data-wert="heilenNach" min="0" max="120" step="1" value="45">
+            <output></output>
+          </label>
+          <!-- jedes neue Bild nur teilweise über das alte: weniger Flackern, mehr Schlieren -->
+          <label>Beruhigen
+            <input type="range" data-wert="ruhe" min="0" max="0.9" step="0.05" value="0">
+            <output></output>
+          </label>
         </div>
         <p class="hinweis" id="stelle"></p>
-        <p class="hinweis">Leertaste spielt und hält an. S springt in einen anderen Clip, ohne dessen Keyframe: seine Bewegung läuft auf dem alten Bild weiter. H gedrückt halten wiederholt das letzte Bild-Paket: das Bild zerfließt.</p>
+        <p class="hinweis">Leertaste spielt und hält an. S springt in einen anderen Clip, ohne dessen Keyframe: seine Bewegung läuft auf dem alten Bild weiter. H gedrückt halten wiederholt das letzte Bild-Paket: das Bild zerfließt. K heilt: ein Keyframe, und das Bild ist wieder sauber.</p>
       </details>
 
       <details class="abschnitt">
@@ -95,6 +108,7 @@
             <select id="neuArt">
               <option value="sprung">Sprung</option>
               <option value="halten">Halten</option>
+              <option value="heilen">Heilen</option>
             </select>
           </label>
           <label>bei Bild
@@ -103,7 +117,7 @@
           <label id="neuClipLabel">nach Clip
             <input type="number" id="neuClip" min="1" step="1" value="2">
           </label>
-          <label><span id="neuWertText">Bild im Clip</span>
+          <label id="neuWertLabel"><span id="neuWertText">Bild im Clip</span>
             <input type="number" id="neuWert" min="0" step="1" value="1">
           </label>
           <button type="button" id="ereignisDazu">Dazu</button>

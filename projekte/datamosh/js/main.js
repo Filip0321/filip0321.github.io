@@ -5,8 +5,8 @@
 //   dekoder.js            Pakete -> Bilder (VideoDecoder)
 //
 // Zwei Arten zu arbeiten, die dasselbe ergeben:
-//   live    abspielen und dabei springen (S) und halten (H gedrückt halten). Jeder Griff wird als Ereignis
-//           gemerkt, mit der Bildnummer.
+//   live    abspielen und dabei springen (S), halten (H gedrückt halten) und heilen (K). Jeder Griff wird
+//           als Ereignis gemerkt, mit der Bildnummer.
 //   Liste   Ereignisse von Hand eintragen oder die gemerkten ändern und löschen.
 // Der Export spielt genau diese Ereignisse noch einmal ab, Bild für Bild: was du live gemacht hast,
 // kommt genau so ins Video.
@@ -16,7 +16,7 @@ import { richteExportEin, neueAufnahme, ladeHerunter, zeitstempel, warte } from 
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 import { oeffneVideo } from "/lib/video-quelle.js";
 import { bereite } from "./kodieren.js";
-import { baueFolge, quelleBei } from "./folge.js";
+import { baueFolge, quelleBei, paketVon } from "./folge.js";
 import { richteDekoderEin } from "./dekoder.js";
 
 const bild = hole("bild");
@@ -28,7 +28,7 @@ const abspielen = hole("abspielen");
 
 let clips = []; // geöffnete Videos, in dieser Reihenfolge hintereinander
 let daten = null; // Ergebnis von bereite()
-let ereignisse = []; // { art: "sprung" | "halten", bei, nach | dauer }
+let ereignisse = []; // { art: "sprung" | "halten" | "heilen", bei, nach | dauer }
 let folge = [];
 let n = 0; // Bild der Folge, das als nächstes kommt
 let laeuft = false;
@@ -36,10 +36,12 @@ let haelt = null; // das Halten-Ereignis, solange H gedrückt ist
 let dekoder = null;
 let schleife = Promise.resolve(); // die laufende Abspielschleife (zum Abwarten beim Anhalten)
 
-const { einstellung } = richteReglerEin({
+const { einstellung, setze } = richteReglerEin({
   beiAenderung: () => neueFolge(),
   extra: {},
 });
+// wer im System „Bewegung reduzieren“ eingestellt hat, bekommt das Flackern gleich gedämpft
+if (matchMedia("(prefers-reduced-motion: reduce)").matches) setze("ruhe", 0.6);
 
 function zeige(text) {
   meldung.textContent = text;
@@ -51,9 +53,13 @@ function zeigeFortschritt(text) {
   fortschritt.hidden = !text;
 }
 
+function baue() {
+  return baueFolge(daten, ereignisse, { schnitteMoshen: einstellung.schnitte, heilenNach: einstellung.heilenNach });
+}
+
 function neueFolge() {
   if (!daten) return;
-  folge = baueFolge(daten, ereignisse, { schnitteMoshen: einstellung.schnitte });
+  folge = baue();
   zeigeEreignisse();
   zeigeStelle();
 }
@@ -61,7 +67,7 @@ function neueFolge() {
 function zeigeStelle() {
   const q = daten && quelleBei(daten, folge, Math.max(0, n - 1));
   hole("stelle").textContent = q
-    ? `Bild ${Math.max(0, n - 1)} von ${folge.length} · Quelle: Clip ${q.clip + 1}, Bild ${q.bild}`
+    ? `Bild ${Math.max(0, n - 1)} von ${folge.length} · Quelle: Clip ${q.clip + 1}, Bild ${q.bild}${q.geheilt ? " (geheilt)" : ""}`
     : "";
 }
 
@@ -125,16 +131,16 @@ hole("vorbereiten").addEventListener("click", async () => {
   await halte();
   hole("vorbereiten").disabled = true;
   try {
-    daten = await bereite(clips, { breite: Number(einstellung.breite), bitrate: einstellung.bitrate * 1e6, beiFortschritt: zeigeFortschritt });
+    daten = await bereite(clips, { breite: Number(einstellung.breite), bitrate: einstellung.bitrate * 1e6, wild: einstellung.wild, beiFortschritt: zeigeFortschritt });
     bild.width = daten.breite;
     bild.height = daten.hoehe;
     stapel.style.setProperty("--verhaeltnis", `${daten.breite} / ${daten.hoehe}`);
     dekoder?.schliesse();
-    dekoder = richteDekoderEin(daten, (b) => ctx.drawImage(b, 0, 0, bild.width, bild.height));
+    dekoder = richteDekoderEin(daten, (b) => zeichne(ctx, b));
     n = 0;
     neueFolge();
     abspielen.disabled = false;
-    zeige("");
+    zeige(daten.zeitschichten || einstellung.wild ? "" : "Dein Browser kodiert ohne Zeitschichten: jeder Sprung wird zu Rauschen statt zu wandernden Blöcken (siehe LIESMICH).");
     await zeigeBild(0); // das erste Bild
   } catch (fehler) {
     console.error(fehler);
@@ -147,6 +153,14 @@ hole("vorbereiten").addEventListener("click", async () => {
 
 // ---------- Abspielen ----------
 
+// ein dekodiertes Bild zeichnen. „Beruhigen“ legt es nur halb deckend über das vorige: das Flackern
+// wird weicher, harte Wechsel werden zu Überblendungen (gegen den epileptischen Eindruck, siehe LIESMICH)
+function zeichne(c, b) {
+  c.globalAlpha = 1 - einstellung.ruhe;
+  c.drawImage(b, 0, 0, c.canvas.width, c.canvas.height);
+  c.globalAlpha = 1;
+}
+
 // Bild n der Folge zeigen. Weil jedes Bild auf dem vorigen aufbaut, geht das nur der Reihe nach:
 // wer zurückspringt, muss von vorn dekodieren (dafür ist es schnell genug)
 async function zeigeBild(ziel) {
@@ -155,7 +169,7 @@ async function zeigeBild(ziel) {
     n = 0;
   }
   while (n <= ziel && n < folge.length) {
-    await dekoder.dekodiere(daten.pakete[folge[n]]);
+    await dekoder.dekodiere(paketVon(daten, folge[n]));
     n++;
   }
   zeigeStelle();
@@ -180,9 +194,9 @@ async function spieleSchleife() {
       if (haelt) {
         // H gedrückt: das Halten wird jedes Bild länger, die Folge neu gebaut
         haelt.dauer++;
-        folge = baueFolge(daten, ereignisse, { schnitteMoshen: einstellung.schnitte });
+        folge = baue();
       }
-      await dekoder.dekodiere(daten.pakete[folge[n]]);
+      await dekoder.dekodiere(paketVon(daten, folge[n]));
       n++;
       if (n % 5 === 0) zeigeStelle();
       naechstes += dauer;
@@ -236,6 +250,12 @@ function springe() {
   neueFolge();
 }
 
+function heile() {
+  if (!daten) return;
+  ereignisse.push({ art: "heilen", bei: n });
+  neueFolge();
+}
+
 function halteFest(an) {
   if (!daten) return;
   if (an && !haelt) {
@@ -249,6 +269,7 @@ function halteFest(an) {
 }
 
 hole("springen").addEventListener("click", springe);
+hole("heilen").addEventListener("click", heile);
 const haltenKnopf = hole("halten");
 haltenKnopf.addEventListener("pointerdown", () => halteFest(true));
 for (const ende of ["pointerup", "pointerleave", "pointercancel"]) haltenKnopf.addEventListener(ende, () => halteFest(false));
@@ -263,6 +284,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.repeat) return;
   if (taste === "s") springe();
+  else if (taste === "k") heile();
   else if (taste === "h") halteFest(true);
 });
 document.addEventListener("keyup", (event) => {
@@ -279,9 +301,11 @@ function zeigeEreignisse() {
     const zeile = document.createElement("li");
     const text = document.createElement("span");
     const q = daten && e.art === "sprung" ? daten.pakete[e.nach] : null;
-    text.textContent = e.art === "sprung"
-      ? `Bild ${e.bei}: Sprung nach Clip ${(q?.clip ?? 0) + 1}, Bild ${q?.bild ?? "?"}`
-      : `Bild ${e.bei}: halten, ${e.dauer} Bilder`;
+    text.textContent = {
+      sprung: () => `Bild ${e.bei}: Sprung nach Clip ${(q?.clip ?? 0) + 1}, Bild ${q?.bild ?? "?"}`,
+      halten: () => `Bild ${e.bei}: halten, ${e.dauer} Bilder`,
+      heilen: () => `Bild ${e.bei}: heilen`,
+    }[e.art]();
     const weg = document.createElement("button");
     weg.type = "button";
     weg.textContent = "×";
@@ -299,8 +323,11 @@ function zeigeEreignisse() {
 hole("ereignisDazu").addEventListener("click", () => {
   if (!daten) return;
   const bei = Math.max(0, Math.round(Number(hole("neuBei").value)));
-  if (hole("neuArt").value === "halten") {
+  const art = hole("neuArt").value;
+  if (art === "halten") {
     ereignisse.push({ art: "halten", bei, dauer: Math.max(1, Math.round(Number(hole("neuWert").value))) });
+  } else if (art === "heilen") {
+    ereignisse.push({ art: "heilen", bei });
   } else {
     const clip = Math.min(Math.max(1, Math.round(Number(hole("neuClip").value))), daten.anfaenge.length) - 1;
     const bildImClip = Math.max(0, Math.round(Number(hole("neuWert").value)));
@@ -309,9 +336,10 @@ hole("ereignisDazu").addEventListener("click", () => {
   neueFolge();
 });
 hole("neuArt").addEventListener("input", () => {
-  const sprung = hole("neuArt").value === "sprung";
-  hole("neuClipLabel").hidden = !sprung;
-  hole("neuWertText").textContent = sprung ? "Bild im Clip" : "wie viele Bilder";
+  const art = hole("neuArt").value;
+  hole("neuClipLabel").hidden = art !== "sprung";
+  hole("neuWertLabel").hidden = art === "heilen";
+  hole("neuWertText").textContent = art === "sprung" ? "Bild im Clip" : "wie viele Bilder";
 });
 hole("alleWeg").addEventListener("click", () => {
   ereignisse = [];
@@ -340,15 +368,15 @@ hole("videoRendern").addEventListener("click", async () => {
   leinwand.width = daten.breite;
   leinwand.height = daten.hoehe;
   const lctx = leinwand.getContext("2d");
-  const export_ = richteDekoderEin(daten, (b) => lctx.drawImage(b, 0, 0));
+  const export_ = richteDekoderEin(daten, (b) => zeichne(lctx, b));
   try {
     const rahmen = document.createElement("canvas");
     const mitR = () => mitRahmen(leinwand, einst, rahmen);
     export_.neu();
-    await export_.dekodiere(daten.pakete[folge[0]]);
+    await export_.dekodiere(paketVon(daten, folge[0]));
     aufnahme = await neueAufnahme(mitR(), daten.fps, undefined, null, einst.videoTyp);
     for (let i = 0; i < folge.length; i++) {
-      if (i > 0) await export_.dekodiere(daten.pakete[folge[i]]);
+      if (i > 0) await export_.dekodiere(paketVon(daten, folge[i]));
       await aufnahme.bild(mitR(), i / daten.fps, 1 / daten.fps);
       if (i % 15 === 0) {
         zeigeFortschritt(`Video … ${Math.round((i / folge.length) * 100)} %`);
