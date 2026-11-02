@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datamosh - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="datamosh.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Datamosh</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel moshfeld" id="stapel">
+        <canvas id="bild" width="640" height="360"></canvas> <!-- 2D, hier zeichnet der Dekoder hinein -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="meldung" id="fortschritt" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Clips</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Clips öffnen <input type="file" id="dateien" multiple accept="video/*,.mp4,.mov,.webm,.m4v"></label>
+          <!-- kleiner = schneller vorbereitet und flüssiger live; Moshen sieht klein ohnehin am besten aus -->
+          <label>Breite
+            <select data-wert="breite">
+              <option value="480">480</option>
+              <option value="640" selected>640</option>
+              <option value="960">960</option>
+              <option value="1280">1280</option>
+            </select>
+          </label>
+          <!-- wenig Bitrate: grobe Blöcke, kräftiger Mosh; viel: feiner, aber der Mosh „heilt“ schneller -->
+          <label>Bitrate (Mbit/s)
+            <input type="range" data-wert="bitrate" min="0.3" max="8" step="0.1" value="2">
+            <output></output>
+          </label>
+          <button type="button" id="vorbereiten" disabled>Vorbereiten</button>
+        </div>
+        <ol class="clip-liste" id="clipListe"></ol>
+        <p class="hinweis">Die Clips laufen in dieser Reihenfolge hintereinander. „Vorbereiten“ kodiert sie neu, mit nur einem Keyframe am Anfang jedes Clips.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Spielen</summary>
+        <div class="steuerung">
+          <button type="button" id="abspielen" disabled>Abspielen</button>
+          <button type="button" id="vonVorn">Von vorn</button>
+          <button type="button" id="springen" title="Taste S">Springen (S)</button>
+          <button type="button" id="halten" title="Taste H gedrückt halten">Halten (H)</button>
+          <label>Sprung nach
+            <select data-wert="sprungArt">
+              <option value="anfang">Anfang des nächsten Clips</option>
+              <option value="gleich">gleiche Stelle im nächsten Clip</option>
+              <option value="zufall">irgendwohin</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="schnitte"> an jedem Schnitt moshen</label>
+        </div>
+        <p class="hinweis" id="stelle"></p>
+        <p class="hinweis">Leertaste spielt und hält an. S springt in einen anderen Clip, ohne dessen Keyframe: seine Bewegung läuft auf dem alten Bild weiter. H gedrückt halten wiederholt das letzte Bild-Paket: das Bild zerfließt.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Eingriffe</summary>
+        <p class="hinweis" id="ereignisInfo"></p>
+        <ol class="clip-liste" id="ereignisListe"></ol>
+        <div class="steuerung">
+          <label>Art
+            <select id="neuArt">
+              <option value="sprung">Sprung</option>
+              <option value="halten">Halten</option>
+            </select>
+          </label>
+          <label>bei Bild
+            <input type="number" id="neuBei" min="0" step="1" value="30">
+          </label>
+          <label id="neuClipLabel">nach Clip
+            <input type="number" id="neuClip" min="1" step="1" value="2">
+          </label>
+          <label><span id="neuWertText">Bild im Clip</span>
+            <input type="number" id="neuWert" min="0" step="1" value="1">
+          </label>
+          <button type="button" id="ereignisDazu">Dazu</button>
+          <button type="button" id="alleWeg">Alle löschen</button>
+        </div>
+        <p class="hinweis">Was du live machst, landet hier. „bei Bild“ zählt die Bilder des fertigen Videos. Bild 0 eines Clips ist sein Keyframe, ein Sprung dorthin nimmt Bild 1.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <button type="button" id="videoRendern">Video rendern</button>
+          <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
+        </div>
+        <p class="hinweis">„Video rendern“ spielt alle Eingriffe noch einmal ab, Bild für Bild. Ohne Ton.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

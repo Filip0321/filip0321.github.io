@@ -16,7 +16,8 @@ import { video, springe, geoeffneteDatei } from "./quelle.js";
 import { rendere } from "./klang.js";
 
 // s: was main.js mitgibt:
-//   lese(neu)        das aktuelle Bild des Videos verarbeiten und lesen -> Helligkeiten pro Strich
+//   lese(neu)        das aktuelle Bild des Videos verarbeiten und lesen -> { werte (pro Strich), noten }
+//   vergiss()        Auslösen von vorn (kein „voriges Bild“)
 //   zeichne(werte)   das Feld mit diesen Helligkeiten zeichnen -> Canvas (Video und Strich zusammen)
 //   klangDaten()     { striche, einstellung, originalton } wie gerade eingestellt
 //   fortschritt(text) / zeige(text)
@@ -42,12 +43,15 @@ export function richteVideoExportEin(s) {
     const bilder = letztes - erstes;
     const daten = s.klangDaten();
     const werte = daten.striche.map((st) => new Float32Array(bilder * st.freq.length));
+    const noten = []; // { bild, strich, freq, staerke }
+    s.vergiss(); // Auslösen fängt neu an (sonst zählt das letzte Live-Bild als „vorher“)
     for (let i = 0; i < bilder; i++) {
       await springe((erstes + i) / FPS);
       // beim ersten Bild gibt es kein voriges: zweimal dasselbe, dann ist die Bewegung 0
       if (i === 0) s.lese(true);
-      const w = s.lese(i > 0);
+      const { werte: w, noten: neu } = s.lese(i > 0);
       w.forEach((zeile, j) => werte[j].set(zeile, i * zeile.length));
+      for (const n of neu) noten.push({ ...n, bild: i });
       if (i % 10 === 0) {
         s.fortschritt(`Lesen … ${Math.round((i / bilder) * 100)} %`);
         await warte();
@@ -60,7 +64,7 @@ export function richteVideoExportEin(s) {
     const ton = await rendere({
       striche: daten.striche,
       einstellung: daten.einstellung,
-      zeitplan: { fps: FPS, bilder, werte },
+      zeitplan: { fps: FPS, bilder, werte, noten },
       sekunden: bilder / FPS,
       originalTon: stueck,
       originalton: daten.originalton,

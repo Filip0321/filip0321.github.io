@@ -86,6 +86,7 @@ export function richteGpuEin(canvas) {
   }
 
   const video = baueFlaeche(1, 1, { puffer: false });
+  let drehung = 0; // in Vierteln im Uhrzeigersinn
   let videoGroesse = { breite: 1, hoehe: 1 };
   let hell = [null, null]; // Helligkeit jetzt und vorher, wechseln sich ab (Ping-Pong)
   let jetzt = 0;
@@ -108,7 +109,9 @@ export function richteGpuEin(canvas) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // Video hat y = 0 oben, wir wollen unten (tief = unten)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, quelle);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    videoGroesse = { breite: quelle.videoWidth, hoehe: quelle.videoHeight };
+    // gedreht um 90° oder 270°: Breite und Höhe tauschen
+    const quer = drehung % 2 === 1;
+    videoGroesse = { breite: quer ? quelle.videoHeight : quelle.videoWidth, hoehe: quer ? quelle.videoWidth : quelle.videoHeight };
     passeArbeitAn(videoGroesse.breite, videoGroesse.hoehe);
   }
 
@@ -133,6 +136,7 @@ export function richteGpuEin(canvas) {
     textur(0, video.textur, hellProgramm.ort.video);
     gl.uniform2f(hellProgramm.ort.aufloesung, arbeit.breite, arbeit.hoehe);
     gl.uniform1f(hellProgramm.ort.radius, e.weich);
+    gl.uniform1i(hellProgramm.ort.drehung, drehung);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     const o = bearbeitProgramm.ort;
@@ -234,11 +238,12 @@ export function richteGpuEin(canvas) {
     textur(0, video.textur, o.video);
     textur(1, (bearbeitet ?? video).textur, o.bearbeitet);
     gl.uniform1i(o.zeigeBearbeitet, ansicht.zeigeBearbeitet ? 1 : 0);
+    gl.uniform1i(o.drehung, drehung);
     gl.uniform2f(o.aufloesung, canvas.width, canvas.height);
     gl.uniform4fv(o.bereich, ansicht.bereich);
     gl.uniform4fv(o.fenster, ansicht.fenster);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  return { ladeBild, vorbereite, lies, zeichne };
+  return { ladeBild, vorbereite, lies, zeichne, setzeDrehung: (d) => (drehung = d) };
 }

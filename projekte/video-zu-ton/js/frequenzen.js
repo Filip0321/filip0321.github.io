@@ -87,3 +87,16 @@ export function zeilenGrenzen(zeilen, profil = null, nachBild = 0) {
   }
   return grenzen;
 }
+
+// Dreiklang auf diesem Ton: die übernächste und die vierte Stufe der Leiter darüber
+// (in Dur auf C: C, E, G). Ohne Tonleiter: ein Dur-Dreiklang (4 und 7 Halbtöne).
+export function akkord(f, tonleiter = "aus", grundton = 0) {
+  const leiter = TONLEITERN[tonleiter];
+  const m = Math.round(zuMidi(f));
+  if (!leiter || leiter.length < 5 || leiter.length === 12) return [f, f * 2 ** (4 / 12), f * 2 ** (7 / 12)];
+  const toene = [m];
+  for (let k = m + 1; toene.length < 5; k++) {
+    if (leiter.includes((((k - grundton) % 12) + 12) % 12)) toene.push(k);
+  }
+  return [f, zuHz(toene[2]) * (f / zuHz(m)), zuHz(toene[4]) * (f / zuHz(m))]; // Verstimmung von f mitnehmen
+}

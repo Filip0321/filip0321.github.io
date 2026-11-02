@@ -6,6 +6,11 @@
 //   Stereo   zwei Striche, links im Bild nach links, rechts nach rechts (Panorama): Bewegung wandert
 //            im Kopfhörer mit
 //   Akkord   mehrere Striche, jeder um ein paar Halbtöne verschoben: dasselbe Bild klingt als Akkord
+//
+// Drei Arten:
+//   spektrum   jede Zeile ein Sinus, Helligkeit = Lautstärke (dauernd)
+//   welle      Wellenform (Wavetable): der Strich der Länge nach ist eine Schwingung, gespielt mit dem Grundton
+//   ausloesen  jedes neue Objekt auf dem Strich spielt eine Note (ausloeser.js)
 
 export const MAX_STRICHE = 4; // jeder Strich hat bis zu 256 Stimmen, mehr schafft ein Handy nicht
 
@@ -19,8 +24,11 @@ export function neuerStrich(werte = {}) {
     rueckwaerts: false, // tief oben (bzw. rechts) statt unten (links)
     pan: 0, // −1 links, 1 rechts
     halbtoene: 0,
-    welle: false, // Lichtton wörtlich: der Strich ist eine Schwingung
+    art: "spektrum", // spektrum: jede Zeile ein Ton; welle: der Strich ist eine Schwingung; ausloesen: Noten
     grundton: 110, // Hz, nur für welle
+    instrument: "gezupft", // nur für ausloesen: gezupft (Karplus-Strong) oder glocke
+    akkord: false, // ausloesen: Dreiklang statt Einzelton
+    nachklang: 1.5, // ausloesen: Sekunden, bis eine Note fast verklungen ist
     ...werte,
   };
 }
@@ -37,9 +45,12 @@ const FELDER = [
   { name: "breite", text: "Breite (%)", typ: "range", min: 0.1, max: 20, step: 0.1 },
   { name: "rueckwaerts", text: "rückwärts (tief oben bzw. rechts)", typ: "checkbox" },
   { name: "pan", text: "Panorama", typ: "range", min: -1, max: 1, step: 0.05 },
-  { name: "welle", text: "Art", typ: "select", optionen: [[false, "Spektrum"], [true, "Lichtton (Wellenform)"]] },
-  { name: "halbtoene", text: "Halbtöne", typ: "range", min: -24, max: 24, step: 1, nur: (s) => !s.welle },
-  { name: "grundton", text: "Grundton (Hz)", typ: "number", min: 20, max: 2000, step: 1, nur: (s) => s.welle },
+  { name: "art", text: "Art", typ: "select", optionen: [["spektrum", "Spektrum (jede Zeile ein Ton)"], ["welle", "Wellenform (Wavetable)"], ["ausloesen", "Auslösen (Noten)"]] },
+  { name: "halbtoene", text: "Halbtöne", typ: "range", min: -24, max: 24, step: 1, nur: (s) => s.art !== "welle" },
+  { name: "grundton", text: "Grundton (Hz)", typ: "number", min: 20, max: 2000, step: 1, nur: (s) => s.art === "welle" },
+  { name: "instrument", text: "Instrument", typ: "select", optionen: [["gezupft", "gezupft"], ["glocke", "Glocke"]], nur: (s) => s.art === "ausloesen" },
+  { name: "akkord", text: "Akkord (Dreiklang)", typ: "checkbox", nur: (s) => s.art === "ausloesen" },
+  { name: "nachklang", text: "Nachklang (s)", typ: "range", min: 0.1, max: 6, step: 0.1, nur: (s) => s.art === "ausloesen" },
 ];
 
 export function richteStrichListeEin({ liste, eigenschaften, beiWahl, beiAenderung, beiLoeschen }) {

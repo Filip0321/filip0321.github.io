@@ -8,6 +8,7 @@
 //   klang.js              Seite <-> Audio-Thread, Originalton, Ton fürs Video rechnen
 //   stimmen-worklet.js    eine Stimme pro Zeile, oder der Strich als Wellenform
 //   kopf.js               Striche, Balken und Skala über dem Video
+//   ausloeser.js          Objekte auf einem Strich finden: jedes neue spielt eine Note
 //   export-video.js       WAV und Video Bild für Bild
 
 import { richteReglerEin } from "/lib/regler.js";
@@ -17,7 +18,8 @@ import { video, oeffneDatei, oeffneKamera, istKamera } from "./quelle.js";
 import { richteGpuEin } from "./gpu.js";
 import { richteKlangEin } from "./klang.js";
 import { richteKopfEin } from "./kopf.js";
-import { zeilenFrequenzen, zeilenGrenzen } from "./frequenzen.js";
+import { zeilenFrequenzen, zeilenGrenzen, akkord } from "./frequenzen.js";
+import { richteAusloeserEin } from "./ausloeser.js";
 import { neuerStrich, VORLAGEN, MAX_STRICHE, richteStrichListeEin } from "./striche.js";
 import { richteVideoExportEin } from "./export-video.js";
 
@@ -35,6 +37,7 @@ const PROFIL_ZEIT = 1; // Sekunden: so träge folgt die Zeilendichte dem Bild (s
 const gpu = richteGpuEin(bild);
 const kopf = richteKopfEin(kopfCanvas);
 const klang = richteKlangEin();
+const ausloeser = richteAusloeserEin();
 
 let quelleDa = false;
 let striche = VORLAGEN.einer();
@@ -60,6 +63,12 @@ const { einstellung } = richteReglerEin({
     dichte: () => rechneGrenzen(),
     ausschnittArt: () => passeFeldAn(),
     originalton: () => klang.originalton(einstellung.originalton),
+    drehung: () => {
+      gpu.setzeDrehung(Number(einstellung.drehung));
+      ausschnitt = null; // der Ausschnitt gehörte zum ungedrehten Bild
+      if (quelleDa) lese(false);
+      passeFeldAn();
+    },
   },
 });
 
@@ -94,9 +103,14 @@ function sendeStriche() {
       eigene,
     }));
   }
-  klang.striche(striche.map((s) => ({ freq: frequenzen.get(s.id), pan: s.pan, welle: s.welle, grundton: s.grundton })));
+  klang.striche(klangStriche());
   rechneGrenzen();
   zeichneNeu();
+}
+
+// was der Klang von jedem Strich wissen muss
+function klangStriche() {
+  return striche.map((s) => ({ freq: frequenzen.get(s.id), pan: s.pan, art: s.art, grundton: s.grundton, instrument: s.instrument, nachklang: s.nachklang }));
 }
 
 function neueZeilen() {
@@ -107,9 +121,15 @@ function neueZeilen() {
   sendeStriche();
 }
 
+const klangEinstellung = () => ({
+  dynamik: einstellung.dynamik,
+  glaettung: einstellung.glaettung,
+  lautstaerke: einstellung.lautstaerke,
+  klangfarbe: einstellung.klangfarbe,
+});
+
 function sendeEinstellung() {
-  const { dynamik, glaettung, lautstaerke } = einstellung;
-  klang.einstellung({ dynamik, glaettung, lautstaerke });
+  klang.einstellung(klangEinstellung());
 }
 
 // ---------- Ausschnitt: Lupe oder Fenster ----------
@@ -124,7 +144,10 @@ function rechtecke() {
 function passeFeldAn() {
   if (!quelleDa) return;
   const [l, u, r, o] = rechtecke().bereich;
-  stapel.style.setProperty("--verhaeltnis", `${video.videoWidth * (r - l)} / ${video.videoHeight * (o - u)}`);
+  // gedreht um 90° oder 270°: Breite und Höhe tauschen
+  const quer = Number(einstellung.drehung) % 2 === 1;
+  const [b, h] = quer ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight];
+  stapel.style.setProperty("--verhaeltnis", `${b * (r - l)} / ${h * (o - u)}`);
   zeichneNeu();
 }
 
@@ -159,7 +182,26 @@ function lese(neu = true) {
     rechneGrenzen();
   }
   werte = ergebnis.werte;
+  letzteNoten = findeNoten(werte);
   return werte;
+}
+
+// Auslösen: neue Objekte auf Strichen dieser Art -> Noten { strich, freq, staerke }
+let letzteNoten = [];
+function findeNoten(alleWerte) {
+  const noten = [];
+  striche.forEach((s, i) => {
+    if (s.art !== "ausloesen" || !alleWerte[i]) return;
+    const freq = frequenzen.get(s.id);
+    for (const o of ausloeser.neue(s.id, alleWerte[i], { schwelle: einstellung.objektSchwelle, mindestens: einstellung.mindestens })) {
+      const f = freq[Math.round(o.mitte)];
+      // Stärke: wie groß und wie hell (ein großes, deutliches Objekt klingt lauter)
+      const staerke = Math.min(1, 0.3 + (o.laenge / einstellung.zeilen) * 3) * Math.min(1, o.hell * 1.5);
+      const toene = s.akkord ? akkord(f, einstellung.tonleiter, Number(einstellung.leiterGrundton)) : [f];
+      for (const t of toene) noten.push({ strich: i, freq: t, staerke: staerke / Math.sqrt(toene.length) });
+    }
+  });
+  return noten;
 }
 
 // requestVideoFrameCallback meldet sich genau dann, wenn das Video ein neues Bild hat;
@@ -176,6 +218,7 @@ function starteSchleife() {
     if (nummer !== schleife) return;
     if (!exportLaeuft) {
       klang.werte(lese(true));
+      if (letzteNoten.length) klang.noten(letzteNoten);
       zeichneNeu();
     }
     proBild(neuesBild);
@@ -192,6 +235,7 @@ function zeichneKopf(mitWerten) {
     striche: striche.map((s, i) => ({ strich: s, grenzen: grenzen.get(s.id), werte: mitWerten[i] ?? null })),
     aktiv,
     skala: einstellung.skala ? { tief: einstellung.tief, hoch: einstellung.hoch, zeilen: einstellung.zeilen } : null,
+    balken: einstellung.balken,
     rechteck: rahmenBeimZiehen,
   });
 }
@@ -392,7 +436,7 @@ richteMausInfoEin(stapel, hole("mausInfo"), (x, y) => {
   let zeile = 0;
   while (zeile < einstellung.zeilen - 1 && g[2 * zeile + 1] < l) zeile++;
   const nummer = striche.indexOf(s) + 1;
-  if (s.welle) return `Strich ${nummer} · Lichtton, ${zeigeFrequenz(s.grundton)} ${notenName(s.grundton)}\nZeile ${zeile}: ${Math.round((werte[striche.indexOf(s)]?.[zeile] ?? 0) * 100)} %`;
+  if (s.art === "welle") return `Strich ${nummer} · Wellenform, ${zeigeFrequenz(s.grundton)} ${notenName(s.grundton)}\nZeile ${zeile}: ${Math.round((werte[striche.indexOf(s)]?.[zeile] ?? 0) * 100)} %`;
   const f = frequenzen.get(s.id)[zeile];
   const hell = werte[striche.indexOf(s)]?.[zeile] ?? 0;
   return `Strich ${nummer} · Zeile ${zeile} · ${zeigeFrequenz(f)} ${notenName(f)}\nam Strich: ${Math.round(hell * 100)} % hell`;
@@ -409,7 +453,8 @@ richteExportEin({
 });
 
 const videoExport = richteVideoExportEin({
-  lese: (neu) => lese(neu).map((w) => w.slice()),
+  lese: (neu) => ({ werte: lese(neu).map((w) => w.slice()), noten: letzteNoten }),
+  vergiss: () => ausloeser.vergiss(),
   zeichne: (mitWerten) => {
     if (mitWerten) {
       gpu.ladeBild(video);
@@ -418,8 +463,8 @@ const videoExport = richteVideoExportEin({
     return gesamtBild(mitWerten ?? werte);
   },
   klangDaten: () => ({
-    striche: striche.map((s) => ({ freq: frequenzen.get(s.id), pan: s.pan, welle: s.welle, grundton: s.grundton })),
-    einstellung: { dynamik: einstellung.dynamik, glaettung: einstellung.glaettung, lautstaerke: einstellung.lautstaerke },
+    striche: klangStriche(),
+    einstellung: klangEinstellung(),
     originalton: einstellung.originalton,
   }),
   fortschritt: (text) => {
