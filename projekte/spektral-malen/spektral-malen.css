@@ -1,0 +1,83 @@
+/*
+Spektral-Malen: nur was es nirgends sonst auf der Website gibt
+(Schriften, Farben, Regler, Knöpfe, Werkbank kommen aus /css/)
+*/
+
+/* Leinwand: zwei Canvas genau übereinander, unten das Bild, oben Skala und Lesekopf.
+   --verhaeltnis nimmt /css/canvas.css fürs Werkbank-Layout (nie höher als der Bildschirm) */
+.malfeld {
+  --verhaeltnis: 2;
+  position: relative;
+  aspect-ratio: var(--verhaeltnis);
+  border: 1px solid currentColor;
+}
+
+.malfeld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#kopf {
+  image-rendering: auto;
+  pointer-events: none; /* Malen geht durch zur Leinwand darunter */
+}
+
+/* Schild unter dem Mauszeiger (wie in bild-zu-ton; beim Merge gemeinsam nach /css/) */
+.maus-info {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  transform: translate(12px, -130%);
+  padding: 0.15rem 0.4rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: pre; /* zwei Zeilen, \n aus js/main.js */
+}
+
+.maus-info.links {
+  transform: translate(calc(-100% - 12px), -130%);
+}
+
+/* Ebenen: eine Zeile pro Ebene (Name zum Wählen, stumm, löschen), die aktive gedrückt */
+.ebenen-liste {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+.ebenen-liste li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.ebenen-liste .ebene-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis; /* lange Dateinamen abschneiden statt die Zeile zu sprengen */
+  white-space: nowrap;
+  text-align: left;
+}
+
+.ebenen-liste button {
+  font: inherit; /* Knöpfe nehmen sonst die Schrift des Systems */
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+/* wie die Knöpfe in /css/steuerung.css: gedrückt = ausgefüllt */
+.ebenen-liste button:hover,
+.ebenen-liste button:focus-visible,
+.ebenen-liste .ebene-name[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
