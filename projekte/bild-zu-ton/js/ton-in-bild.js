@@ -1,7 +1,7 @@
 // Um aus dem Ton wieder ein Bild zu machen
 
 import { baueFft } from "/lib/fft.js";
-import { RATE, zeileZuFrequenz } from "./ton.js";
+import { RATE, zeileZuFrequenz } from "/lib/ton.js";
 import { warte } from "/lib/export.js";
 
 const ANALYSE_FENSTER = 8192; // lang = Tiefen scharf, Zeit verschmiert; kurz = umgekehrt

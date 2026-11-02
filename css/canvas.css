@@ -17,6 +17,13 @@ canvas {
   image-rendering: auto;
 }
 
+/* Parameterkarte (2D- und 3D-Attraktor): klein in der Bedienung, weich gestreckt (gerechnet sind 160 bzw. 100 Pixel pro Seite) */
+.karte-feld {
+  aspect-ratio: 1 / 1;
+  image-rendering: auto;
+  margin-top: 0.6rem;
+}
+
 .gol-feld {
   aspect-ratio: 4 / 3;
   image-rendering: auto;

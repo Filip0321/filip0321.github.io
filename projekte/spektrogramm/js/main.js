@@ -4,7 +4,7 @@ import { frequenzZuAnteil, anteilZuFrequenz, zeigeFrequenz } from "./frequenzen.
 import { zeichneSkala } from "./skala.js";
 import { audio, analyser, baueAudioAuf, fftRegler, fftGroesse, zeigeFft, setzeAnalyserDb, lautstaerke, setzeLautstaerke } from "./audio.js";
 import { tiefen, hoehen, setzeGrenzen } from "./filter.js";
-import { zeigeQuelle, setzeQuelle, quellenArt } from "./quelle.js";
+import { zeigeQuelle, setzeQuelle, quellenArt, wechsleZuDatei } from "./quelle.js";
 import { laufrichtung, spektrumOben, richteFaecherEin, berechneTabellen, leere, zeigeTempo, starteZeichnen, stoppeZeichnen, zeichnetGerade, erneuereVerlaeufe } from "./live.js";
 import { ladeDatei } from "./datei.js";
 import { beiAufnahme } from "./aufnehmen.js";
@@ -116,10 +116,13 @@ hole("datei").addEventListener("change", (event) => {
   if (datei) ladeUndZeige(datei);
 });
 
-// fertige Aufnahme: zur Ansicht "Ganze Aufnahme" wechseln und wie eine Datei laden
-beiAufnahme((datei) => {
+// fertige Aufnahme: zur Ansicht "Ganze Aufnahme" wechseln und wie eine Datei laden.
+// Die Quelle springt auf Datei: sonst wäre der Player versteckt und nicht angeschlossen, und man
+// könnte die Aufnahme nicht hören (und nicht rückwärts)
+beiAufnahme(async (datei) => {
   ansicht.value = "aufnahme";
   wechsleAnsicht();
+  await wechsleZuDatei();
   ladeUndZeige(datei);
 });
 //------------------------------------------------------

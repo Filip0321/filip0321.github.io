@@ -233,7 +233,30 @@ input[type="range"] {
   cursor: pointer;
 }
 
-.steuerung input[type="text"] {
+/* das Farbfeld selbst: eckig wie alles andere. Safari und Chrome zeichnen innen ein eigenes,
+   abgerundetes Feld (am iPhone oval) mit Rand; das wird hier glatt gezogen, Firefox hat ein eigenes */
+.steuerung input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.steuerung input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 0;
+}
+
+.steuerung input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 0;
+}
+
+/* Hex-Code vor dem Farbfeld (script.js): schmal, rechtsbündig an das Farbfeld gerückt */
+.steuerung input.hex {
+  width: 5.5rem;
+  margin-left: auto; /* in der Werkbank schiebt das Hex-Feld und Farbfeld zusammen nach rechts */
+  font-variant-numeric: tabular-nums;
+}
+
+.steuerung input[type="text"]:not(.hex) {
   width: 12rem;
 }
 

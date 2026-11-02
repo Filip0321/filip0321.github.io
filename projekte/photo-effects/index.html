@@ -88,6 +88,24 @@
           <label><input type="checkbox" id="grau" checked> Schwarzweiß</label>
         </div>
 
+        <!-- Farbverlauf: Häkchen und Regler baut /lib/effekt-regler.js, die Felder hier drin kommen mit in die Gruppe -->
+        <div data-effekt-regler="farbverlauf">
+          <div class="steuerung">
+            <label>Verlauf
+              <select id="farbverlauf-skala">
+                <option value="glut">Glut</option>
+                <option value="viridis">Viridis</option>
+                <option value="eis">Eis</option>
+                <option value="grau">Grau</option>
+                <option value="eigen">eigene Farben</option>
+              </select>
+            </label>
+            <label class="nur-eigen">Anfang <input type="color" id="farbverlauf-anfang" value="#1a0033"></label>
+            <label class="nur-eigen">Ende <input type="color" id="farbverlauf-ende" value="#ffd27f"></label>
+            <label><input type="checkbox" id="farbverlauf-umgedreht"> Verlauf umdrehen</label>
+          </div>
+        </div>
+
         <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
 
         <div data-effekt-regler="crt"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->

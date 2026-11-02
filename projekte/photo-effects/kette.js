@@ -1,5 +1,6 @@
 import { crtProgramm } from "../../lib/effekte/crt.js";
 import { vhsProgramm } from "../../lib/effekte/vhs.js";
+import { farbverlaufProgramm, farbverlaufTextur } from "../../lib/effekte/farbverlauf.js";
 import { verkleinern, vergroessern, dithern } from "./effekte/pixel.js";
 import { fensterUmsBild } from "./effekte/rahmen.js";
 import { zeichneOverlay } from "./effekte/overlay.js";
@@ -19,6 +20,14 @@ export const EFFEKTE = {
       if (zustand.pixelgroesse > 1) bild = vergroessern(bild, zustand.pixelgroesse, w, h);
       return bild;
     },
+  },
+  farbverlauf: {
+    name: "Farbverlauf",
+    gpu: true,
+    an: () => zustand.farbverlaufAn && gl,
+    programm: farbverlaufProgramm,
+    // die Textur geht mit: rendere (webgl.js) legt sie auf Platz 1 für "uniform sampler2D verlauf"
+    einstellungen: () => ({ ...zustand.werte.farbverlauf, verlauf: farbverlaufTextur }),
   },
   vhs: {
     name: "VHS",
@@ -58,6 +67,7 @@ export const EFFEKTE = {
 // overlay kommt mit kette.push() erst beim laden
 export const kette = [
   { typ: "pixel" },
+  { typ: "farbverlauf" },
   { typ: "vhs" },
   { typ: "rahmen" },
   { typ: "crt" },

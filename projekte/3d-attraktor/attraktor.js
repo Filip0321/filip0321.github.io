@@ -207,12 +207,12 @@ export const PRESETS = [
   { name: "Thomas I", typ: "thomas", werte: { b: 0.208186 }, text: "Platzhalter." },
   { name: "Thomas II", typ: "thomas", werte: { b: 0.192 }, text: "Platzhalter." },
   { name: "Thomas III", typ: "thomas", werte: { b: 0.092 }, text: "Platzhalter." },
-  { name: "Halvorsen", typ: "halvorsen", werte: { a: 1.4 }, text: "Platzhalter." },
+  { name: "Halvorsen", typ: "halvorsen", werte: { a: 1.405 }, text: "Platzhalter." },
   { name: "Arneodo", typ: "arneodo", werte: { a: -5, b: 3.5, c: -1 }, text: "Platzhalter." },
   { name: "Burke-Shaw", typ: "burkeShaw", werte: { s: 10, v: 4.272 }, text: "Platzhalter." },
   { name: "Chen-Lee", typ: "chenLee", werte: { a: 5, b: -10, c: -0.38 }, text: "Platzhalter." },
   { name: "Dadras", typ: "dadras", werte: { a: 3, b: 2.7, c: 1.7, d: 2, e: 9 }, text: "Platzhalter." },
-  { name: "Four-Wing", typ: "fourWing", werte: { a: 0.2, b: 0.01, c: -0.4 }, text: "Platzhalter." },
+  { name: "Four-Wing", typ: "fourWing", werte: { a: 0.2, b: 0.01, c: -0.401 }, text: "Platzhalter." },
   { name: "Newton-Leipnik", typ: "newtonLeipnik", werte: { a: 0.4, b: 0.175 }, text: "Platzhalter." },
   { name: "Nose-Hoover", typ: "noseHoover", werte: { a: 1.5 }, text: "Platzhalter." },
   { name: "Rucklidge", typ: "rucklidge", werte: { k: 2, a: 6.7 }, text: "Platzhalter." }
@@ -260,6 +260,50 @@ export function berechnePunkte(typ, werte, anzahl, start = typ.start) {
 }
 
 
+// Lyapunov-Exponent für die Parameterkarte: wie im 2D-Attraktor zwei Punkte, die 1e-8 voneinander
+// starten, nach jedem Schritt messen, wie stark ihr Abstand gewachsen ist, und den zweiten wieder heranziehen.
+// Unterschied: hier ist ein Schritt nur dt Zeit lang, und jeder Typ hat ein anderes dt.
+// Darum wird in Zeit gerechnet (wie EINPENDEL_ZEIT) und durch die Zeit geteilt: λ pro Zeiteinheit.
+// Bei Flüssen bleibt in Flugrichtung der Abstand fast gleich (der Punkt läuft nur vorweg),
+// darum ist λ bei einer festen Runde ungefähr 0 und nicht kleiner als 0 wie bei den 2D-Abbildungen.
+const LYAPUNOV_EINPENDEL_ZEIT = 10;
+const LYAPUNOV_MESS_ZEIT = 25;
+const START_ABSTAND = 1e-8;
+
+export function lyapunov(typ, werte, start = typ.start) {
+  const p = { x: start[0], y: start[1], z: start[2] };
+  const einpendeln = Math.ceil(LYAPUNOV_EINPENDEL_ZEIT / typ.dt);
+  for (let i = 0; i < einpendeln; i++) {
+    typ.schritt(werte, p, typ.dt);
+    if (punktNichtMehrDa(p)) return Infinity;
+  }
+
+  const q = { x: p.x + START_ABSTAND, y: p.y, z: p.z };
+  const schritte = Math.ceil(LYAPUNOV_MESS_ZEIT / typ.dt);
+  let summe = 0;
+
+  for (let i = 0; i < schritte; i++) {
+    typ.schritt(werte, p, typ.dt);
+    typ.schritt(werte, q, typ.dt);
+    if (punktNichtMehrDa(p) || punktNichtMehrDa(q)) return Infinity;
+
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const dz = q.z - p.z;
+    const abstand = Math.hypot(dx, dy, dz);
+    summe += Math.log(Math.max(abstand / START_ABSTAND, 1e-12)); // max: nie log(0)
+
+    // q zurück an p: gleiche Richtung, wieder START_ABSTAND entfernt
+    const f = abstand > 0 ? START_ABSTAND / abstand : 0;
+    q.x = p.x + (abstand > 0 ? dx * f : START_ABSTAND);
+    q.y = p.y + dy * f;
+    q.z = p.z + dz * f;
+  }
+
+  return summe / (schritte * typ.dt); // pro Zeiteinheit, damit Typen mit anderem dt vergleichbar sind
+}
+
+
 // Den fertigen Attraktor vermessen: wo ist seine Mitte und wie groß ist er
 // mit dem Ergebnis rückt der Shader den Attraktor in die Mitte 
 // und bringt ihn auf Größe −1 bis 1, damit er sich um sich selbst dreht.
@@ -292,4 +336,6 @@ export function vermesseAttraktor(punkte) {
     // Attraktor beim Drehen
   };
 }
+
+
 

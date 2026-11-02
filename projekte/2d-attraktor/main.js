@@ -5,12 +5,18 @@ import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.j
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
-import { richteExportEin } from "/lib/export.js";
+import { richteExportEin, FPS } from "/lib/export.js";
+import { hexZuRgb, skalaAnker, farbtabelle } from "/lib/farben.js";
+import { richteKarteEin } from "/lib/parameterkarte.js";
+import { richteAttraktorTonEin } from "/lib/attraktor-ton.js";
+import { richteAudioreaktivEin } from "/lib/audioreaktiv.js";
+import { richteSzenenEin } from "/lib/szenen.js";
 
 // Settings
 
 const MAX_PUNKTE = 10000000;
 const MAX_ZOOM = 100000;
+const LICHT_PRO_SEKUNDE = 30; // „Licht drehen lassen“: Grad pro Sekunde
 const BILDER_PRO_ANIMATION = 1500; // in so vielen Bildern entsteht der Attraktor (60 pro Sekunde = 25 s)
 
 let punkte = 1000000;
@@ -31,14 +37,41 @@ const hinweis = hole("hinweis");
 
 // Regler und Schalter: alles mit data-wert im HTML (siehe /lib/regler.js)
 // einstellung.staerke, .invertiert, .farbig, .red, .blue
-const { einstellung } = richteReglerEin({ beiAenderung: zeichne });
+const { einstellung, felder, setze, setzeAlle } = richteReglerEin({ beiAenderung: zeichne, 
+                                          extra: { 
+                                            verlauf: neuerVerlauf, 
+                                            anfang: neuerVerlauf, 
+                                            ende: neuerVerlauf,
+                                            umgedreht: neuerVerlauf,
+                                            schatten: starteLaufen,   // mit „Licht drehen lassen“ läuft dann die Bild-Kette
+                                            lichtDreht: starteLaufen,
+                                          } });
 
 const shader = erstelleShader(canvas);
+neuerVerlauf();
+
+// Musik bewegt den Attraktor (siehe /lib/audioreaktiv.js): musik.wirkung.zoom usw. wird in zeichne()
+// auf die eigenen Werte gerechnet, die Regler bleiben, wie sie sind
+const musik = richteAudioreaktivEin({
+  ziele: {
+    zoom: "Zoom",
+    helligkeit: "Helligkeit",
+    punktgroesse: "Punktgröße",
+    wand: "Abstand zur Wand",
+    licht: "Licht wandert",
+    farbe: "Farbe wandert",
+  },
+  start: { bass: "zoom", mitte: "helligkeit", schlag: "punktgroesse" },
+  beiStart: () => starteLaufen(),
+});
+let lichtDazu = 0; // so weit hat die Musik das Licht schon herumgeführt (Grad)
+let farbVersatz = 0; // so weit ist die Farbe im Verlauf gewandert (0 bis 2, siehe imVerlauf in shader.js)
 
 
 // Zustände
 
 let typ = TYPEN.clifford; // Starttyp, wird gleich vom ersten Preset gesetzt
+let typName = "clifford"; // sein Name in TYPEN (braucht der Worker der Parameterkarte, er kennt nur Namen)
 let werte = {};
 let start = typ.start;
 
@@ -48,6 +81,13 @@ let ansicht = { x: 0, y: 0 }; // welcher Punkt des Attraktors in der Bildmitte l
 let sichtbar = punkte; // wie viele Punkte gerade gezeichnet werden
 let animationsId = null; // läuft gerade eine Animation? dann steht hier ihre Nummer
 
+function neuerVerlauf() {
+  const anker = einstellung.verlauf === "eigen"
+    ? [hexZuRgb(einstellung.anfang), hexZuRgb(einstellung.ende)]
+    : skalaAnker(einstellung.verlauf);
+  // umgedreht: dieselben Anker rückwärts (Kopie mit [...], sonst würde die Skala in farben.js selbst umgedreht)
+  shader.setzeVerlauf(farbtabelle(einstellung.umgedreht ? [...anker].reverse() : anker));
+}
 
 function passeGroesseAn() {
   // mindestens doppelt so fein rechnen, auch bei normalen Monitoren mit dpr 1
@@ -72,7 +112,6 @@ function leseZahl(feld, min, max, bisher, sollGanz = true) {
   return jetzt;
 }
 
-
 // Rechnen und Zeichnen
 
 // Zoom, bei dem der ganze Attraktor ins Bild passt
@@ -93,11 +132,64 @@ function rechne() {
 }
 
 // zeichnen billig, geht bei jedem Zoom
-function zeichne() {
+// ohneSchatten: einmal ohne Schatten (für den Ton der Ansicht, attraktor-ton.js)
+function zeichne(ohneSchatten = false) {
+  const w = musik.wirkung; // alles 0, solange keine Musik läuft
   shader.zeichne({
-    mitteX: ansicht.x, mitteY: ansicht.y, zoom, sichtbar,
-    ...einstellung, // staerke, invertiert, farbig, red, blue … alle auf einmal
+    mitteX: ansicht.x, mitteY: ansicht.y, sichtbar,
+    ...einstellung, // einstellung.hintergrund, .faerbung, .punktfarbe, .verlauf, .anfang, .ende, .staerke
+    // was die Musik verändert, kommt nach ...einstellung und ersetzt dort den Wert des Reglers
+    zoom: zoom * (1 + 0.3 * w.zoom),
+    staerke: einstellung.staerke * (1 + 2 * w.helligkeit),
+    punktgroesse: einstellung.punktgroesse + 3 * w.punktgroesse,
+    wandAbstand: einstellung.wandAbstand + 0.05 * w.wand,
+    lichtRichtung: einstellung.lichtRichtung + lichtDazu,
+    schatten: einstellung.schatten && !ohneSchatten,
+    // Mitte und halbe Größe des Attraktors: um sie wächst der Schatten der Lampe, von dort formt das Spektrum
+    zentrumX: mass?.mitteX ?? 0,
+    zentrumY: mass?.mitteY ?? 0,
+    ausdehnung: mass ? Math.max(mass.breite, mass.hoehe) / 2 : 1,
+    spektrum: musik.spektrum,
+    spektrumStaerke: musik.spektrumStaerke(),
+    verlaufVersatz: farbVersatz,
   });
+}
+
+// um eine Zeitspanne weiterbewegen (live und beim Video-Rendern mit festen 1/30 s)
+function bewege(sekunden) {
+  lichtDazu = (lichtDazu + 180 * musik.wirkung.licht * sekunden) % 360; // volle Wirkung: halbe Runde pro Sekunde
+  farbVersatz = (farbVersatz + 0.5 * musik.wirkung.farbe * sekunden) % 2; // volle Wirkung: in 2 s einmal durch den Verlauf
+  if (einstellung.schatten && einstellung.lichtDreht) {
+    setze("lichtRichtung", (einstellung.lichtRichtung + LICHT_PRO_SEKUNDE * sekunden) % 360);
+  }
+}
+
+// gibt es etwas, das sich von selbst bewegt? Dann läuft die Bild-Kette
+function bewegtSich() {
+  return musik.laeuft() || (einstellung.schatten && einstellung.lichtDreht);
+}
+
+// Musik: eine Kette von Bildern, solange sie läuft (wie das Drehen im 3D-Attraktor)
+let laufId = null;
+let letzteZeit = null;
+
+function laufe(zeit) {
+  letzteZeit ??= zeit; // erstes Bild: noch keine Zeit vergangen
+  const sekunden = Math.min((zeit - letzteZeit) / 1000, 0.1); // nach einer Pause im Hintergrund kein Sprung
+  letzteZeit = zeit;
+  musik.schritt(sekunden);
+  bewege(sekunden);
+  zeichne();
+  if (bewegtSich()) {
+    laufId = requestAnimationFrame(laufe);
+  } else {
+    laufId = null;
+    letzteZeit = null;
+  }
+}
+
+function starteLaufen() {
+  if (laufId === null && bewegtSich()) laufId = requestAnimationFrame(laufe); // nie zwei Ketten gleichzeitig
 }
 
 function zeigeAlles() {
@@ -255,13 +347,42 @@ function greifeNeu() {
   }
 }
 
+// Schatten ziehen (Häkchen „Ziehen bewegt den Schatten“ oder mit Shift): der Schatten folgt dem Zeiger,
+// daraus ergeben sich Lichtrichtung und Abstand zur Wand. Gemerkt wird der Schatten-Versatz beim Aufsetzen.
+let schattenGriff = null; // { x, y, versatz: [x, y] } in CSS-Pixeln, y nach unten
+
+// Versatz des Schattens in CSS-Pixeln (y nach unten), wie in shader.js:
+// −(cos, sin) der Lichtrichtung mal wandAbstand mal der kürzeren Seite
+function schattenVersatz() {
+  const r = einstellung.lichtRichtung * Math.PI / 180;
+  const laenge = einstellung.wandAbstand * Math.min(canvas.clientWidth, canvas.clientHeight);
+  return [-Math.cos(r) * laenge, Math.sin(r) * laenge]; // y umgedreht: im Shader zeigt y nach oben
+}
+
 canvas.addEventListener("pointerdown", (event) => {
+  if (finger.size === 0 && einstellung.schatten && (einstellung.ziehenLicht || event.shiftKey)) {
+    canvas.setPointerCapture(event.pointerId);
+    schattenGriff = { id: event.pointerId, x: event.clientX, y: event.clientY, versatz: schattenVersatz() };
+    return;
+  }
   finger.set(event.pointerId, mausAbstand(event));
   canvas.setPointerCapture(event.pointerId);
   greifeNeu();
 });
 
 canvas.addEventListener("pointermove", (event) => {
+  if (schattenGriff?.id === event.pointerId) {
+    // neuer Versatz = alter + Weg des Zeigers; zurück in Richtung und Abstand (Umkehrung von schattenVersatz)
+    const vx = schattenGriff.versatz[0] + event.clientX - schattenGriff.x;
+    const vy = schattenGriff.versatz[1] + event.clientY - schattenGriff.y;
+    const kuerzere = Math.min(canvas.clientWidth, canvas.clientHeight);
+    const wand = Math.min(Math.hypot(vx, vy) / kuerzere, Number(felder.wandAbstand.max));
+    setze("wandAbstand", wand);
+    // der Schatten liegt gegenüber dem Licht: Licht kommt aus −Versatz (y wieder nach oben gedreht)
+    setze("lichtRichtung", ((Math.atan2(vy, -vx) * 180 / Math.PI) + 360) % 360);
+    zeichne();
+    return;
+  }
   if (!finger.has(event.pointerId)) return; // Maus nur drüber, nicht gedrückt
   finger.set(event.pointerId, mausAbstand(event));
 
@@ -280,6 +401,7 @@ canvas.addEventListener("pointermove", (event) => {
 });
 
 function lassLos(event) {
+  if (schattenGriff?.id === event.pointerId) schattenGriff = null;
   finger.delete(event.pointerId);
   greifeNeu(); // mit den übrigen Fingern neu anfassen
 }
@@ -328,6 +450,7 @@ function baueWerteFelder() {
       rechne();
       zeigeAlles(); // neue Form, neue Größe
       zeigeNeu();
+      karte.zeichne(); // der Kreis auf der Karte wandert mit
     });
 
     label.append(`${name} `, feld);
@@ -354,6 +477,7 @@ function markiere(i) {
 function waehlePreset(i) {
   const preset = PRESETS[i];
   typ = TYPEN[preset.typ];
+  typName = preset.typ;
   werte = { ...preset.werte };
   start = preset.start || typ.start;
   baueWerteFelder();
@@ -361,7 +485,81 @@ function waehlePreset(i) {
   rechne();
   zeigeAlles();
   zeigeNeu();
+  karte.neuerTyp(typName, typ.parameter);
 }
+
+
+// Parameterkarte (siehe /lib/parameterkarte.js): ein Klick setzt zwei Werte wie das Eintippen in die Felder
+
+const karte = richteKarteEin({
+  canvas: hole("karte"),
+  xWahl: hole("karte-x"),
+  yWahl: hole("karte-y"),
+  bereichFeld: hole("karte-bereich"),
+  knopf: hole("karte-rechnen"),
+  anzeige: hole("karte-wert"),
+  abschnitt: hole("parameterkarte"),
+  // der Worker lädt diese attraktor.js selbst; new URL macht aus "./attraktor.js" die volle Adresse
+  modul: new URL("./attraktor.js", import.meta.url).href,
+  groesse: 160,
+  kleinsteSkala: 0.1,
+  aktuell: () => ({ typName, werte, start }),
+  beiKlick: (neu) => {
+    Object.assign(werte, neu); // nur die zwei Werte der Achsen ändern sich
+    baueWerteFelder();
+    markiere(-1);
+    rechne();
+    zeigeAlles();
+    zeigeNeu();
+  },
+});
+
+
+// Szenen (siehe /lib/szenen.js): alle Regler und dazu, was nur hier steht
+
+function presetNummer() {
+  // passen Typ und Zahlen genau zu einem Preset? Dann wird es markiert, sonst "eigene Werte"
+  return PRESETS.findIndex((p) => p.typ === typName && JSON.stringify(p.werte) === JSON.stringify(werte));
+}
+
+const szenen = richteSzenenEin({
+  ziel: hole("szenen"),
+  seitenName: "2d-attraktor",
+  einstellung,
+  setzeAlle,
+  sammle: () => ({
+    typName,
+    werte: { ...werte },
+    start: [...start],
+    punkte,
+    ansicht: { ...ansicht },
+    zoom,
+    musik: musik.zuordnungLesen(),
+  }),
+  stelleHer: (seite) => {
+    if (seite.typName && TYPEN[seite.typName]) {
+      typ = TYPEN[seite.typName];
+      typName = seite.typName;
+      werte = { ...seite.werte };
+      start = seite.start ?? typ.start;
+      baueWerteFelder();
+      markiere(presetNummer());
+    }
+    if (seite.punkte) {
+      punkte = seite.punkte;
+      punkteFeld.value = punkte;
+    }
+    rechne();
+    karte.neuerTyp(typName, typ.parameter);
+    if (seite.ansicht) ansicht = { ...seite.ansicht };
+    if (seite.zoom) {
+      zoom = seite.zoom;
+      zoomFeld.value = Math.round(zoom);
+    }
+    if (seite.musik) musik.zuordnungSetzen(seite.musik);
+    zeigeNeu();
+  },
+});
 
 
 // Start
@@ -376,6 +574,8 @@ const beobachter = new ResizeObserver(() => {
   if (ersteGroesse) {
     ersteGroesse = false;
     waehlePreset(0); // passender Zoom braucht die echte Größe
+    starteLaufen(); // falls der Browser „Licht drehen lassen“ beim Neuladen wiederhergestellt hat
+    szenen.ladeAusLink(); // steckt eine Szene im Link (#szene=…), ersetzt sie das erste Preset
   } else {
     // zoom ist "Canvas-Pixel pro Einheit": wird der Canvas breiter,
     // muss der zoom mitwachsen, sonst sieht man plötzlich mehr vom Attraktor
@@ -396,6 +596,7 @@ let renderProBild = 0;
 const render = {
   start(n) {
     stoppeAnimation();
+    musik.exportStart(n, FPS); // die Musik einmal für alle Bilder vorausrechnen
     if (animiert) {
       sichtbar = 0;
       renderProBild = Math.ceil(punkte / n);
@@ -404,21 +605,31 @@ const render = {
       renderProBild = 0;
     }
   },
-  bild() {
+  bild(i, dt) {
     sichtbar = Math.min(sichtbar + renderProBild, punkte);
+    musik.exportBild(i); // was die Musik bei diesem Bild macht
+    bewege(dt);
     zeichne();
   },
   ende() {
+    musik.exportEnde();
     sichtbar = punkte; // Bild vollständig hinterlassen
     zeichne();
   },
-  // Vorschau im Export-Fenster: nichts zu merken, start() setzt alles neu
+  // Vorschau im Export-Fenster: nur das Licht merken, start() setzt alles andere neu
   merke() {
-    return () => {};
+    const alt = { lichtDazu, farbVersatz, lichtRichtung: einstellung.lichtRichtung };
+    return () => {
+      lichtDazu = alt.lichtDazu;
+      farbVersatz = alt.farbVersatz;
+      setze("lichtRichtung", alt.lichtRichtung);
+    };
   },
   // Bild i direkt: so viele Punkte, wie nach i + 1 Schritten von bild() da wären
-  vorschau(i) {
+  vorschau(i, n, dt) {
     sichtbar = Math.min(sichtbar + renderProBild * (i + 1), punkte);
+    musik.exportBild(i);
+    bewege((i + 1) * dt); // Licht und Farbe so weit wie nach i + 1 Bildern (die Musik-Wirkung von Bild i angenommen)
     zeichne();
   },
 };
@@ -430,5 +641,21 @@ richteExportEin({
   anzeige: sichtbaresBild,
   endbild,
   render,
+  zuschnitt: crtZuschnitt,
+  ton: () => musik.tonFuerExport(), // mit geladener Musik: Video mit Ton
+  liveTon: () => musik.liveTon(), // „Live aufnehmen“ nimmt mit, was gerade klingt
+});
+
+
+// Den Attraktor hören (siehe /lib/attraktor-ton.js): die Ansicht ohne Schatten als Spektrogramm
+
+richteAttraktorTonEin({
+  canvas,
+  kopf: hole("ton-kopf"),
+  ansichtOhneBoden: () => zeichne(true),
+  zeichneNormal: () => zeichne(),
+  hintergrund: () => einstellung.hintergrund,
+  name: () => typ.name.toLowerCase().replace(/\s+/g, "-"),
+  anzeige: sichtbaresBild, // mit VHS und CRT, wenn sie an sind
   zuschnitt: crtZuschnitt,
 });

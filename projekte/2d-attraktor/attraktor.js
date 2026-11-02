@@ -157,6 +157,56 @@ export function berechnePunkte(typ, werte, anzahl, start = typ.start) {
   return daten;
 }
 
+// Lyapunov-Exponent: Wie schnell laufen zwei fast gleiche Startpunkte auseinander?
+// Zwei Punkte, p und q, starten 1e-8 voneinander entfernt. Nach jedem Schritt wird gemessen,
+// um welchen Faktor ihr Abstand gewachsen ist, und q danach wieder auf 1e-8 an p herangezogen
+// (in dieselbe Richtung). Ohne das Heranziehen wären sie im Chaos nach wenigen Dutzend Schritten
+// so weit auseinander wie der ganze Attraktor, und das Wachstum ließe sich nicht mehr messen.
+// Der Durchschnitt der Logarithmen dieser Faktoren ist der Exponent:
+//   größer als 0: der Abstand wächst wie e^(λ·Schritte) → Chaos, ein seltsamer Attraktor
+//   kleiner als 0: der Abstand schrumpft → der Punkt landet auf einem Fixpunkt oder einer festen Runde
+//   ungefähr 0: Kreise, auf denen alles gleich weit auseinander bleibt
+// Logarithmus, weil sich Faktoren multiplizieren (2 · 2 · 0.5) und Logarithmen addieren lassen.
+// Ergebnis Infinity: der Punkt läuft davon.
+const LYAPUNOV_EINPENDELN = 200;
+const LYAPUNOV_SCHRITTE = 400;
+const START_ABSTAND = 1e-8;
+
+export function lyapunov(typ, werte, start = typ.start) {
+  const p = { x: start[0], y: start[1] };
+  for (let i = 0; i < LYAPUNOV_EINPENDELN; i++) {
+    typ.schritt(werte, p);
+    if (punktNichtMehrDa(p)) return Infinity;
+  }
+
+  const q = { x: p.x + START_ABSTAND, y: p.y };
+  let summe = 0;
+
+  for (let i = 0; i < LYAPUNOV_SCHRITTE; i++) {
+    typ.schritt(werte, p);
+    typ.schritt(werte, q);
+    if (punktNichtMehrDa(p) || punktNichtMehrDa(q)) return Infinity;
+
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const abstand = Math.hypot(dx, dy);
+    // max: fallen beide genau auf denselben Punkt (Abstand 0), wäre log(0) = −Unendlich
+    summe += Math.log(Math.max(abstand / START_ABSTAND, 1e-12));
+
+    // q zurück an p: gleiche Richtung, wieder START_ABSTAND entfernt
+    if (abstand > 0) {
+      q.x = p.x + dx * START_ABSTAND / abstand;
+      q.y = p.y + dy * START_ABSTAND / abstand;
+    } else {
+      q.x = p.x + START_ABSTAND;
+      q.y = p.y;
+    }
+  }
+
+  return summe / LYAPUNOV_SCHRITTE; // Durchschnitt pro Schritt
+}
+
+
 // Den fertigen Attraktor vermessen: wo ist seine Mitte und wie groß ist er
 // gemalt wird hier nichts, mit dem Ergebnis kann main.js den Zoom so wählen,
 // dass der Attraktor mittig und ganz im Bild ist

@@ -5,7 +5,9 @@ import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaeng
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
-import { verbindeRegler } from "/lib/effekt-regler.js"; // baut die Regler für VHS und CRT ins HTML, vor allem anderen
+import { verbindeRegler } from "/lib/effekt-regler.js";
+import { setzeFarbverlauf } from "/lib/effekte/farbverlauf.js";
+import { hexZuRgb, skalaAnker } from "/lib/farben.js"; // baut die Regler für VHS und CRT ins HTML, vor allem anderen
 import { neuesOverlay,farbFlaeche, neuesFenster, trifft, stelleOverlaysAuf, stelleOverlaysZurueck, synchronisiere, gibOverlayFrei } from "./effekte/overlay.js";
 // die ganzen HTML Elemente für die basic Einstellungen
 
@@ -32,6 +34,11 @@ const grauFeld = hole("grau");
 
 const vhsFeld = hole("vhs-an"); // toggle für vhs
 const crtFeld = hole("crt-an"); // toggle für crt
+const farbverlaufFeld = hole("farbverlauf-an"); // toggle für den Farbverlauf
+const verlaufWahl = hole("farbverlauf-skala"); // Glut, Viridis … oder eigene Farben
+const verlaufAnfang = hole("farbverlauf-anfang");
+const verlaufEnde = hole("farbverlauf-ende");
+const verlaufUmgedreht = hole("farbverlauf-umgedreht"); // hell und dunkel tauschen ihre Farben
 
 const rahmenFeld = hole("rahmen-an");
 const rahmenTitelFeld = hole("rahmen-titel");
@@ -93,12 +100,15 @@ zustand.stufen = Number(stufenFeld.value);
 zustand.grau = grauFeld.checked;
 zustand.vhsAn = vhsFeld.checked;
 zustand.crtAn = crtFeld.checked;
+zustand.farbverlaufAn = farbverlaufFeld.checked;
 zustand.rahmenAn = rahmenFeld.checked;
 zustand.rahmenTitel = rahmenTitelFeld.value;
 
 if (!gl) {
   crtFeld.disabled = true;
   vhsFeld.disabled = true;
+  farbverlaufFeld.disabled = true;
+  farbverlaufFeld.parentElement.title = "Dein Browser unterstützt kein WebGL2.";
   crtFeld.parentElement.title = "Dein Browser unterstützt kein WebGL2.";
   vhsFeld.parentElement.title = "Dein Browser unterstützt kein WebGL2.";
 } // da zum rendern shader benutzt werden muss ich checken ob WebGL überhaupt da ist
@@ -634,6 +644,25 @@ rahmenTitelFeld.addEventListener("input", () => {
   zustand.rahmenTitel = rahmenTitelFeld.value;
   planeAnwenden();
 });
+
+farbverlaufFeld.addEventListener("change", () => {
+  zustand.farbverlaufAn = farbverlaufFeld.checked;
+  zeigeKette();
+  planeAnwenden();
+});
+
+// Verlauf neu füllen: eine Skala oder zwei eigene Farben (Anfang = dunkel, Ende = hell)
+function neuerFarbverlauf() {
+  const eigen = verlaufWahl.value === "eigen";
+  document.querySelectorAll(".nur-eigen").forEach((feld) => {
+    feld.hidden = !eigen;
+  });
+  // umgedreht: dieselben Anker rückwärts (Kopie mit [...], sonst würde die Skala in farben.js selbst umgedreht)
+  setzeFarbverlauf(verlaufUmgedreht.checked ? [...anker].reverse() : anker);
+  planeAnwenden();
+}
+[verlaufWahl, verlaufAnfang, verlaufEnde, verlaufUmgedreht].forEach((feld) => feld.addEventListener("input", neuerFarbverlauf));
+neuerFarbverlauf();
 
 crtFeld.addEventListener("change", () => {
   zustand.crtAn = crtFeld.checked;

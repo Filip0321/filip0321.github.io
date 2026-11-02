@@ -2,7 +2,7 @@ import { ladeBild, rastere, zeigeRaster, zeigeOriginal,
          originalBild, rastertBild, dateiName, schneide,
          setzeOriginal, rasterAlsBild, fotoBild } from "./bild.js";
 import { waehleFarbskala } from "/lib/farben.js";
-import { erzeugeTon, alsAudioBuffer, zeileZuFrequenz, rueckwaerts } from "./ton.js";
+import { erzeugeTon, alsAudioBuffer, zeileZuFrequenz, rueckwaerts } from "/lib/ton.js";
 import { zuWav, ladeHerunter, zeitstempel } from "/lib/export.js";
 import { passeGroesseAn, setzeSkala } from "./kopf.js";
 import { erstelleExportDialog } from "/lib/export-dialog.js";
@@ -11,6 +11,7 @@ import { baueSzene } from "./szene.js";
 import { analysiere } from "./ton-in-bild.js";
 import { erzeugeRauschen } from "./rauschen.js";
 import { richteMausInfoEin, zeigeFrequenz, notenName, zeigeZeit } from "/lib/maus-info.js";
+import { richteWiedergabeEin } from "/lib/wiedergabe.js";
 
 const datei = hole("datei");
 const spaltenRegler = hole("spalten");
@@ -53,6 +54,8 @@ const artKnoepfe = hole("syntheseArt"); // "Töne" und "Rauschen", der gewählte
 const durchgaengeLabel = hole("durchgaengeLabel");
 const durchgaengeRegler = hole("durchgaenge");
 const durchgaengeAnzeige = hole("durchgaengeAnzeige");
+const anschlagLabel = hole("anschlagLabel"); // nur bei Tönen
+const anschlagFeld = hole("anschlag");
 // Felder im Export-Fenster (stehen im HTML in #exportFelder)
 const exportInhalt = hole("exportInhalt");
 const exportAblauf = hole("exportAblauf");
@@ -62,8 +65,9 @@ const exportAnsicht = hole("exportAnsicht");
 const exportBeschriftung = hole("exportBeschriftung");
 const exportHintergrund = hole("exportHintergrund");
 
-let wav = null; 
 let puffer = null;
+// Player mit beiden Richtungen (/lib/wiedergabe.js): das Häkchen „rückwärts“ schaltet um, ohne neu zu rechnen
+const wiedergabe = richteWiedergabeEin({ spieler, rueckwaertsFeld: rueckwaertsCheck });
 let letzterTon = null; // { spalten, zeilen, tief, hoch, dynamik, dauer, art, durchgaenge }
 let syntheseArt = "toene"; // "toene" oder "rauschen"
 let stufen = []; // Runde 0 (Start) bis N: { raster, spalten, zeilen, negativ, ton }
@@ -219,6 +223,7 @@ artKnoepfe.addEventListener("click", (event) => {
   syntheseArt = knopf.dataset.art;
   for (const k of artKnoepfe.querySelectorAll("button")) k.setAttribute("aria-pressed", k === knopf);
   durchgaengeLabel.hidden = syntheseArt !== "rauschen";
+  anschlagLabel.hidden = syntheseArt !== "toene"; // das Rauschen kennt keinen Anschlag
 });
 durchgaengeRegler.addEventListener("input", () => {
   durchgaengeAnzeige.textContent = durchgaengeRegler.value;
@@ -241,6 +246,7 @@ async function erzeuge() {
   const dauer = Number(dauerRegler.value);
   const art = syntheseArt;
   const durchgaenge = Number(durchgaengeRegler.value);
+  const anschlag = anschlagFeld.checked;
   zeigeMeldung("Rechne ... 0 %");
   const ton = await synthese(rastertBild, anzahlSpalten, anzahlZeilen, {
     dauer,
@@ -249,34 +255,16 @@ async function erzeuge() {
     dynamik,
     art,
     durchgaenge,
+    anschlag,
     beiFortschritt: (anteil) => zeigeMeldung(`Rechne ... ${Math.round(anteil * 100)} %`),
   });
   puffer = alsAudioBuffer(ton); // fürs Video (schneidet pro Bild ein Stück heraus) und fürs Zurück
-  letzterTon = { spalten: anzahlSpalten, zeilen: anzahlZeilen, tief, hoch, dynamik, dauer, art, durchgaenge };
-  setzeWiedergabe();
+  letzterTon = { spalten: anzahlSpalten, zeilen: anzahlZeilen, tief, hoch, dynamik, dauer, art, durchgaenge, anschlag };
+  // puffer selbst bleibt immer vorwärts, weil "Ton zurück ins Bild" ihn so braucht
+  // (rückwärts käme ein gespiegeltes Bild heraus); die umgedrehte Fassung baut wiedergabe.js
+  wiedergabe.lade({ puffer });
   setzeSkala(anzahlZeilen, tief, hoch);
 }
-
-// was Player und WAV abspielen: der Ton vorwärts oder umgedreht. puffer selbst bleibt immer vorwärts,
-// weil "Ton zurück ins Bild" ihn so braucht (rückwärts käme ein gespiegeltes Bild heraus)
-function setzeWiedergabe() {
-  wav = zuWav(rueckwaertsCheck.checked ? rueckwaerts(puffer) : puffer);
-  if (spieler.src.startsWith("blob:")) URL.revokeObjectURL(spieler.src);
-  spieler.src = URL.createObjectURL(wav);
-}
-
-// umschalten, während es läuft: an derselben Stelle im Bild weiter (aus Zeit t wird Dauer − t)
-rueckwaertsCheck.addEventListener("change", () => {
-  if (!puffer) return; // noch kein Ton: kopf.js zeichnet trotzdem neu
-  // ganz am Anfang bleibt es am Anfang, sonst stünde der Strich nach dem Umschalten gleich am Ende
-  const stelle = spieler.currentTime === 0 ? 0 : spieler.duration - spieler.currentTime;
-  const lief = !spieler.paused;
-  setzeWiedergabe(); // neuer Ton: der Player fängt bei 0 an und muss erst laden
-  spieler.addEventListener("loadedmetadata", () => {
-    spieler.currentTime = stelle;
-    if (lief) spieler.play();
-  }, { once: true });
-});
 
 erzeugenKnopf.addEventListener("click", async () => {
   if (!rastertBild) {
@@ -315,9 +303,9 @@ function gleichesRaster(a, b) {
 // Ton einer Stufe fürs Video: aus den Runden übernommen oder jetzt erzeugt (die letzte hat noch keinen)
 async function tonFuerStufe(stufe, i) {
   if (stufe.ton) return stufe.ton;
-  const { tief, hoch, dynamik, dauer, art, durchgaenge } = letzterTon; // dieselben Werte wie in den Runden
+  const { tief, hoch, dynamik, dauer, art, durchgaenge, anschlag } = letzterTon; // dieselben Werte wie in den Runden
   const ton = await synthese(stufe.raster, stufe.spalten, stufe.zeilen, {
-    dauer, tief, hoch, dynamik, art, durchgaenge,
+    dauer, tief, hoch, dynamik, art, durchgaenge, anschlag,
     beiFortschritt: (anteil) => zeigeMeldung(`Ton für Stufe ${i} ... ${Math.round(anteil * 100)} %`),
   });
   stufe.ton = alsAudioBuffer(ton);
@@ -386,10 +374,11 @@ rundenKnopf.addEventListener("click", async () => {
 //------------------------------------------------------
 
 wavSpeichern.addEventListener("click", () => {
-  if (!wav) {
+  if (!puffer) {
     zeigeMeldung("Erst einen Ton erzeugen.");
     return;
   }
+  const wav = zuWav(rueckwaertsCheck.checked ? rueckwaerts(puffer) : puffer); // was gerade zu hören ist
   ladeHerunter(wav, `${dateiName}${rueckwaertsCheck.checked ? "-rueckwaerts" : ""}-${zeitstempel()}.wav`);
 });
 
