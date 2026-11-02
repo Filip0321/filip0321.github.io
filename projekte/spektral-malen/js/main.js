@@ -348,7 +348,7 @@ async function tonEinfuegen(datei) {
     const passt = platz * z.leinwand.sekundenProSpalte;
     zeige(sekunden > passt + 0.05 ? `Gekürzt: ${sekunden.toFixed(1)} s Ton, bis zum Ende der Leinwand passen ${passt.toFixed(1)} s.` : "");
   } catch (fehler) {
-    zeige(`Der Ton ließ sich nicht öffnen: ${fehler.message}`);
+    zeige(fehler.message);
   }
 }
 

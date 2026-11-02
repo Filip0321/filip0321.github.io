@@ -1,0 +1,20 @@
+/*
+Chronofotografie: nur was es nirgends sonst auf der Website gibt
+(Schriften, Farben, Regler, Knöpfe, Werkbank kommen aus /css/)
+*/
+
+/* Feld im Seitenverhältnis des Videos (setzt js/main.js), fürs Werkbank-Layout */
+.chronofeld {
+  --verhaeltnis: 16 / 9;
+  position: relative;
+  aspect-ratio: var(--verhaeltnis);
+  border: 1px solid currentColor;
+  background: #000;
+}
+
+.chronofeld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

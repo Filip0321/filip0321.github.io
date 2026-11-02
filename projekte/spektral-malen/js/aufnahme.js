@@ -85,10 +85,47 @@ export async function starteAufnahme(beiStueck) {
   return { stoppe };
 }
 
-// eine Ton-Datei -> Samples auf 48 kHz, alle Kanäle zusammen
+// eine Ton-Datei (auch ein Video mit Ton) -> Samples auf 48 kHz, alle Kanäle zusammen
+//
+// Am iPhone ging das nicht: Safari dekodiert in einem OfflineAudioContext nicht jede Datei (und ältere
+// Versionen kennen dort nur die alte Schreibweise mit Rückruf statt Promise). Darum drei Versuche:
+//   1. OfflineAudioContext mit 48 kHz: rechnet die Rate gleich mit um (Chrome, Firefox)
+//   2. ein normaler AudioContext, mit Rückruf und Promise zugleich (Safari)
+//   3. danach selbst auf 48 kHz umrechnen, falls die Rate noch anders ist
+async function dekodiere(bytes) {
+  try {
+    return await new OfflineAudioContext(1, 1, RATE).decodeAudioData(bytes.slice(0)); // slice: decodeAudioData verbraucht den Speicher
+  } catch {
+    // weiter mit Versuch 2
+  }
+  const Kontext = window.AudioContext || window.webkitAudioContext;
+  const kontext = new Kontext();
+  try {
+    return await new Promise((fertig, fehler) => {
+      const versprechen = kontext.decodeAudioData(bytes.slice(0), fertig, fehler);
+      versprechen?.catch?.(fehler); // neue Browser geben zusätzlich ein Promise zurück
+    });
+  } finally {
+    kontext.close?.();
+  }
+}
+
+async function auf48k(puffer) {
+  if (puffer.sampleRate === RATE) return puffer;
+  const offline = new OfflineAudioContext(puffer.numberOfChannels, Math.ceil(puffer.duration * RATE), RATE);
+  const abspieler = new AudioBufferSourceNode(offline, { buffer: puffer });
+  abspieler.connect(offline.destination);
+  abspieler.start();
+  return offline.startRendering();
+}
+
 export async function ladeTon(datei) {
-  // decodeAudioData in einem 48-kHz-Kontext rechnet die Rate gleich mit um
-  const puffer = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(await datei.arrayBuffer());
+  let puffer;
+  try {
+    puffer = await auf48k(await dekodiere(await datei.arrayBuffer()));
+  } catch {
+    throw new Error(`„${datei.name}“ kann dieser Browser nicht lesen. Am iPhone gehen m4a, mp3, wav und aif sicher.`);
+  }
   const samples = new Float32Array(puffer.length);
   for (let k = 0; k < puffer.numberOfChannels; k++) {
     const kanal = puffer.getChannelData(k);
