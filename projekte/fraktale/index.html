@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fraktale - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="fraktale.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Fraktale</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>shader</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel fraktalfeld" id="stapel">
+        <canvas id="feld"></canvas>
+        <canvas id="effekte" hidden></canvas> <!-- VHS, CRT und die Sammlung: /lib/effekt-schicht.js -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="hinweis" id="info"></p>
+      <details class="abschnitt" open>
+        <summary>Fraktal</summary>
+        <div class="steuerung">
+          <label>Raum
+            <select data-wert="dimension">
+              <option value="2d">2D</option>
+              <option value="3d">3D</option>
+            </select>
+          </label>
+          <label>Farben
+            <select data-wert="skala">
+              <option value="glut" selected>Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="grau">Grau</option>
+              <option value="eigen">eigene Farben</option>
+            </select>
+          </label>
+          <label data-nur="skala=eigen">dunkel <input type="color" data-wert="farbe1" value="#0b0420"></label>
+          <label data-nur="skala=eigen">Mitte <input type="color" data-wert="farbe2" value="#c2185b"></label>
+          <label data-nur="skala=eigen">hell <input type="color" data-wert="farbe3" value="#ffe9a8"></label>
+          <label><input type="checkbox" data-wert="umgedreht"> Farben umdrehen</label>
+          <!-- über 1: mehr Pixel als der Bildschirm (Supersampling, schärfer, langsamer) -->
+          <label>Auflösung
+            <input type="range" data-wert="aufloesung" min="0.25" max="2" step="0.05" value="0.75">
+            <output></output>
+          </label>
+
+          <!-- 2D: ziehen verschiebt, Rad zoomt zum Zeiger -->
+          <label data-nur="dimension=2d">Art
+            <select data-wert="art">
+              <option value="mandelbrot">Mandelbrot</option>
+              <option value="julia">Julia</option>
+              <option value="schiff">Burning Ship</option>
+              <option value="tricorn">Tricorn</option>
+            </select>
+          </label>
+          <label data-nur="dimension=2d art=julia">c (reell)
+            <input type="range" data-wert="juliaRe" min="-1.5" max="1" step="0.001" value="-0.8">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d art=julia">c (imaginär)
+            <input type="range" data-wert="juliaIm" min="-1" max="1" step="0.001" value="0.156">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d">Schritte
+            <input type="range" data-wert="schritte" min="50" max="4000" step="10" value="400">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d">Farbdichte
+            <input type="range" data-wert="farbdichte" min="0.1" max="5" step="0.05" value="1">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d">Farbversatz
+            <input type="range" data-wert="farbversatz" min="0" max="1" step="0.01" value="0">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d">Farbfluss
+            <input type="range" data-wert="farbfluss" min="0" max="5" step="0.1" value="0">
+            <output></output>
+          </label>
+
+          <!-- 3D: W A S D (oder Pfeile vor/zurück) gehen, Pfeile links/rechts drehen, Q E runter und hoch,
+               Umschalt schneller, ziehen schaut; die Lampe folgt der Maus -->
+          <label data-nur="dimension=3d">Welt
+            <select data-wert="welt">
+              <option value="mandelbulb">Mandelbulb</option>
+              <option value="menger">Menger-Schwamm (endlos)</option>
+              <option value="apollonisch">Apollonisch (endlos)</option>
+            </select>
+          </label>
+          <label data-nur="dimension=3d welt=mandelbulb">Potenz
+            <input type="range" data-wert="potenz" min="2" max="12" step="0.1" value="8">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d welt=apollonisch">Form
+            <input type="range" data-wert="form" min="0.9" max="1.5" step="0.01" value="1.2">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d">Tempo
+            <input type="range" data-wert="tempo" min="0.05" max="2" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <button type="button" id="vor" data-nur="dimension=3d">▲ vor</button>
+          <button type="button" id="zurueck" data-nur="dimension=3d">▼ zurück</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" data-nur="dimension=3d">
+        <summary>Licht</summary>
+        <div class="steuerung">
+          <label>Licht
+            <select data-wert="licht">
+              <option value="lampe">nur Taschenlampe</option>
+              <option value="ueberall">überall hell (Sonne und Himmel)</option>
+              <option value="beides">beides</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="schatten" checked> Schatten</label>
+          <label data-nur="licht=lampe,beides">Lampe
+            <select data-wert="lampe">
+              <option value="maus">folgt der Maus</option>
+              <option value="fest">an der Kamera fest</option>
+            </select>
+          </label>
+          <label data-nur="licht=lampe,beides">Zittern (Hand)
+            <input type="range" data-wert="zittern" min="0" max="3" step="0.05" value="1">
+            <output></output>
+          </label>
+          <label data-nur="licht=lampe,beides">Kegel (Grad)
+            <input type="range" data-wert="kegel" min="5" max="60" step="1" value="22">
+            <output></output>
+          </label>
+          <label data-nur="licht=lampe,beides">Helligkeit
+            <input type="range" data-wert="lampeStaerke" min="0" max="20" step="0.1" value="6">
+            <output></output>
+          </label>
+          <label data-nur="licht=lampe,beides">Lichtfarbe <input type="color" data-wert="lampeFarbe" value="#ffe2b0"></label>
+          <label>Steinfarbe <input type="color" data-wert="grundFarbe" value="#9a948a"></label>
+          <label>Restlicht
+            <input type="range" data-wert="umgebung" min="0" max="0.5" step="0.01" value="0.03">
+            <output></output>
+          </label>
+          <label>Nebel
+            <input type="range" data-wert="nebel" min="0" max="2" step="0.01" value="0.4">
+            <output></output>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <label>Breite
+            <select data-wert="exportBreite">
+              <option value="1920">1920</option>
+              <option value="3840" selected>3840</option>
+            </select>
+          </label>
+          <button type="button" id="gross">Groß rechnen (PNG)</button>
+        </div>
+        <p class="hinweis">„Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. „Live aufnehmen“ und durch die Welt gehen: das ist die Kamerafahrt.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

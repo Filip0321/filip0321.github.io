@@ -1,7 +1,7 @@
-// Grafikkarte des Zeitquaders: ein Ringpuffer aus Bildern (/lib/ringpuffer.js) und drei Ansichten.
+// Grafikkarte des Zeitquaders: ein Ringpuffer aus Bildern (/lib/ringpuffer.js) und vier Ansichten.
 // Eine Instanz pro Canvas (Vorschau und Export haben je ihre).
 
-import { KOPIER_SHADER, SCHLITZ_SHADER, VERSATZ_SHADER, ZEIGE_SHADER, QUADER_SHADER, MEDIAN_SHADER } from "./shader.js";
+import { KOPIER_SHADER, SCHLITZ_SHADER, VERSATZ_SHADER, ZEIGE_SHADER, QUADER_SHADER, MEDIAN_SHADER, BELICHTEN_SHADER, UEBERBLENDEN_SHADER } from "./shader.js";
 import { baueRingpuffer, plaetzeFuer, ladeBild2D, neueTextur2D } from "/lib/ringpuffer.js";
 
 const VERTEX_SHADER = /* glsl */ `#version 300 es
@@ -10,7 +10,7 @@ void main() {
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-const MUSTER = { "links-rechts": 0, "rechts-links": 1, "oben-unten": 2, "unten-oben": 3, "mitte-aussen": 4, "aussen-mitte": 5, helligkeit: 6, welle: 7 };
+const MUSTER = { "links-rechts": 0, "rechts-links": 1, "oben-unten": 2, "unten-oben": 3, "mitte-aussen": 4, "aussen-mitte": 5, helligkeit: 6, welle: 7, farbkanaele: 8 };
 const ARTEN = { leuchten: 0, bewegtes: 1, nebel: 2 };
 const SCHNITTE = { aus: 0, x: 1, y: 2, zeit: 3 };
 
@@ -45,6 +45,8 @@ export function richteZeitEin(canvas) {
   const zeigen = baueProgramm(ZEIGE_SHADER);
   const quadern = baueProgramm(QUADER_SHADER);
   const median = baueProgramm(MEDIAN_SHADER);
+  const belichten = baueProgramm(BELICHTEN_SHADER);
+  const ueberblenden = baueProgramm(UEBERBLENDEN_SHADER);
 
   function textur(einheit, ziel, t, ort) {
     gl.activeTexture(gl.TEXTURE0 + einheit);
@@ -75,6 +77,7 @@ export function richteZeitEin(canvas) {
   let ring = null;
   let schlitz = null; // das Schlitzbild
   let referenz = null; // Median des Quaders
+  let aufnahmen = null; // Stepprinting: [alt, neu]
 
   // Puffer für so viele Bilder (höchstens, was der Speicher erlaubt). Rückgabe: so viele passen
   function stelleGroesse(breite, hoehe, wunsch) {
@@ -155,6 +158,40 @@ export function richteZeitEin(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
+  // ---------- Stepprinting ----------
+
+  // eine neue Aufnahme aus den letzten "belichtung" Bildern; die bisherige wird zur alten
+  function belichte(belichtung) {
+    if (!aufnahmen || aufnahmen[0].breite !== groesse.breite || aufnahmen[0].hoehe !== groesse.hoehe) {
+      aufnahmen?.forEach((a) => a.loesche());
+      aufnahmen = [baueZiel(groesse.breite, groesse.hoehe), baueZiel(groesse.breite, groesse.hoehe)];
+    }
+    aufnahmen.reverse(); // die neue von eben ist jetzt die alte
+    gl.bindFramebuffer(gl.FRAMEBUFFER, aufnahmen[1].fb);
+    gl.viewport(0, 0, groesse.breite, groesse.hoehe);
+    belichten.benutze();
+    const o = belichten.ort;
+    textur(0, gl.TEXTURE_2D_ARRAY, ring.textur, o.stapel);
+    gl.uniform1i(o.neueste, ring.ebeneVor(0));
+    gl.uniform1i(o.plaetze, ring.plaetze);
+    gl.uniform1i(o.belichtung, Math.max(1, Math.min(belichtung, ring.gefuellt())));
+    gl.uniform2f(o.aufloesung, groesse.breite, groesse.hoehe);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  // anteil: 0 = die alte Aufnahme, 1 = die neue
+  function zeigeStepp(anteil, breite = groesse.breite, hoehe = groesse.hoehe) {
+    if (!aufnahmen) return;
+    zeichneAufs(breite, hoehe);
+    ueberblenden.benutze();
+    textur(0, gl.TEXTURE_2D, aufnahmen[0].textur, ueberblenden.ort.alt);
+    textur(1, gl.TEXTURE_2D, aufnahmen[1].textur, ueberblenden.ort.neu);
+    gl.uniform1f(ueberblenden.ort.anteil, anteil);
+    gl.uniform2f(ueberblenden.ort.aufloesung, breite, hoehe);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
   // ---------- Quader ----------
 
   // nach dem Füllen: der Median als Hintergrund (für „bewegtes“)
@@ -172,7 +209,7 @@ export function richteZeitEin(canvas) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
-  // e: { art, deckkraft, schwelle, laenge, schnitt, schnittLage }, k: kamera.js
+  // e: { art, deckkraft, schwelle, laenge, schnitt, schnittLage, schritte }, k: kamera.js
   function quader(e, k, breite, hoehe) {
     zeichneAufs(breite, hoehe);
     quadern.benutze();
@@ -188,6 +225,7 @@ export function richteZeitEin(canvas) {
     gl.uniform1f(o.schwelle, e.schwelle);
     gl.uniform1i(o.schnitt, SCHNITTE[e.schnitt] ?? 0);
     gl.uniform1f(o.schnittLage, e.schnittLage);
+    gl.uniform1i(o.schritte, e.schritte ?? 256);
     gl.uniform2f(o.aufloesung, breite, hoehe);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
@@ -201,6 +239,8 @@ export function richteZeitEin(canvas) {
     schreibeSchlitz,
     zeigeSchlitz,
     versatz,
+    belichte,
+    zeigeStepp,
     rechneReferenz,
     quader,
   };

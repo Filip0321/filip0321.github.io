@@ -6,6 +6,8 @@ import { fensterUmsBild } from "./effekte/rahmen.js";
 import { zeichneOverlay } from "./effekte/overlay.js";
 import { gl, rendere, zurueckholen } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
+import { SAMMLUNG } from "../../lib/effekte/sammlung.js";
+import { programmVon } from "../../lib/effekte/hilfen.js";
 
 export const EFFEKTE = {
   pixel: {
@@ -63,6 +65,24 @@ export const EFFEKTE = {
   },
 };
 
+// Die Sammlung (/lib/effekte/sammlung.js): jeder Effekt bekommt einen Eintrag wie die oben.
+// an: das Häkchen, das sammlung-ui.js baut (id "<effekt>-an"); die Werte der Regler liegen in zustand.werte
+for (const def of SAMMLUNG) {
+  EFFEKTE[def.id] = {
+    name: def.name,
+    gpu: !def.cpu,
+    zeitabhaengig: Boolean(def.zeitabhaengig),
+    lebendig: Boolean(def.lebendig), // bewegt sich auch auf einem Foto (main.js rechnet dann laufend neu)
+    an: () => Boolean(document.getElementById(`${def.id}-an`)?.checked) && Boolean(def.cpu || gl),
+    get programm() {
+      return programmVon(def); // erst beim ersten Gebrauch übersetzt
+    },
+    einstellungen: (zeit) => (def.einstellungen ? def.einstellungen(zustand.werte[def.id], zeit) : { ...zustand.werte[def.id], zeit }),
+    anwenden: def.cpu ? (bild, zeit) => def.cpu(bild, zustand.werte[def.id], zeit) : undefined,
+    nachher: def.nachher, // Feedback merkt sich hier sein Bild
+  };
+}
+
 // Die Kette: Reihenfolge der Effekte, später umsortierbar
 // overlay kommt mit kette.push() erst beim laden
 export const kette = [
@@ -85,6 +105,7 @@ function wendeSchrittAn(schritt, bild, zeit) {
     bild.height,
     effekt.einstellungen(zeit),
   );
+  effekt.nachher?.();
   return zurueckholen(bild.width, bild.height);
 }
 
@@ -100,6 +121,19 @@ export function wendeEffekteAn(eingabe, zeit, schritte = aktiveSchritte()) {
     bild = wendeSchrittAn(schritt, bild, zeit);
   }
   return bild;
+}
+
+// Effekte der Sammlung kommen erst in die Kette, wenn ihr Häkchen an ist (sonst wäre die Liste unter
+// „Reihenfolge“ dreißig Einträge lang): vor das Fenster und das CRT, die am Schluss stehen sollen
+export function nimmAuf(typ) {
+  if (kette.some((schritt) => schritt.typ === typ)) return;
+  const stelle = kette.findIndex((schritt) => schritt.typ === "rahmen");
+  kette.splice(stelle < 0 ? kette.length : stelle, 0, { typ });
+}
+
+export function nimmRaus(typ) {
+  const stelle = kette.findIndex((schritt) => schritt.typ === typ);
+  if (stelle >= 0) kette.splice(stelle, 1);
 }
 
 export function tausche(i, j) {

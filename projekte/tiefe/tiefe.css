@@ -1,0 +1,20 @@
+/*
+Tiefe aus Fotos: nur was es nirgends sonst auf der Website gibt
+*/
+
+/* Feld im Seitenverhältnis der Fotos (setzt js/main.js) */
+.tiefenfeld {
+  --verhaeltnis: 3 / 2;
+  position: relative;
+  aspect-ratio: var(--verhaeltnis);
+  border: 1px solid currentColor;
+  background: #111;
+  touch-action: none; /* ziehen dreht die Punktwolke, nicht die Seite */
+}
+
+.tiefenfeld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

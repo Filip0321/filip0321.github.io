@@ -62,6 +62,28 @@ function umgekehrt(m) {
   return z;
 }
 
+// Blickrichtung aus zwei Winkeln: gier dreht um die senkrechte Achse (links/rechts), nick hebt und senkt
+// den Blick. gier = 0, nick = 0 schaut in +z, also die Zeit entlang vom ältesten zum neuesten Bild.
+export function vorn(gier, nick) {
+  return [Math.sin(gier) * Math.cos(nick), Math.sin(nick), Math.cos(gier) * Math.cos(nick)];
+}
+
+// freie Kamera („fliegen“): steht bei pos und schaut in Richtung vorn(gier, nick). Dieselbe Mathematik
+// wie beim Kreisen, nur ist hier das Auge fest und das Ziel wandert mit dem Blick, statt umgekehrt.
+// Steht das Auge im Block, beginnt der Strahl im Shader einfach bei 0 (rein = max(…, 0)).
+export function flug({ pos, gier, nick }, seitenverhaeltnis) {
+  const v = vorn(gier, nick);
+  const ziel = [pos[0] + v[0], pos[1] + v[1], pos[2] + v[2]];
+  const vp = mal(perspektive(1.0, seitenverhaeltnis, 0.01, 100), blick(pos, ziel, [0, 1, 0]));
+  return { auge: new Float32Array(pos), zurueck: umgekehrt(vp) };
+}
+
+// vom Kreisen zum Fliegen wechseln, ohne dass das Bild springt: gleiche Stelle, Blick zur Mitte
+export function kreisZuFlug({ drehung, neigung, abstand }) {
+  const pos = [abstand * Math.cos(neigung) * Math.sin(drehung), abstand * Math.sin(neigung), abstand * Math.cos(neigung) * Math.cos(drehung)];
+  return { pos, gier: drehung + Math.PI, nick: -neigung };
+}
+
 // drehung, neigung in Bogenmaß, abstand in Blockhöhen
 export function kamera({ drehung, neigung, abstand }, seitenverhaeltnis) {
   const auge = [

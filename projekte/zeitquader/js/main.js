@@ -2,7 +2,7 @@
 //   /lib/video-quelle.js  Videodatei Bild für Bild (Mediabunny)
 //   /lib/ringpuffer.js    Ringpuffer als Textur-Array
 //   gpu.js, shader.js     die drei Ansichten
-//   kamera.js             Kamera, die um den Quader kreist
+//   kamera.js             Kamera, die um den Quader kreist oder frei durch ihn fliegt
 //
 // Quelle ist eine Videodatei oder die Kamera (live: Schlitz und Zeitversatz, wie eine Installation).
 
@@ -11,7 +11,7 @@ import { richteExportEin, neueAufnahme, schneideTon, ladeHerunter, zeitstempel, 
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 import { oeffneVideo, ladeTon } from "/lib/video-quelle.js";
 import { richteZeitEin } from "./gpu.js";
-import { kamera } from "./kamera.js";
+import { kamera, flug, kreisZuFlug, vorn } from "./kamera.js";
 
 const bild = hole("bild");
 const stapel = hole("stapel");
@@ -26,7 +26,8 @@ let quelle = null; // Videodatei
 let ton = null;
 let kameraVideo = null; // <video> mit der Kamera, wenn live
 let lauf = null; // { stopp } solange etwas abspielt
-const blickWinkel = { drehung: 0.6, neigung: 0.35, abstand: 3.2 };
+const blickWinkel = { drehung: 0.6, neigung: 0.35, abstand: 3.2 }; // kreisen
+let flugZustand = kreisZuFlug(blickWinkel); // fliegen: { pos, gier, nick }
 
 const { einstellung, felder, setze } = richteReglerEin({
   beiAenderung: () => zeichneNeu(),
@@ -36,6 +37,10 @@ const { einstellung, felder, setze } = richteReglerEin({
       zeigeArt();
     },
     dehnung: () => schlitzGroesse && !lauf && zeigeSchlitzbild(),
+    // zum Fliegen wechseln: dort anfangen, wo die Kreiskamera gerade steht
+    steuerung: () => {
+      if (einstellung.steuerung === "fliegen") flugZustand = kreisZuFlug(blickWinkel);
+    },
   },
 });
 
@@ -74,14 +79,25 @@ let quaderBereit = false;
 let schlitzGroesse = null; // { breite, hoehe } des Schlitzbildes, wenn eins da ist
 let schlitzVerschiebung = 0;
 
-function quaderEinstellung() {
-  return { art: einstellung.art, deckkraft: einstellung.deckkraft, schwelle: einstellung.schwelle, laenge: einstellung.laenge, schnitt: einstellung.schnitt, schnittLage: einstellung.schnittLage };
+// Schritte pro Strahl: mindestens so viele, wie Bilder im Block sind (sonst überspringt der Strahl Bilder),
+// beim Ziehen und Fliegen nur halb so viele, damit es flüssig bleibt
+function schritte(ziel, grob) {
+  const s = Math.min(1024, Math.max(256, Math.round(ziel.gefuellt() * 1.5)));
+  return grob ? Math.max(128, s >> 1) : s;
 }
 
-function zeichneQuader(ziel = gpu, breite = bild.clientWidth * (devicePixelRatio || 1), hoehe = bild.clientHeight * (devicePixelRatio || 1), winkel = blickWinkel) {
+function quaderEinstellung(ziel = gpu, grob = false) {
+  return { art: einstellung.art, deckkraft: einstellung.deckkraft, schwelle: einstellung.schwelle, laenge: einstellung.laenge, schnitt: einstellung.schnitt, schnittLage: einstellung.schnittLage, schritte: schritte(ziel, grob) };
+}
+
+// die Kamera, die gerade gilt: kreisen um die Mitte oder frei fliegen
+const aktuelleKamera = (sv) => (einstellung.steuerung === "fliegen" ? flug(flugZustand, sv) : kamera(blickWinkel, sv));
+
+let bewegt = false; // gerade ziehen oder fliegen: grober zeichnen
+function zeichneQuader(ziel = gpu, breite = bild.clientWidth * (devicePixelRatio || 1), hoehe = bild.clientHeight * (devicePixelRatio || 1), macheKamera = aktuelleKamera, aenderung = {}) {
   const b = Math.round(Math.min(breite, 1600));
   const h = Math.round((b * hoehe) / breite);
-  ziel.quader(quaderEinstellung(), kamera(winkel, b / h), b, h);
+  ziel.quader({ ...quaderEinstellung(ziel, bewegt && ziel === gpu), ...aenderung }, macheKamera(b / h), b, h);
 }
 
 // Schlitzbild in der Anzeige: jedes Bild „dehnung“ Pixel breit (sonst ist ein kurzes Video ein schmaler Streifen)
@@ -102,9 +118,26 @@ function zeichneNeu() {
   if (einstellung.ansicht === "quader" && quaderBereit) zeichneQuader();
   else if (einstellung.ansicht === "schlitz" && schlitzGroesse) zeigeSchlitzbild();
   else if (einstellung.ansicht === "versatz" && gpu.gefuellt()) gpu.versatz(versatzEinstellung());
+  else if (einstellung.ansicht === "stepp" && gpu.gefuellt()) gpu.zeigeStepp(1);
 }
 
 const versatzEinstellung = (zeit = performance.now() / 1000) => ({ muster: einstellung.muster, tiefe: einstellung.tiefe, zeit });
+
+// Zeitversatz und Stepprinting laufen Bild für Bild mit: so viele Bilder muss der Ring halten
+const tiefeFuer = () => (einstellung.ansicht === "stepp" ? einstellung.belichtung + 2 : einstellung.tiefe + 2);
+
+// was nach dem Einlegen von Bild i passiert (i zählt ab dem Start, zeit in Sekunden)
+//   Zeitversatz    jedes Pixel aus einer anderen Zeit
+//   Stepprinting   nur jedes „schritt“-te Bild ist eine neue Aufnahme, gemittelt über die letzten
+//                  „belichtung“ Bilder (langer Verschluss); dazwischen steht sie still, wahlweise mit
+//                  Überblendung von der vorigen Aufnahme
+function naechstesBild(ziel, i, zeit) {
+  if (einstellung.ansicht !== "stepp") return ziel.versatz(versatzEinstellung(zeit));
+  const schritt = einstellung.schritt;
+  if (i % schritt === 0) ziel.belichte(einstellung.belichtung);
+  const ueber = einstellung.ueberblenden;
+  ziel.zeigeStepp(ueber > 0 ? Math.min(1, ((i % schritt) + 1) / (schritt * ueber)) : 1);
+}
 
 // ---------- Quelle ----------
 
@@ -187,7 +220,11 @@ async function rechne() {
 
 // Quader: n Bilder gleichmäßig über den Bereich, Ebene 0 = ältestes
 async function baueQuader(ziel, g, von, bis, meins) {
+  // so viele, wie gewünscht, höchstens so viele, wie Grafikspeicher und Gerät erlauben (/lib/ringpuffer.js)
   const n = Math.max(2, Math.min(einstellung.quaderBilder, ziel.stelleGroesse(g.breite, g.hoehe, einstellung.quaderBilder)));
+  if (ziel === gpu && n < einstellung.quaderBilder) {
+    zeige(`In ${g.breite} × ${g.hoehe} passen auf diesem Gerät höchstens ${n} Bilder, darum ${n}.`);
+  }
   ziel.stelleGroesse(g.breite, g.hoehe, n);
   const zeiten = Array.from({ length: n }, (_, i) => von + (i / (n - 1)) * (bis - von) * 0.999);
   let i = 0;
@@ -233,17 +270,18 @@ async function baueSchlitz(ziel, g, von, bis, meins, beiBild) {
   }
 }
 
-// Zeitversatz: Bild für Bild in Echtzeit abspielen
+// Zeitversatz und Stepprinting: Bild für Bild in Echtzeit abspielen
 async function spieleVersatz(meins) {
   const g = arbeitsGroesse(VORSCHAU);
-  gpu.stelleGroesse(g.breite, g.hoehe, einstellung.tiefe + 2);
+  gpu.stelleGroesse(g.breite, g.hoehe, tiefeFuer());
   feld(g.breite, g.hoehe);
   const { von, bis } = bereich();
   const start = performance.now();
+  let i = 0;
   for await (const b of quelle.bilder(g, von, bis)) {
     if (meins.stopp) return;
     gpu.lege(b.canvas);
-    gpu.versatz(versatzEinstellung());
+    naechstesBild(gpu, i++, performance.now() / 1000);
     const t = b.timestamp - quelle.anfang - von;
     zeigeFortschritt(`${(t + von).toFixed(1).replace(".", ",")} s`);
     await new Promise((weiter) => setTimeout(weiter, Math.max(0, start + t * 1000 - performance.now())));
@@ -262,7 +300,7 @@ function live() {
   // Schlitz live: so viele Spalten wie die Breite, der neueste Schlitz rechts, alles wandert nach links
   const senkrecht = einstellung.richtung === "senkrecht";
   const spalten = senkrecht ? breite : hoehe;
-  gpu.stelleGroesse(breite, hoehe, einstellung.tiefe + 2);
+  gpu.stelleGroesse(breite, hoehe, tiefeFuer());
   if (einstellung.ansicht === "schlitz") {
     const s = gpu.neuerSchlitz(spalten, senkrecht);
     schlitzGroesse = { breite: s.breite, hoehe: s.hoehe };
@@ -271,9 +309,9 @@ function live() {
   let i = 0;
   const schritt = () => {
     if (meins.stopp || kameraVideo !== v) return;
-    if (einstellung.ansicht === "versatz") {
+    if (einstellung.ansicht === "versatz" || einstellung.ansicht === "stepp") {
       gpu.lege(v);
-      gpu.versatz(versatzEinstellung());
+      naechstesBild(gpu, i++, performance.now() / 1000);
     } else if (einstellung.ansicht === "schlitz") {
       gpu.lege(v);
       gpu.schreibeSchlitz(i % spalten, einstellung.lage, senkrecht);
@@ -292,27 +330,91 @@ hole("anhalten").addEventListener("click", () => {
   zeichneNeu();
 });
 
-// ---------- Quader drehen: ziehen dreht, Rad oder Regler zoomt ----------
+// ---------- Quader: kreisen (ziehen dreht, Rad zoomt) oder fliegen (ziehen schaut, WASD bewegt) ----------
 
 let ziehen = null;
 stapel.addEventListener("pointerdown", (event) => {
   if (einstellung.ansicht !== "quader") return;
   stapel.setPointerCapture(event.pointerId);
-  ziehen = { x: event.clientX, y: event.clientY, ...blickWinkel };
+  ziehen = { x: event.clientX, y: event.clientY, ...blickWinkel, gier: flugZustand.gier, nick: flugZustand.nick };
+  bewegt = true;
 });
 stapel.addEventListener("pointermove", (event) => {
   if (!ziehen || !stapel.hasPointerCapture(event.pointerId)) return;
-  blickWinkel.drehung = ziehen.drehung - (event.clientX - ziehen.x) * 0.01;
-  blickWinkel.neigung = Math.max(-1.5, Math.min(1.5, ziehen.neigung + (event.clientY - ziehen.y) * 0.01));
+  const dx = event.clientX - ziehen.x;
+  const dy = event.clientY - ziehen.y;
+  if (einstellung.steuerung === "fliegen") {
+    // wie in einem Spiel: nach rechts ziehen schaut nach rechts, nach oben ziehen schaut nach oben
+    flugZustand.gier = ziehen.gier - dx * 0.005;
+    flugZustand.nick = Math.max(-1.5, Math.min(1.5, ziehen.nick - dy * 0.005));
+  } else {
+    blickWinkel.drehung = ziehen.drehung - dx * 0.01;
+    blickWinkel.neigung = Math.max(-1.5, Math.min(1.5, ziehen.neigung + dy * 0.01));
+  }
   zeichneNeu();
 });
-stapel.addEventListener("pointerup", () => (ziehen = null));
+for (const ende of ["pointerup", "pointercancel"]) {
+  stapel.addEventListener(ende, () => {
+    ziehen = null;
+    bewegt = false;
+    zeichneNeu(); // einmal in voller Qualität
+  });
+}
 stapel.addEventListener("wheel", (event) => {
   if (einstellung.ansicht !== "quader") return;
   event.preventDefault();
-  blickWinkel.abstand = Math.max(1, Math.min(10, blickWinkel.abstand * Math.exp(event.deltaY * 0.001)));
+  if (einstellung.steuerung === "fliegen") fliege(-event.deltaY * 0.002, 0, 0);
+  else blickWinkel.abstand = Math.max(0.3, Math.min(10, blickWinkel.abstand * Math.exp(event.deltaY * 0.001)));
   zeichneNeu();
 }, { passive: false });
+
+// ein Stück fliegen: vor (in Blickrichtung), seitwärts, hoch
+function fliege(vor, seit, hoch) {
+  const v = vorn(flugZustand.gier, flugZustand.nick);
+  const r = [-Math.cos(flugZustand.gier), 0, Math.sin(flugZustand.gier)]; // rechts auf dem Bildschirm, waagerecht
+  const p = flugZustand.pos;
+  for (let k = 0; k < 3; k++) p[k] += v[k] * vor + r[k] * seit + (k === 1 ? hoch : 0);
+}
+
+// Tasten: solange eine gedrückt ist, läuft eine Schleife und bewegt die Kamera (Umschalt = schneller)
+const TASTEN = { w: [1, 0, 0], arrowup: [1, 0, 0], s: [-1, 0, 0], arrowdown: [-1, 0, 0], a: [0, -1, 0], arrowleft: [0, -1, 0], d: [0, 1, 0], arrowright: [0, 1, 0], e: [0, 0, 1], q: [0, 0, -1] };
+const gedrueckt = new Set();
+let flugSchleife = null;
+function flugTakt(zeit, vorher = zeit) {
+  if (!gedrueckt.size) {
+    flugSchleife = null;
+    bewegt = false;
+    zeichneNeu();
+    return;
+  }
+  const dt = Math.min(0.05, (zeit - vorher) / 1000);
+  const tempo = (gedrueckt.has("shift") ? 2.4 : 0.8) * dt; // Blockhöhen pro Sekunde
+  const r = [0, 0, 0];
+  for (const t of gedrueckt) TASTEN[t]?.forEach((x, k) => (r[k] += x));
+  fliege(r[0] * tempo, r[1] * tempo, r[2] * tempo);
+  bewegt = true;
+  zeichneNeu();
+  flugSchleife = requestAnimationFrame((jetzt) => flugTakt(jetzt, zeit));
+}
+function drueckeTaste(taste, an) {
+  if (an) gedrueckt.add(taste);
+  else gedrueckt.delete(taste);
+  if (an && !flugSchleife) flugSchleife = requestAnimationFrame((zeit) => flugTakt(zeit));
+}
+document.addEventListener("keydown", (event) => {
+  if (einstellung.ansicht !== "quader" || einstellung.steuerung !== "fliegen" || event.target.closest("input, select, textarea")) return;
+  const taste = event.key.toLowerCase();
+  if (!(taste in TASTEN) && taste !== "shift") return;
+  event.preventDefault(); // Pfeiltasten sollen nicht die Seite scrollen
+  drueckeTaste(taste, true);
+});
+document.addEventListener("keyup", (event) => drueckeTaste(event.key.toLowerCase(), false));
+// am Handy: Knöpfe gedrückt halten
+for (const [id, taste] of [["flugVor", "w"], ["flugZurueck", "s"]]) {
+  const k = hole(id);
+  k.addEventListener("pointerdown", () => drueckeTaste(taste, true));
+  for (const ende of ["pointerup", "pointerleave", "pointercancel"]) k.addEventListener(ende, () => drueckeTaste(taste, false));
+}
 
 // ---------- Export ----------
 
@@ -361,8 +463,19 @@ hole("videoRendern").addEventListener("click", async () => {
       await baueQuader(ziel, g, von, bis, meins);
       const n = Math.round(einstellung.fahrt * fps);
       const h = Math.round((breiteExport * 9) / 16 / 2) * 2;
+      const L = einstellung.laenge;
       for (let i = 0; i < n && !meins.stopp; i++) {
-        zeichneQuader(ziel, breiteExport, h, { ...blickWinkel, drehung: blickWinkel.drehung + (2 * Math.PI * i) / n });
+        const t = i / Math.max(1, n - 1);
+        if (einstellung.fahrtArt === "schnitt") {
+          // die Kamera steht, wie sie gerade steht; der Schnitt fährt einmal durch den Block
+          zeichneQuader(ziel, breiteExport, h, aktuelleKamera, { schnitt: einstellung.schnitt === "aus" ? "x" : einstellung.schnitt, schnittLage: t });
+        } else if (einstellung.fahrtArt === "durchflug") {
+          // vom ältesten Bild zum neuesten mitten durch den Block, den Blick nach vorn in die Zeit
+          const pos = [0, 0, -L / 2 - 0.8 + t * (L + 1.6)];
+          zeichneQuader(ziel, breiteExport, h, (sv) => flug({ pos, gier: 0, nick: 0 }, sv));
+        } else {
+          zeichneQuader(ziel, breiteExport, h, (sv) => kamera({ ...blickWinkel, drehung: blickWinkel.drehung + (2 * Math.PI * i) / n }, sv));
+        }
         await schreibe();
         if (i % 10 === 0) zeigeFortschritt(`Kamerafahrt … ${Math.round((i / n) * 100)} %`);
       }
@@ -375,11 +488,11 @@ hole("videoRendern").addEventListener("click", async () => {
       });
     } else {
       const g = arbeitsGroesse(breiteExport);
-      ziel.stelleGroesse(g.breite, g.hoehe, einstellung.tiefe + 2);
+      ziel.stelleGroesse(g.breite, g.hoehe, tiefeFuer());
       for await (const b of quelle.bilder(g, von, bis)) {
         if (meins.stopp) break;
         ziel.lege(b.canvas);
-        ziel.versatz(versatzEinstellung(bildNr / fps));
+        naechstesBild(ziel, bildNr, bildNr / fps);
         await schreibe();
         if (bildNr % 10 === 0) zeigeFortschritt(`Video … ${(bildNr / fps).toFixed(1)} s`);
       }

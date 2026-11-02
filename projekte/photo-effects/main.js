@@ -1,7 +1,8 @@
 import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
-import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig } from "./kette.js";
+import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig, nimmAuf, nimmRaus } from "./kette.js";
+import { baueSammlung } from "/lib/effekte/sammlung-ui.js";
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
@@ -405,6 +406,7 @@ function zeichneVideobild() {
     for (const schritt of schritte) {
       const effekt = EFFEKTE[schritt.typ];
       rendere(effekt.programm, canvas, w, h, effekt.einstellungen(zeit));
+      effekt.nachher?.(); // Feedback merkt sich das Bild
       ctx.drawImage(glCanvas, 0, 0);
     }
   } else {
@@ -424,9 +426,12 @@ function zeichneVideobild() {
   }
 }
 
+// bewegt sich etwas auf dem Foto (Overlay-Videos, oder ein lebendiger Effekt wie Korn und Feedback)?
+const lebt = () => kette.some((schritt) => schritt.folge) || aktiveSchritte().some((schritt) => EFFEKTE[schritt.typ].lebendig);
+
 function overlayVideoSchleife() {
   requestAnimationFrame(overlayVideoSchleife);
-  if (!video && quelle && kette.some((schritt) => schritt.folge)) wendeAn();
+  if (!video && quelle && lebt()) wendeAn();
 }
 requestAnimationFrame(overlayVideoSchleife);
 
@@ -438,7 +443,8 @@ function wendeAn() {
 
   if (!quelle) return;
 
-  ergebnis = wendeEffekteAn(quelle, 0);
+  // lebendige Effekte brauchen die laufende Zeit, sonst steht das Korn still
+  ergebnis = wendeEffekteAn(quelle, lebt() ? performance.now() / 1000 : 0);
   zeige();
 }
 
@@ -657,6 +663,7 @@ function neuerFarbverlauf() {
   document.querySelectorAll(".nur-eigen").forEach((feld) => {
     feld.hidden = !eigen;
   });
+  const anker = eigen ? [hexZuRgb(verlaufAnfang.value), hexZuRgb(verlaufEnde.value)] : skalaAnker(verlaufWahl.value);
   // umgedreht: dieselben Anker rückwärts (Kopie mit [...], sonst würde die Skala in farben.js selbst umgedreht)
   setzeFarbverlauf(verlaufUmgedreht.checked ? [...anker].reverse() : anker);
   planeAnwenden();
@@ -773,6 +780,14 @@ overlayFarbeFeld.addEventListener("input", () => {
 });
 
 // auf Änderungen im HTML reagieren
+
+// die Sammlung (Film, Druck, Verzerrung, Licht, Linien): Häkchen nimmt den Effekt in die Kette auf
+baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
+  if (an) nimmAuf(typ);
+  else nimmRaus(typ);
+  zeigeKette();
+  planeAnwenden();
+});
 
 // zustand.werte aus den Reglern übernehmen, bei jeder Änderung neu rechnen
 // (die Regler für VHS und CRT baut /lib/effekt-regler.js, die für das Fenster stehen im HTML)

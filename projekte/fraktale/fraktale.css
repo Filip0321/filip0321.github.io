@@ -1,0 +1,17 @@
+/*
+Fraktale: nur was es nirgends sonst auf der Website gibt
+*/
+.fraktalfeld {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border: 1px solid currentColor;
+  background: #000;
+  touch-action: none; /* ziehen verschiebt das Fraktal, nicht die Seite */
+}
+
+.fraktalfeld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
