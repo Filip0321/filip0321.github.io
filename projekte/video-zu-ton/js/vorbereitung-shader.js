@@ -19,6 +19,17 @@ ${KANTEN_GLSL}
 uniform sampler2D video;
 uniform vec2 aufloesung; // Arbeitsgröße in Pixeln
 uniform float radius;    // Weichzeichnen: Abstand zu den Nachbarn in Pixeln (0 = aus)
+uniform int drehung;     // in Vierteln, im Uhrzeigersinn
+
+// Drehung in Vierteln (im Uhrzeigersinn): Handyvideos liegen oft quer in der Datei, und ob der Browser
+// die Drehung aus den Metadaten beim Hochladen anwendet, ist nicht überall gleich. Darum von Hand.
+// uv im gedrehten Bild -> uv im Video
+vec2 gedreht(vec2 uv, int d) {
+  if (d == 1) return vec2(1.0 - uv.y, uv.x);
+  if (d == 2) return vec2(1.0 - uv.x, 1.0 - uv.y);
+  if (d == 3) return vec2(uv.y, 1.0 - uv.x);
+  return uv;
+}
 
 out vec4 farbe;
 
@@ -33,12 +44,12 @@ void main() {
     for (int y = -1; y <= 1; y++) {
       for (int x = -1; x <= 1; x++) {
         float gewicht = (x == 0 ? 2.0 : 1.0) * (y == 0 ? 2.0 : 1.0);
-        summe += gewicht * texture(video, uv + vec2(x, y) * schritt).rgb;
+        summe += gewicht * texture(video, gedreht(uv + vec2(x, y) * schritt, drehung)).rgb;
       }
     }
     h = helligkeit(summe / 16.0);
   } else {
-    h = helligkeit(texture(video, uv).rgb);
+    h = helligkeit(texture(video, gedreht(uv, drehung)).rgb);
   }
   farbe = vec4(h, 0.0, 0.0, 1.0);
 }`;

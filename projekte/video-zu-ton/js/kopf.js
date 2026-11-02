@@ -33,26 +33,54 @@ export function richteKopfEin(canvas) {
     return grenzen[2 * ganz] + (grenzen[2 * ganz + 1] - grenzen[2 * ganz]) * rest;
   }
 
-  function strichLinie(s, x, aktiv) {
+  // eine dünne Linie längs des Strichs bei x (Rand der Lesebreite)
+  function rand(s, x) {
     const { width: b, height: h } = canvas;
-    const linie = Math.round(dpr);
+    ctx.fillStyle = "rgba(221, 221, 221, 0.5)";
+    if (s.senkrecht) ctx.fillRect(x, 0, Math.max(1, Math.round(dpr / 2)), h);
+    else ctx.fillRect(0, x, b, Math.max(1, Math.round(dpr / 2)));
+  }
+
+  // der Strich selbst: deckend weiß (der aktive), mit dunklem Rand, damit man ihn auf Hellem sieht
+  function strichMitte(s, x, aktiv) {
+    const { width: b, height: h } = canvas;
+    const dicke = Math.round(2 * dpr);
     ctx.fillStyle = RAND;
-    if (s.senkrecht) ctx.fillRect(x - linie, 0, linie * 3, h);
-    else ctx.fillRect(0, x - linie, b, linie * 3);
-    ctx.fillStyle = aktiv ? HELL : "rgba(221, 221, 221, 0.5)";
-    if (s.senkrecht) ctx.fillRect(x, 0, linie, h);
-    else ctx.fillRect(0, x, b, linie);
+    if (s.senkrecht) ctx.fillRect(x - dicke, 0, dicke * 2, h);
+    else ctx.fillRect(0, x - dicke, b, dicke * 2);
+    ctx.fillStyle = aktiv ? "#ffffff" : "rgba(255, 255, 255, 0.6)";
+    if (s.senkrecht) ctx.fillRect(x - dicke / 2, 0, dicke, h);
+    else ctx.fillRect(0, x - dicke / 2, b, dicke);
+  }
+
+  // Wellenform: die gelesene Schwingung als Kurve neben dem Strich (wie auf einem Oszilloskop)
+  function kurve(s, grenzen, werte, anfang, ende) {
+    let mittel = 0;
+    for (const w of werte) mittel += w;
+    mittel /= werte.length;
+    ctx.strokeStyle = BALKEN;
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    werte.forEach((w, z) => {
+      const p = laengs(s, (grenzen[2 * z] + grenzen[2 * z + 1]) / 2);
+      const aus = (w - mittel) * 80 * dpr; // Auslenkung
+      const quer = s.senkrecht ? ende + 50 * dpr + aus : anfang - 50 * dpr - aus; // rechts bzw. über dem Strich
+      if (s.senkrecht) z ? ctx.lineTo(quer, p) : ctx.moveTo(quer, p);
+      else z ? ctx.lineTo(p, quer) : ctx.moveTo(p, quer);
+    });
+    ctx.stroke();
   }
 
   // striche: [{ strich, grenzen, werte }]; aktiv: id; skala: { tief, hoch, zeilen } oder null;
+  // balken: zeigen, was jeder Strich liest (rote Balken, bei der Wellenform die Kurve);
   // rechteck: { links, unten, rechts, oben } (beim Aufziehen des Ausschnitts) oder null
-  function zeichne({ striche, aktiv, skala, rechteck }) {
+  function zeichne({ striche, aktiv, skala, rechteck, balken = true }) {
     const { width: b, height: h } = canvas;
     ctx.clearRect(0, 0, b, h);
 
     // Skala am aktiven Strich: senkrecht links am Rand, waagerecht unten
     const a = striche.find((x) => x.strich.id === aktiv);
-    if (skala && a && !a.strich.welle) {
+    if (skala && a && a.strich.art !== "welle") {
       ctx.font = `${SCHRIFT * dpr}px monospace`;
       ctx.lineWidth = 3 * dpr;
       ctx.lineJoin = "round";
@@ -77,7 +105,8 @@ export function richteKopfEin(canvas) {
       const anfang = s.senkrecht ? (s.mitte - s.breite / 200) * quer : (1 - s.mitte - s.breite / 200) * quer;
       const ende = anfang + (s.breite / 100) * quer;
       // was der Strich gerade liest: pro Zeile ein Balken daneben, so lang wie hell
-      if (werte) {
+      if (werte && balken && s.art === "welle") kurve(s, grenzen, werte, anfang, ende);
+      else if (werte && balken) {
         ctx.fillStyle = BALKEN;
         for (let z = 0; z < werte.length; z++) {
           const laenge = werte[z] * 40 * dpr;
@@ -90,8 +119,12 @@ export function richteKopfEin(canvas) {
           else ctx.fillRect(von, anfang - 2 * dpr - laenge, dicke, laenge);
         }
       }
-      strichLinie(s, anfang, s.id === aktiv);
-      strichLinie(s, Math.max(ende, anfang + dpr), s.id === aktiv);
+      // breiter als ein paar Pixel: die Lesebreite mit zwei feinen Rändern zeigen
+      if (ende - anfang > 6 * dpr) {
+        rand(s, anfang);
+        rand(s, ende);
+      }
+      strichMitte(s, (anfang + ende) / 2, s.id === aktiv);
     }
 
     if (rechteck) {

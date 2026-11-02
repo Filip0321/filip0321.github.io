@@ -1,0 +1,20 @@
+/*
+Zeitquader: nur was es nirgends sonst auf der Website gibt
+*/
+
+/* Feld im Seitenverhältnis dessen, was man sieht (setzt js/main.js) */
+.zeitfeld {
+  --verhaeltnis: 16 / 9;
+  position: relative;
+  aspect-ratio: var(--verhaeltnis);
+  border: 1px solid currentColor;
+  background: #111;
+  touch-action: none; /* ziehen dreht den Quader, nicht die Seite */
+}
+
+.zeitfeld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

@@ -81,6 +81,8 @@
           <label><input type="checkbox" data-wert="takt"> im Takt (aus dem Ton)</label>
           <!-- Takt aus einer Musik statt aus dem Ton des Videos (die kommt dann auch ins Video) -->
           <label class="datei-knopf" data-nur="takt=true">Musik für den Takt <input type="file" id="musik" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg"></label>
+          <!-- Stroboskop: das Bild ändert sich nur beim Schlag, dazwischen steht es still -->
+          <label data-nur="takt=true modus=video"><input type="checkbox" data-wert="stroboskop" checked> nur im Takt zeigen (Stroboskop)</label>
           <label data-nur="takt=true">Empfindlichkeit
             <input type="range" data-wert="empfindlichkeit" min="0" max="1" step="0.05" value="0.5">
             <output></output>
@@ -92,16 +94,64 @@
       </details>
 
       <details class="abschnitt" open>
+        <summary>Hintergrund</summary>
+        <div class="steuerung">
+          <!-- Grundbild: ein echtes Bild aus dem Video (wie Xavi Bou: ein stehendes Hintergrundbild),
+               nur was sich bewegt, kommt darüber. Median: der errechnete leere Hintergrund (glatter).
+               keiner: alle Pixel aller Bilder zählen (Rauschen addiert sich) -->
+          <label>Hintergrund
+            <select data-wert="hintergrund">
+              <option value="grundbild">Grundbild (ein echtes Bild)</option>
+              <option value="median">Median (errechnet)</option>
+              <option value="keiner">keiner (alles zählt)</option>
+            </select>
+          </label>
+          <label data-nur="hintergrund=grundbild">Grundbild bei (s)
+            <input type="range" data-wert="grundbild" min="0" max="10" step="0.1" value="0">
+            <output></output>
+          </label>
+          <!-- woran man erkennt, was sich bewegt: Unterschied zum Median, oder eine Maske aus DaVinci -->
+          <label data-nur="hintergrund=grundbild,median">Bewegtes erkennen
+            <select data-wert="erkennen">
+              <option value="median">Unterschied zum Median</option>
+              <option value="datei">Maskenvideo (weiß = Objekt)</option>
+              <option value="dateiInvertiert">Maskenvideo (schwarz = Objekt)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" data-nur="hintergrund=grundbild,median">Maskenvideo <input type="file" id="maskenDatei" accept="video/*,.mp4,.mov,.webm"></label>
+          <label data-nur="hintergrund=grundbild,median">Schwelle
+            <input type="range" data-wert="schwelle" min="0" max="0.6" step="0.01" value="0.15">
+            <output></output>
+          </label>
+          <label data-nur="hintergrund=grundbild,median">Weich
+            <input type="range" data-wert="weich" min="0" max="0.4" step="0.01" value="0.1">
+            <output></output>
+          </label>
+          <!-- Unterschied über 3 × 3 Nachbarn gemittelt: einzelne Rauschpixel verschwinden (neu rechnen) -->
+          <label data-nur="hintergrund=grundbild,median erkennen=median">Rauschfilter (px)
+            <input type="range" data-wert="radius" min="0" max="6" step="0.5" value="2">
+            <output></output>
+          </label>
+          <label data-nur="hintergrund=grundbild,median erkennen=median">Verstärkung
+            <input type="range" data-wert="verstaerkung" min="1" max="10" step="0.5" value="4">
+            <output></output>
+          </label>
+        </div>
+        <p class="hinweis" id="maskenInfo"></p>
+        <p class="hinweis" data-nur="hintergrund=grundbild,median">Schwelle und Weich wirken sofort, Rauschfilter, Verstärkung und Maskenvideo nach „Rechnen“. „Zeigen: Maske“ zeigt, was als bewegt gilt.</p>
+      </details>
+
+      <details class="abschnitt" open>
         <summary>Mischen</summary>
         <div class="steuerung">
           <!-- wie die Bilder übereinanderliegen; ändert sich sofort, ohne neu zu rechnen -->
           <label>Mischart
             <select data-wert="art">
-              <option value="aufhellen">Aufhellen (Helles bleibt)</option>
+              <option value="ueberdecken">Überdecken (Neues oben)</option>
               <option value="abdunkeln">Abdunkeln (Dunkles bleibt)</option>
+              <option value="aufhellen">Aufhellen (Helles bleibt)</option>
               <option value="mittel">Mittel (Mehrfachbelichtung)</option>
               <option value="differenz">Differenz</option>
-              <option value="ueberdecken">Überdecken (Neues oben)</option>
             </select>
           </label>
           <label>Deckkraft
@@ -113,21 +163,13 @@
             <input type="range" data-wert="verblassen" min="0.5" max="1" step="0.01" value="1">
             <output></output>
           </label>
-          <label><input type="checkbox" data-wert="abzug"> Hintergrund abziehen (nur Bewegtes)</label>
-          <label data-nur="abzug=true">Schwelle
-            <input type="range" data-wert="schwelle" min="0" max="0.5" step="0.01" value="0.08">
-            <output></output>
-          </label>
-          <label data-nur="abzug=true">Weich
-            <input type="range" data-wert="weich" min="0" max="0.3" step="0.01" value="0.05">
-            <output></output>
-          </label>
-          <button type="button" id="hintergrund">Hintergrund berechnen</button>
           <label>Zeigen
             <select data-wert="zeigen">
               <option value="ergebnis">Ergebnis</option>
-              <option value="hintergrund">Hintergrund (Median)</option>
+              <option value="grundbild">Grundbild</option>
+              <option value="median">Median</option>
               <option value="aktuell">aktuelles Bild</option>
+              <option value="maske">Maske (aktuelles Bild)</option>
             </select>
           </label>
         </div>

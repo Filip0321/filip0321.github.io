@@ -62,6 +62,7 @@ export function richteKlangEin() {
       sende({ art: "striche", striche });
     },
     werte: (werte) => sende({ art: "werte", werte }),
+    noten: (noten) => sende({ art: "noten", noten }), // Auslösen: [{ strich, freq, staerke }]
     einstellung(werte) {
       Object.assign(stand.einstellung, werte);
       sende({ art: "einstellung", werte });
@@ -76,7 +77,7 @@ export function richteKlangEin() {
 }
 
 // Den Ton zu einem ganzen Video auf einmal (so schnell es geht, nicht in Echtzeit):
-// zeitplan = { fps, bilder, werte: [pro Strich ein Float32Array bilder · zeilen] }
+// zeitplan = { fps, bilder, werte: [pro Strich ein Float32Array bilder · zeilen], noten: [{ bild, strich, freq, staerke }] }
 // originalTon: AudioBuffer des Videos oder null, originalton: wie laut er dazukommt
 export async function rendere({ striche, einstellung, zeitplan, sekunden, originalTon = null, originalton = 0 }) {
   const offline = new OfflineAudioContext(2, Math.max(1, Math.round(sekunden * RATE)), RATE);

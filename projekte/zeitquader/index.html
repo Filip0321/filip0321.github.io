@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zeitquader - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="zeitquader.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Zeitquader</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel zeitfeld" id="stapel">
+        <canvas id="bild"></canvas> <!-- WebGL, js/gpu.js -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="meldung" id="fortschritt" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Quelle</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Video öffnen <input type="file" id="datei" accept="video/*,.mp4,.mov,.webm,.m4v"></label>
+          <button type="button" id="kamera">Kamera (live)</button>
+          <label>von (s)
+            <input type="range" data-wert="von" min="0" max="10" step="0.1" value="0">
+            <output></output>
+          </label>
+          <label>bis (s)
+            <input type="range" data-wert="bis" min="0" max="10" step="0.1" value="10">
+            <output></output>
+          </label>
+          <button type="button" id="rechnen">Rechnen</button>
+          <button type="button" id="anhalten">Anhalten</button>
+        </div>
+        <p class="hinweis" id="info">Ein Video ist ein Quader aus Raum und Zeit. Jede Ansicht schneidet ihn anders.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ansicht</summary>
+        <div class="steuerung">
+          <label>Ansicht
+            <select data-wert="ansicht">
+              <option value="schlitz">Schlitz (Zielfoto)</option>
+              <option value="versatz">Zeitversatz</option>
+              <option value="quader">Quader</option>
+            </select>
+          </label>
+
+          <!-- Schlitz: aus jedem Bild nur eine Spalte (oder Zeile), nebeneinander: die Zeit wird zur Breite -->
+          <label data-nur="ansicht=schlitz">Richtung
+            <select data-wert="richtung">
+              <option value="senkrecht">senkrechter Schlitz</option>
+              <option value="waagerecht">waagerechter Schlitz</option>
+            </select>
+          </label>
+          <!-- jedes Bild so viele Pixel breit: ein kurzes Video wäre sonst ein schmaler Streifen -->
+          <label data-nur="ansicht=schlitz">Dehnung
+            <input type="range" data-wert="dehnung" min="1" max="12" step="1" value="4">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=schlitz">Lage
+            <input type="range" data-wert="lage" min="0" max="1" step="0.01" value="0.5">
+            <output></output>
+          </label>
+
+          <!-- Zeitversatz: jedes Pixel kommt aus einer anderen Zeit, wie weit zurück, sagt das Muster -->
+          <label data-nur="ansicht=versatz">Muster
+            <select data-wert="muster">
+              <option value="links-rechts">links jetzt, rechts früher</option>
+              <option value="rechts-links">rechts jetzt, links früher</option>
+              <option value="unten-oben">unten jetzt, oben früher</option>
+              <option value="oben-unten">oben jetzt, unten früher</option>
+              <option value="aussen-mitte">außen jetzt, Mitte früher</option>
+              <option value="mitte-aussen">Mitte jetzt, außen früher</option>
+              <option value="helligkeit">hell = früher</option>
+              <option value="welle">Welle</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=versatz">Tiefe (Bilder)
+            <input type="range" data-wert="tiefe" min="2" max="240" step="1" value="60">
+            <output></output>
+          </label>
+
+          <!-- Quader: der ganze Block im Raum, ziehen dreht, Mausrad zoomt -->
+          <label data-nur="ansicht=quader">Bilder im Quader
+            <input type="range" data-wert="quaderBilder" min="16" max="1024" step="8" value="96">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=quader">Auflösung
+            <select data-wert="quaderBreite">
+              <option value="256">256 breit</option>
+              <option value="384" selected>384 breit</option>
+              <option value="512">512 breit</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=quader">Darstellung
+            <select data-wert="art">
+              <option value="bewegtes">nur Bewegtes</option>
+              <option value="leuchten">leuchten (addieren)</option>
+              <option value="nebel">Nebel (alles ein wenig)</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=quader">Deckkraft
+            <input type="range" data-wert="deckkraft" min="0.01" max="1" step="0.01" value="0.3">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=quader art=bewegtes">Schwelle
+            <input type="range" data-wert="schwelle" min="0" max="0.8" step="0.01" value="0.15">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=quader">Länge der Zeitachse
+            <input type="range" data-wert="laenge" min="0.3" max="5" step="0.1" value="2">
+            <output></output>
+          </label>
+          <!-- Schnitt: den Quader an einer Stelle aufschneiden; ein Schnitt quer zur Zeit ist ein Bild,
+               längs zur Zeit ist es ein Schlitz -->
+          <label data-nur="ansicht=quader">Schnitt
+            <select data-wert="schnitt">
+              <option value="aus">aus</option>
+              <option value="x">längs, senkrecht (Schlitz)</option>
+              <option value="y">längs, waagerecht (Schlitz)</option>
+              <option value="zeit">quer (ein Bild)</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=quader">Schnitt bei
+            <input type="range" data-wert="schnittLage" min="0" max="1" step="0.01" value="0.5">
+            <output></output>
+          </label>
+        </div>
+        <p class="hinweis" id="kameraHinweis" hidden>Den Quader gibt es nur mit einer Videodatei: er braucht alle Bilder auf einmal.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <label>Rechengröße
+            <select data-wert="exportBreite">
+              <option value="1280">1280 breit</option>
+              <option value="1920" selected>1920 breit</option>
+              <option value="3840">3840 breit</option>
+            </select>
+          </label>
+          <label data-nur="ansicht=quader">Kamerafahrt (s)
+            <input type="range" data-wert="fahrt" min="2" max="30" step="1" value="8">
+            <output></output>
+          </label>
+          <label data-nur="ansicht=schlitz,versatz"><input type="checkbox" data-wert="mitTon" checked> Ton des Videos</label>
+          <button type="button" id="videoRendern">Video rendern</button>
+          <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
+        </div>
+        <p class="hinweis">Schlitz: das Bild wächst im Video. Zeitversatz: Bild für Bild. Quader: die Kamera fährt einmal herum.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
