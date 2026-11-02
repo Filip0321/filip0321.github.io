@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spektral-Malen - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="spektral-malen.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- werkbank: hochkant untereinander, quer Leinwand links und Bedienung rechts (css/canvas.css) -->
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Spektral-Malen</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel malfeld" id="stapel">
+        <canvas id="bild"></canvas> <!-- die Leinwand (WebGL, js/gpu.js) -->
+        <canvas id="kopf"></canvas> <!-- darüber: Skala und Lesekopf (js/kopf.js) -->
+        <div class="maus-info" id="mausInfo" hidden></div> <!-- Zeit, Frequenz, Fach, Pegel unter dem Zeiger -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p> <!-- Fehler, über allen Abschnitten, damit man sie sieht -->
+
+      <details class="abschnitt" open>
+        <summary>Werkzeug</summary>
+        <div class="steuerung">
+          <label>Werkzeug
+            <select data-wert="werkzeug">
+              <option value="pinsel">Pinsel</option>
+              <option value="radierer">Radierer</option>
+              <option value="auswahl">Auswahl</option>
+              <option value="verschieben">Verschieben</option>
+            </select>
+          </label>
+          <label data-nur="werkzeug=pinsel,radierer">Größe
+            <input type="range" data-wert="groesse" min="1" max="80" step="1" value="12">
+            <output></output>
+          </label>
+          <!-- wie viel ein Tupfer auf einmal ändert; ein Strich besteht aus vielen Tupfern -->
+          <label data-nur="werkzeug=pinsel,radierer">Stärke
+            <input type="range" data-wert="staerke" min="0.01" max="1" step="0.01" value="0.3">
+            <output></output>
+          </label>
+          <label data-nur="werkzeug=pinsel,radierer">Härte
+            <input type="range" data-wert="haerte" min="0" max="1" step="0.01" value="0.5">
+            <output></output>
+          </label>
+          <!-- wie hell der Pinsel malt = wie laut; der Radierer braucht das nicht -->
+          <label data-nur="werkzeug=pinsel">Helligkeit
+            <input type="range" data-wert="helligkeit" min="0" max="1" step="0.01" value="0.85">
+            <output></output>
+          </label>
+          <!-- Auswahl verschieben: mit Kopie bleibt das Original stehen (am Computer auch mit Alt) -->
+          <label data-nur="werkzeug=auswahl"><input type="checkbox" data-wert="kopie"> Kopie</label>
+          <button type="button" id="auswahlStille" data-nur="werkzeug=auswahl">Auswahl still</button>
+          <button type="button" id="rueckgaengig">Rückgängig</button>
+        </div>
+        <p class="hinweis" data-nur="werkzeug=pinsel,radierer">Gemalt wird auf die aktive Ebene: die Malschicht oder die Maske einer Ton-Ebene. Strg + Z nimmt zurück.</p>
+        <p class="hinweis" data-nur="werkzeug=auswahl">Rechteck aufziehen, dann darin ziehen: nach links und rechts ist Zeit, nach oben und unten Tonhöhe. Mit Alt oder „Kopie“ bleibt das Original. Entf macht die Auswahl still, Esc hebt sie auf.</p>
+        <p class="hinweis" data-nur="werkzeug=verschieben">Zieht die aktive Bild- oder Ton-Ebene. Bilder auch nach oben und unten, Ton nur in der Zeit (höher und tiefer geht mit der Auswahl).</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ebenen</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Bild einfügen <input type="file" id="bildDatei" accept="image/*"></label>
+          <label class="datei-knopf">Ton einfügen <input type="file" id="tonDatei" accept="audio/*"></label>
+          <button type="button" id="aufnehmen">Aufnehmen</button>
+        </div>
+        <p class="hinweis">Eingefügt und aufgenommen wird ab dem Lesekopf.</p>
+        <ul class="ebenen-liste" id="ebenenListe"></ul> <!-- js/ebenen-liste.js -->
+        <div id="ebenenEigenschaften"></div> <!-- Einstellungen der aktiven Ebene -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Abspielen</summary>
+        <div class="steuerung">
+          <button type="button" id="abspielen">Abspielen</button>
+          <button type="button" id="anfang">an den Anfang</button>
+          <!-- der Lesekopf bleibt stehen, die Spalte klingt weiter: spektraler Freeze -->
+          <button type="button" id="festhalten" aria-pressed="false">Festhalten</button>
+          <label>Tempo
+            <input type="range" data-wert="tempo" min="0" max="4" step="0.05" value="1">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="rueckwaerts"> rückwärts</label>
+          <label><input type="checkbox" data-wert="schleife" checked> Schleife</label>
+          <label>Dynamik (dB)
+            <input type="range" data-wert="dynamik" min="10" max="90" step="1" value="60">
+            <output></output>
+          </label>
+          <!-- 0 = reine Töne, 1 = die Phase ist jedes Fenster neu (Rauschen) -->
+          <label>Phase zufällig
+            <input type="range" data-wert="zufall" min="0" max="1" step="0.01" value="0">
+            <output></output>
+          </label>
+          <label>Lautstärke
+            <input type="range" data-wert="lautstaerke" min="0" max="1" step="0.01" value="0.3">
+            <output></output>
+          </label>
+        </div>
+        <p class="hinweis">Leertaste spielt und hält an, F hält fest. Den Lesekopf kannst du greifen und ziehen, mit Shift klickst du ihn irgendwohin.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ansicht</summary>
+        <div class="steuerung">
+          <!-- nur die Ansicht: was gemalt ist, bleibt, man sieht nur einen anderen Ausschnitt -->
+          <label>tiefste (Hz) <input type="number" data-wert="tief" min="1" max="24000" step="1" value="40"></label>
+          <label>höchste (Hz) <input type="number" data-wert="hoch" min="2" max="24000" step="1" value="16000"></label>
+          <label>Zeigen
+            <select data-wert="zeigen">
+              <option value="klang">alles, wie es klingt</option>
+              <option value="aktiv">nur die aktive Ebene</option>
+            </select>
+          </label>
+          <label>Farben
+            <select data-wert="farbskala">
+              <option value="glut">Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="grau">Grau</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="skala" checked> Skala</label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Leinwand</summary>
+        <div class="steuerung">
+          <label>Dauer (s)
+            <input type="range" data-wert="dauer" min="1" max="60" step="1" value="10">
+            <output></output>
+          </label>
+          <!-- Fenster der FFT: eine Spalte ist ein Viertel davon lang, ein Fach RATE / Fenster breit.
+               Zeit und Frequenz zusammen fein geht nicht: halbe Spalte = doppelt so breite Fächer -->
+          <label>Spalte und Fach
+            <select data-wert="fenster">
+              <option value="1024">5,3 ms · 47 Hz</option>
+              <option value="2048" selected>10,7 ms · 23 Hz</option>
+              <option value="4096">21,3 ms · 12 Hz</option>
+              <option value="8192">42,7 ms · 5,9 Hz</option>
+            </select>
+          </label>
+          <button type="button" id="neueLeinwand">Neue Leinwand</button>
+          <button type="button" id="speichern">Leinwand speichern</button>
+          <label class="datei-knopf">Leinwand öffnen <input type="file" id="oeffnen" accept=".spektral"></label>
+        </div>
+        <p class="hinweis" id="leinwandInfo"></p>
+        <p class="hinweis">Dauer und Auflösung gelten ab der nächsten neuen Leinwand, die alte wird dabei gelöscht. Speichern legt alles in eine .spektral-Datei, mit Ebenen und Einstellungen.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <button type="button" id="wavSpeichern">WAV speichern</button>
+          <!-- Bild speichern, Live aufnehmen, Video rendern kommen aus /lib/export.js -->
+        </div>
+        <p class="hinweis">WAV und Video laufen einmal von vorn bis hinten durch (rückwärts von hinten nach vorn), mit Tempo, Festhalten und allen Einstellungen.</p>
+      </details>
+    </div>
+
+    <!--
+    <section class="lesetext doku">
+      <h2>Dein Titel</h2>
+      <p>Dein Text.</p>
+    </section>
+    -->
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script> <!-- hole() und das Menü, wie bei allen Projekten -->
+  <script src="/lib/mediabunny.js"></script> <!-- Video kodieren (Export) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
