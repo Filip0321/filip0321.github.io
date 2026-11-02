@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chronofotografie - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="chronofotografie.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- werkbank: hochkant untereinander, quer Bild links und Bedienung rechts (css/canvas.css) -->
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Chronofotografie</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel chronofeld" id="stapel">
+        <canvas id="bild"></canvas> <!-- die Vorschau (WebGL, js/gpu.js) -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p> <!-- Fehler, über allen Abschnitten -->
+      <p class="meldung" id="fortschritt" hidden></p> <!-- beim Rechnen -->
+
+      <details class="abschnitt" open>
+        <summary>Video</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Video öffnen <input type="file" id="datei" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv"></label>
+        </div>
+        <p class="hinweis" id="info">Am besten mit Stativ: alles, was sich nicht bewegt, soll stillstehen.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Aufnahme</summary>
+        <div class="steuerung">
+          <label>Art
+            <select data-wert="modus">
+              <option value="standbild">Standbild</option>
+              <option value="video">Video (gleitendes Fenster)</option>
+            </select>
+          </label>
+          <label>von (s)
+            <input type="range" data-wert="von" min="0" max="10" step="0.1" value="0">
+            <output></output>
+          </label>
+          <label>bis (s)
+            <input type="range" data-wert="bis" min="0" max="10" step="0.1" value="10">
+            <output></output>
+          </label>
+          <!-- jedes wievielte Bild in den Puffer kommt (1 = jedes) -->
+          <label data-nur="takt=false">Abstand (Bilder)
+            <input type="range" data-wert="abstand" min="1" max="60" step="1" value="6">
+            <output></output>
+          </label>
+          <!-- Standbild: so viele Bilder übereinander; Video: so lang ist das Fenster -->
+          <label>Anzahl
+            <input type="range" data-wert="anzahl" min="2" max="256" step="1" value="20">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="takt"> im Takt (aus dem Ton)</label>
+          <!-- Takt aus einer Musik statt aus dem Ton des Videos (die kommt dann auch ins Video) -->
+          <label class="datei-knopf" data-nur="takt=true">Musik für den Takt <input type="file" id="musik" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg"></label>
+          <label data-nur="takt=true">Empfindlichkeit
+            <input type="range" data-wert="empfindlichkeit" min="0" max="1" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <button type="button" id="rechnen">Rechnen</button>
+          <button type="button" id="anhalten" disabled>Anhalten</button>
+        </div>
+        <p class="hinweis" id="taktInfo"></p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Mischen</summary>
+        <div class="steuerung">
+          <!-- wie die Bilder übereinanderliegen; ändert sich sofort, ohne neu zu rechnen -->
+          <label>Mischart
+            <select data-wert="art">
+              <option value="aufhellen">Aufhellen (Helles bleibt)</option>
+              <option value="abdunkeln">Abdunkeln (Dunkles bleibt)</option>
+              <option value="mittel">Mittel (Mehrfachbelichtung)</option>
+              <option value="differenz">Differenz</option>
+              <option value="ueberdecken">Überdecken (Neues oben)</option>
+            </select>
+          </label>
+          <label>Deckkraft
+            <input type="range" data-wert="deckkraft" min="0.05" max="1" step="0.05" value="1">
+            <output></output>
+          </label>
+          <!-- 1 = alle gleich stark (wie Marey), kleiner = ältere Bilder verblassen -->
+          <label>Verblassen
+            <input type="range" data-wert="verblassen" min="0.5" max="1" step="0.01" value="1">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="abzug"> Hintergrund abziehen (nur Bewegtes)</label>
+          <label data-nur="abzug=true">Schwelle
+            <input type="range" data-wert="schwelle" min="0" max="0.5" step="0.01" value="0.08">
+            <output></output>
+          </label>
+          <label data-nur="abzug=true">Weich
+            <input type="range" data-wert="weich" min="0" max="0.3" step="0.01" value="0.05">
+            <output></output>
+          </label>
+          <button type="button" id="hintergrund">Hintergrund berechnen</button>
+          <label>Zeigen
+            <select data-wert="zeigen">
+              <option value="ergebnis">Ergebnis</option>
+              <option value="hintergrund">Hintergrund (Median)</option>
+              <option value="aktuell">aktuelles Bild</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung">
+          <!-- so groß wird gerechnet (höchstens so groß wie das Video); das Export-Fenster skaliert danach -->
+          <label>Rechengröße
+            <select data-wert="exportBreite">
+              <option value="1280">1280 breit</option>
+              <option value="1920" selected>1920 breit</option>
+              <option value="3840">3840 breit (4K)</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="mitTon" checked> Ton des Videos ins Video</label>
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="videoRendern">Video rendern</button>
+        </div>
+        <p class="hinweis">Gerechnet wird noch einmal in voller Größe. Bei 4K passen weniger Bilder in den Grafikspeicher (dann kommt ein Hinweis).</p>
+      </details>
+    </div>
+
+    <!--
+    <section class="lesetext doku">
+      <h2>Dein Titel</h2>
+      <p>Dein Text.</p>
+    </section>
+    -->
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script> <!-- hole() und das Menü, wie bei allen Projekten -->
+  <script src="/lib/mediabunny.js"></script> <!-- Video dekodieren und kodieren -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

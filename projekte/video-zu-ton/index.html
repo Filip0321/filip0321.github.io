@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video zu Ton - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="video-zu-ton.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- werkbank: hochkant untereinander, quer Video links und Bedienung rechts (css/canvas.css) -->
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Video zu Ton</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel videofeld" id="stapel">
+        <canvas id="bild"></canvas> <!-- das Video (WebGL, js/gpu.js) -->
+        <canvas id="kopf"></canvas> <!-- darüber: Striche, Balken, Skala (js/kopf.js) -->
+        <div class="maus-info" id="mausInfo" hidden></div> <!-- Strich, Zeile, Frequenz, Helligkeit unter dem Zeiger -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p> <!-- Fehler, über allen Abschnitten, damit man sie sieht -->
+      <p class="meldung" id="fortschritt" hidden></p> <!-- beim Export -->
+
+      <details class="abschnitt" open>
+        <summary>Quelle</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Video öffnen <input type="file" id="datei" accept="video/*,.mp4,.webm,.mov,.m4v"></label>
+          <button type="button" id="kamera">Kamera</button>
+          <button type="button" id="rueckkamera">Rückkamera</button>
+          <button type="button" id="pause">Pause</button>
+        </div>
+        <p class="hinweis">Leertaste hält an. Ins Bild klicken und ziehen verschiebt den aktiven Strich (oder greift einen anderen).</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Striche</summary>
+        <div class="steuerung">
+          <button type="button" id="vorlageEiner">einer</button>
+          <button type="button" id="vorlageStereo">Stereo</button>
+          <button type="button" id="vorlageAkkord">Akkord</button>
+          <button type="button" id="strichDazu">Strich dazu</button>
+        </div>
+        <ul class="strich-liste" id="strichListe"></ul> <!-- js/striche.js -->
+        <div id="strichEigenschaften"></div> <!-- Einstellungen des aktiven Strichs -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Vorbearbeitung</summary>
+        <div class="steuerung">
+          <!-- was klingt: Helligkeit, nur Umrisse, nur was sich bewegt, oder bewegte Umrisse -->
+          <label>Was klingt
+            <select data-wert="modus">
+              <option value="hell">Helligkeit</option>
+              <option value="kanten">Kanten</option>
+              <option value="bewegung">Bewegung</option>
+              <option value="beides">bewegte Kanten</option>
+            </select>
+          </label>
+          <label>Weich (px)
+            <input type="range" data-wert="weich" min="0" max="4" step="0.5" value="1">
+            <output></output>
+          </label>
+          <label data-nur="modus=kanten,bewegung,beides">Verstärkung
+            <input type="range" data-wert="verstaerkung" min="0.5" max="20" step="0.5" value="4">
+            <output></output>
+          </label>
+          <!-- darunter wird es still: Rauschen und leise Flächen verschwinden -->
+          <label>Schwelle
+            <input type="range" data-wert="schwelle" min="0" max="0.9" step="0.01" value="0.05">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="invertieren"> invertieren</label>
+          <label>Zeigen
+            <select data-wert="zeigen">
+              <option value="video">Video</option>
+              <option value="bearbeitet">was der Strich sieht</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ausschnitt</summary>
+        <div class="steuerung">
+          <label>Werkzeug
+            <select data-wert="werkzeug">
+              <option value="strich">Strich ziehen</option>
+              <option value="ausschnitt">Ausschnitt aufziehen</option>
+            </select>
+          </label>
+          <!-- Lupe: der Ausschnitt füllt das Feld, die Striche reichen von Rand zu Rand (ganzer Tonumfang).
+               Fenster: das Bild bleibt ganz, nur im Ausschnitt klingt es, die Tonhöhe bleibt, wo sie im Bild ist -->
+          <label>Art
+            <select data-wert="ausschnittArt">
+              <option value="lupe">Lupe</option>
+              <option value="fenster">Fenster</option>
+            </select>
+          </label>
+          <button type="button" id="ganzesBild">ganzes Bild</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Tonhöhen</summary>
+        <div class="steuerung">
+          <!-- so viele Stimmen pro Strich: jede Zeile ist ein Ton -->
+          <label>Zeilen
+            <input type="range" data-wert="zeilen" min="8" max="256" step="8" value="96">
+            <output></output>
+          </label>
+          <label>tiefste (Hz) <input type="number" data-wert="tief" min="20" max="20000" step="1" value="60"></label>
+          <label>höchste (Hz) <input type="number" data-wert="hoch" min="40" max="20000" step="1" value="8000"></label>
+          <label>Tonleiter
+            <select data-wert="tonleiter">
+              <option value="aus">aus (stufenlos)</option>
+              <option value="chromatisch">chromatisch</option>
+              <option value="dur">Dur</option>
+              <option value="moll">Moll</option>
+              <option value="pentatonik-dur">Pentatonik Dur</option>
+              <option value="pentatonik-moll">Pentatonik Moll</option>
+              <option value="blues">Blues</option>
+              <option value="ganzton">Ganzton</option>
+            </select>
+          </label>
+          <label data-nur="tonleiter=chromatisch,dur,moll,pentatonik-dur,pentatonik-moll,blues,ganzton">Grundton
+            <select data-wert="leiterGrundton">
+              <option value="0">C</option><option value="1">C♯</option><option value="2">D</option>
+              <option value="3">D♯</option><option value="4">E</option><option value="5">F</option>
+              <option value="6">F♯</option><option value="7">G</option><option value="8">G♯</option>
+              <option value="9">A</option><option value="10">A♯</option><option value="11">H</option>
+            </select>
+          </label>
+          <!-- 0: alle Zeilen gleich hoch; 1: wo im Bild viel los ist, liegen die Zeilen dichter -->
+          <label>Dichte nach Bild
+            <input type="range" data-wert="dichte" min="0" max="1" step="0.05" value="0">
+            <output></output>
+          </label>
+          <label><input type="checkbox" data-wert="skala" checked> Skala</label>
+        </div>
+        <h3 class="gruppe">Einzelne Zeilen</h3>
+        <div class="steuerung">
+          <label>Zeile <input type="number" id="eigeneZeile" min="0" max="255" step="1" value="0"></label>
+          <label>Hz <input type="number" id="eigeneHz" min="20" max="20000" step="1" value="440"></label>
+          <button type="button" id="eigeneSetzen">festlegen</button>
+          <button type="button" id="eigeneLoeschen">alle zurück</button>
+        </div>
+        <p class="hinweis">Festgelegt: <span id="eigeneListe"></span>. Welche Zeile wo liegt, zeigt die Maus-Info.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <button type="button" id="ton" aria-pressed="false">Ton an</button>
+          <label>Dynamik (dB)
+            <input type="range" data-wert="dynamik" min="10" max="90" step="1" value="60">
+            <output></output>
+          </label>
+          <!-- wie schnell eine Stimme der Helligkeit folgt: klein = hart und knisternd, groß = weich und träge -->
+          <label>Glättung (ms)
+            <input type="range" data-wert="glaettung" min="1" max="300" step="1" value="30">
+            <output></output>
+          </label>
+          <!-- der Ton des Videos selbst (0 = nur der erzeugte Ton; die Kamera hat keinen) -->
+          <label>Originalton
+            <input type="range" data-wert="originalton" min="0" max="1" step="0.01" value="0">
+            <output></output>
+          </label>
+          <label>Lautstärke
+            <input type="range" data-wert="lautstaerke" min="0" max="1" step="0.01" value="0.3">
+            <output></output>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Export</summary>
+        <div class="steuerung" id="exportKnoepfe">
+          <button type="button" id="wavSpeichern">WAV speichern</button>
+          <button type="button" id="videoRendern">Video rendern (Bild für Bild)</button>
+          <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
+        </div>
+        <p class="hinweis">WAV und Video rendern gehen mit einer Videodatei: jedes Bild wird einzeln gelesen, nichts fehlt, auch wenn der Rechner langsam ist.</p>
+        <p class="hinweis" id="exportHinweis" hidden>Mit der Kamera: „Live aufnehmen“ nimmt auf, was gerade zu sehen und zu hören ist.</p>
+      </details>
+    </div>
+
+    <!--
+    <section class="lesetext doku">
+      <h2>Dein Titel</h2>
+      <p>Dein Text.</p>
+    </section>
+    -->
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script> <!-- hole() und das Menü, wie bei allen Projekten -->
+  <script src="/lib/mediabunny.js"></script> <!-- Video kodieren (Export) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

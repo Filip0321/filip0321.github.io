@@ -87,7 +87,8 @@
         <summary>Ebenen</summary>
         <div class="steuerung">
           <label class="datei-knopf">Bild einfügen <input type="file" id="bildDatei" accept="image/*"></label>
-          <label class="datei-knopf">Ton einfügen <input type="file" id="tonDatei" accept="audio/*"></label>
+          <!-- ausdrücklich mit Endungen: das iPhone graut sonst manche Ton-Dateien in der Auswahl aus; Videos gehen auch (ihr Ton) -->
+          <label class="datei-knopf">Ton einfügen <input type="file" id="tonDatei" accept="audio/*,video/*,.wav,.mp3,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg,.opus,.mp4,.mov"></label>
           <button type="button" id="aufnehmen">Aufnehmen</button>
         </div>
         <p class="hinweis">Eingefügt und aufgenommen wird ab dem Lesekopf.</p>
