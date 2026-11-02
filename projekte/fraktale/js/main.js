@@ -102,7 +102,7 @@ document.addEventListener("keydown", (event) => {
 });
 document.addEventListener("keyup", (event) => gedrueckt.delete(event.key.toLowerCase()));
 
-bild.addEventListener("pointermove", (event) => {
+stapel.addEventListener("pointermove", (event) => {
   const r = bild.getBoundingClientRect();
   maus = [((event.clientX - r.left) / r.width) * 2 - 1, 1 - ((event.clientY - r.top) / r.height) * 2];
 });
