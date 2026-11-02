@@ -6,7 +6,7 @@
 
 import { neueAufnahme, schneideTon, ladeHerunter, speichereCanvas, zeitstempel, warte, FPS } from "/lib/export.js";
 import { zeichneSkala } from "./kopf.js";
-import { rueckwaerts } from "./ton.js";
+import { rueckwaerts } from "/lib/ton.js";
 
 const KOPF_FARBE = "#dddddd";
 const RAND_FARBE = "rgba(17, 17, 17, 0.8)";

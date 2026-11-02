@@ -110,6 +110,8 @@
             <input type="range" id="durchgaenge" min="0" max="50" step="1" value="10">
             <output id="durchgaengeAnzeige"></output>
           </label>
+          <!-- nur bei Tönen: jede Spalte wird angeschlagen und klingt ab; erst dadurch klingt rückwärts wirklich anders -->
+          <label id="anschlagLabel"><input type="checkbox" id="anschlag"> angeschlagen</label>
           <label><input type="checkbox" id="schleife"> Schleife</label> <!-- Player fängt am Ende wieder vorne an -->
           <label><input type="checkbox" id="rueckwaerts"> rückwärts</label> <!-- Strich von rechts nach links, Ton umgedreht -->
           <button type="button" id="erzeugen">Ton erzeugen</button>

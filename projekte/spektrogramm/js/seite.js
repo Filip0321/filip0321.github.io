@@ -1,6 +1,10 @@
 // Einfach zum Sammeln der verschiedenen Elemente und dem Anpassen der größe
 
+import { richteWiedergabeEin } from "/lib/wiedergabe.js";
+
 export const spieler = hole("spieler");
+// vorwärts und rückwärts hören (Dateien und Aufnahmen); Zeiten über wiedergabe.zeit() sind immer vorwärts
+export const wiedergabe = richteWiedergabeEin({ spieler, rueckwaertsFeld: hole("rueckwaerts") });
 export const canvas = hole("bild");
 export const ctx = canvas.getContext("2d");
 

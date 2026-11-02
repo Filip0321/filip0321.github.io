@@ -36,6 +36,7 @@
         <div class="feld-stapel">
           <canvas id="feld" class="attraktor-feld"></canvas>
           <canvas id="effekte" class="attraktor-feld schicht" hidden></canvas>
+          <canvas id="ton-kopf" class="attraktor-feld schicht" hidden></canvas> <!-- Lesekopf beim Hören (attraktor-ton.js) -->
         </div>
       </div>
 
@@ -52,6 +53,19 @@
           </details>
         </details>
 
+        <!-- id: unter diesem Namen merkt sich script.js, ob der Abschnitt offen ist; main.js rechnet erst beim Öffnen -->
+        <details class="abschnitt" id="parameterkarte">
+          <summary>Parameterkarte</summary>
+          <div class="steuerung">
+            <label>waagerecht <select id="karte-x"></select></label>
+            <label>senkrecht <select id="karte-y"></select></label>
+            <label>Bereich ± <input type="number" id="karte-bereich" min="0.001" max="10" step="any" value="1"></label>
+            <button type="button" id="karte-rechnen">Um die aktuellen Werte neu rechnen</button>
+          </div>
+          <canvas id="karte" class="karte-feld"></canvas>
+          <p class="hinweis" id="karte-wert"></p>
+        </details>
+
         <details class="abschnitt" open>
           <summary>Darstellung</summary>
           <div class="steuerung">
@@ -62,21 +76,138 @@
             <label>Zoom <input type="number" id="zoom" min="1" max="100000" step="1"></label>
             <button type="button" id="massstabBtn">Maßstab</button>
           </div>
-          <p class="hinweis">Ziehen verschiebt · Mausrad zoomt · zwei Finger zoomen und verschieben</p>
-          <!-- data-wert="name": main.js liest den Wert als einstellung.name, ein <output> dahinter zeigt ihn an (/lib/regler.js) -->
+          <!-- data-wert: landet als einstellung.punktgroesse / .weich in main.js und von dort in zeichne() -->
           <div class="steuerung">
-            <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
-            <label><input type="checkbox" data-wert="invertiert"> Invertieren</label>
-            <label><input type="checkbox" data-wert="farbig"> Farbe</label>
-            <label>Rot <input type="range" data-wert="red" min="0" max="1" step="0.01" value="1"><output></output></label>
-            <label>Blau <input type="range" data-wert="blue" min="0" max="1" step="0.01" value="1"><output></output></label>
+            <label>Punktgröße <input type="range" data-wert="punktgroesse" min="1" max="16" step="1" value="1"><output></output></label>
+            <label><input type="checkbox" data-wert="weich"> weiche Punkte</label>
+            <!-- Fläche: wo der Attraktor im Umkreis dicht genug ist, wird er ausgefüllt (wirft dann auch einen vollen Schatten) -->
+            <label><input type="checkbox" data-wert="flaeche"> Fläche füllen</label>
+            <label data-nur="flaeche=true">Umkreis <input type="range" data-wert="fuellRadius" min="1" max="7" step="0.5" value="4"><output></output></label>
+            <label data-nur="flaeche=true">Schwelle <input type="range" data-wert="schwelle" min="0.01" max="0.6" step="0.01" value="0.15"><output></output></label>
+            <label data-nur="flaeche=true">Deckung <input type="range" data-wert="deckung" min="0" max="1" step="0.05" value="1"><output></output></label>
           </div>
+          <p class="hinweis">Ziehen verschiebt · Mausrad zoomt · zwei Finger zoomen und verschieben · mit Shift ziehen bewegt den Schatten</p>
+        </details>
+
+        <details class="abschnitt" open>
+          <summary>Farbe</summary>
+          <div class="steuerung">
+            <label>Hintergrund <input type="color" data-wert="hintergrund" value="#111111"></label>
+            <label>Färben
+              <select data-wert="faerbung">
+                <option value="einfarbig">eine Farbe</option>
+                <option value="reihenfolge">Verlauf nach Reihenfolge</option>
+                <option value="dichte">Verlauf nach Dichte</option>
+                <option value="tempo">Verlauf nach Geschwindigkeit (schnell = Ende)</option>
+              </select>
+            </label>
+            <!-- data-nur: nur sichtbar, wenn die Bedingung stimmt (Komma = oder, Leerzeichen = und) -->
+            <label data-nur="faerbung=einfarbig">Punktfarbe <input type="color" data-wert="punktfarbe" value="#ffffff"></label>
+            <label data-nur="faerbung=reihenfolge,dichte,tempo">Verlauf
+              <select data-wert="verlauf">
+                <option value="eigen">eigene Farben</option>
+                <option value="glut">Glut</option>
+                <option value="viridis">Viridis</option>
+                <option value="eis">Eis</option>
+                <option value="grau">Grau</option>
+              </select>
+            </label>
+            <label data-nur="faerbung=reihenfolge,dichte,tempo verlauf=eigen">Anfang <input type="color" data-wert="anfang" value="#0000ff"></label>
+            <label data-nur="faerbung=reihenfolge,dichte,tempo verlauf=eigen">Ende <input type="color" data-wert="ende" value="#ff0000"></label>
+            <label data-nur="faerbung=reihenfolge,dichte,tempo"><input type="checkbox" data-wert="umgedreht"> Verlauf umdrehen</label>
+            <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
+          </div>
+          <!-- data-setze: ein Klick setzt alle genannten Felder auf einmal -->
+          <div class="presets" role="group" aria-label="Farb-Presets">
+            <button type="button" data-setze='{"hintergrund": "#111111", "faerbung": "einfarbig", "punktfarbe": "#ffffff"}'>Weiß auf Schwarz</button>
+            <button type="button" data-setze='{"hintergrund": "#f2f2f2", "faerbung": "einfarbig", "punktfarbe": "#111111"}'>Schwarz auf Weiß</button>
+          </div>
+        </details>
+
+        <details class="abschnitt">
+          <summary>Schatten</summary>
+          <div class="steuerung">
+            <label><input type="checkbox" data-wert="schatten"> Schatten auf eine Wand dahinter</label>
+            <!-- Licht von: Grad rundherum (0 = von rechts, 90 = von oben); die Wand ist der Hintergrund -->
+            <label data-nur="schatten=true">Licht von <input type="range" data-wert="lichtRichtung" min="0" max="360" step="1" value="135"><output></output></label>
+            <label data-nur="schatten=true"><input type="checkbox" data-wert="lichtDreht"> Licht drehen lassen</label>
+            <!-- Sonne: Strahlen parallel, der Schatten ist so groß wie der Attraktor.
+                 Lampe: Strahlen gehen auseinander, der Schatten wächst, je näher die Lampe und je weiter die Wand -->
+            <label data-nur="schatten=true">Licht
+              <select data-wert="licht">
+                <option value="sonne">Sonne (weit weg)</option>
+                <option value="lampe">Lampe (nah)</option>
+              </select>
+            </label>
+            <label data-nur="schatten=true licht=lampe">Lampe vor dem Attraktor <input type="range" data-wert="lampenAbstand" min="0.05" max="1" step="0.01" value="0.3"><output></output></label>
+            <label data-nur="schatten=true">Abstand zur Wand <input type="range" data-wert="wandAbstand" min="0" max="0.2" step="0.005" value="0.03"><output></output></label>
+            <label data-nur="schatten=true"><input type="checkbox" data-wert="ziehenLicht"> Ziehen im Bild bewegt den Schatten</label>
+            <label data-nur="schatten=true">Weichheit <input type="range" data-wert="schattenWeich" min="0" max="60" step="1" value="8"><output></output></label>
+            <label data-nur="schatten=true">Schatten <input type="range" data-wert="schattenStaerke" min="0" max="1" step="0.05" value="0.6"><output></output></label>
+            <label data-nur="schatten=true">Schattenfarbe <input type="color" data-wert="schattenfarbe" value="#000000"></label>
+          </div>
+          <!-- auf dunklem Grund sieht man einen dunklen Schatten kaum: eine helle Wand zum Ausprobieren -->
+          <div class="presets" role="group" aria-label="Schatten-Presets" data-nur="schatten=true">
+            <button type="button" data-setze='{"hintergrund": "#e9e5dc", "faerbung": "einfarbig", "punktfarbe": "#161616", "schattenfarbe": "#6f685c"}'>Helle Wand</button>
+          </div>
+        </details>
+
+        <details class="abschnitt" id="ton">
+          <summary>Ton</summary>
+          <!-- die Ansicht wie in bild-zu-ton gelesen; gebaut und verbunden in /lib/attraktor-ton.js -->
+          <p class="hinweis">Die Ansicht als Spektrogramm gelesen: von links nach rechts die Zeit, unten tief, oben hoch. Je deutlicher ein Punkt vom Hintergrund absticht, desto lauter. Der Schatten bleibt weg.</p>
+          <div class="steuerung">
+            <label>Dauer (s) <input type="range" id="ton-dauer" min="2" max="60" step="1" value="10"><output></output></label>
+            <label>Zeilen <input type="range" id="ton-zeilen" min="32" max="256" step="16" value="128"><output></output></label>
+            <label>tiefste (Hz) <input type="number" id="ton-tief" min="20" max="20000" step="1" value="50"></label>
+            <label>höchste (Hz) <input type="number" id="ton-hoch" min="20" max="20000" step="1" value="8000"></label>
+            <label>Dynamik (dB) <input type="range" id="ton-dynamik" min="10" max="90" step="1" value="50"><output></output></label>
+            <label><input type="checkbox" id="ton-anschlag"> angeschlagen</label>
+            <button type="button" id="ton-erzeugen">Ton aus der Ansicht</button>
+          </div>
+          <audio id="ton-spieler" controls></audio>
+          <div class="steuerung">
+            <label><input type="checkbox" id="ton-rueckwaerts"> rückwärts</label>
+            <label><input type="checkbox" id="ton-schleife"> Schleife</label>
+            <button type="button" id="ton-speichern">WAV speichern</button>
+            <button type="button" id="ton-video">Video speichern</button> <!-- Ansicht, Lesekopf und Ton -->
+          </div>
+          <p class="hinweis" id="ton-meldung"></p>
+        </details>
+
+        <details class="abschnitt" id="musik">
+          <summary>Musik</summary>
+          <!-- Musik bewegt den Attraktor; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+          <div class="steuerung">
+            <label>Quelle
+              <select id="musik-quelle">
+                <option value="datei">Datei</option>
+                <option value="mikrofon">Mikrofon / Interface</option>
+                <option value="system">Systemton (Chrome, Edge)</option>
+              </select>
+            </label>
+            <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+          </div>
+          <audio id="musik-spieler" controls></audio>
+          <div class="steuerung" id="musik-baender"></div>
+          <!-- das ganze Spektrum verformt den Attraktor: nah an seiner Mitte der Bass, außen die Höhen -->
+          <div class="steuerung">
+            <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+          </div>
+          <p class="hinweis">Jedes Signal kann etwas bewegen, der Balken zeigt, was gerade ankommt. „Live aufnehmen“ nimmt den Ton jeder Quelle mit; „Video rendern“ geht nur mit einer Datei, dann aber mit Musik als Ton.</p>
+          <p class="hinweis" id="musik-meldung"></p>
         </details>
 
         <details class="abschnitt">
           <summary>Effekte</summary>
           <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
           <div data-effekt-regler="crt"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        </details>
+
+        <details class="abschnitt">
+          <summary>Szenen</summary>
+          <!-- alle Einstellungen auf einmal speichern und laden (/lib/szenen.js) -->
+          <div class="steuerung" id="szenen"></div>
         </details>
 
         <details class="abschnitt" open>
@@ -112,6 +243,5 @@
     <script src="/script.js"></script>
     <script src="/lib/mediabunny.js"></script>
     <script type="module" src="main.js"></script>
-    <script type="module" src="/lib/effekt-schicht.js"></script>
   </body>
 </html>

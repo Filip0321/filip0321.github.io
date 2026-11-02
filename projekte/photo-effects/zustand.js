@@ -12,11 +12,12 @@ export const zustand = {
 
   vhsAn: false,
   crtAn: false,
+  farbverlaufAn: false,
   rahmenAn: false,
   rahmenTitel: "Unbenannt",
 
   teilung: 0,
 
-  werte: { crt: {}, vhs: {}, rahmen: {} }, // bringen beide einige eigene Einstellungen mit
+  werte: { crt: {}, vhs: {}, rahmen: {}, farbverlauf: {} }, // bringen beide einige eigene Einstellungen mit
   // und können später auch erweitert werden
 };

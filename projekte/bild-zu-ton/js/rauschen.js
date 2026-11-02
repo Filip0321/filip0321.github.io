@@ -2,7 +2,7 @@
 // (zufällig, dann mit Griffin-Lim so lange angepasst, bis Phase und Betrag zueinander passen)
 import { baueFft } from "/lib/fft.js";
 import { warte } from "/lib/export.js";
-import { RATE, zuAmplitude, normiere } from "./ton.js";
+import { RATE, zuAmplitude, normiere } from "/lib/ton.js";
 
 const N = 4096; // Fenstergröße: 85 ms, Fächer 48000 / 4096 = 11,7 Hz breit
 const SPRUNG = N / 4; // 3/4 Überlappung wie im Spektrogramm: jedes Sample liegt in 4 Fenstern

@@ -10,6 +10,7 @@ const eingangLabel = hole("eingangLabel");
 const mithoeren = hole("mithoeren"); // Häkchen: Mikrofon auch auf die Lautsprecher
 const mithoerenLabel = hole("mithoerenLabel");
 const systemHinweis = hole("systemHinweis"); // Anleitung, nur beim Systemton sichtbar
+const rueckwaertsFeld = hole("rueckwaertsFeld"); // "rückwärts hören", gehört zum Player
 
 let liveQuelle = null; // MediaStreamSource vom Mikrofon
 let liveStrom = null; // der MediaStream selbst, zum Ausschalten
@@ -23,6 +24,7 @@ export function zeigeQuelle() {
   dateiKnopf.hidden = art !== "datei";
   aufnehmenFeld.hidden = art === "datei";
   spieler.hidden = art !== "datei";
+  rueckwaertsFeld.hidden = art !== "datei";
   eingangLabel.hidden = art !== "mikrofon";
   mithoerenLabel.hidden = art !== "mikrofon";
   systemHinweis.hidden = art !== "system";
@@ -136,6 +138,14 @@ function warumKeinTon(geteilt) {
     return "Einzelne Fenster haben keinen Ton. „Gesamter Bildschirm“ wählen und „Systemaudio teilen“ anhaken (so geht auch Ableton).";
   }
   return "Es wurde kein Ton geteilt. Beim Freigeben das Häkchen „Systemaudio teilen“ bzw. „Tab-Audio teilen“ setzen.";
+}
+
+// nach einer Aufnahme: auf Datei umschalten, damit man sie gleich hören kann (vorwärts und rückwärts).
+// Das Mikrofon geht dabei aus; mit der Quellen-Auswahl kommt man zurück.
+export async function wechsleZuDatei() {
+  if (quelle.value === "datei") return;
+  quelle.value = "datei";
+  await setzeQuelle();
 }
 
 function stoppeLive() {

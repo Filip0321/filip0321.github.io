@@ -36,6 +36,7 @@
       <div class="feld-stapel">
         <canvas id="feld" class="attraktor-feld drehbar"></canvas>
         <canvas id="effekte" class="attraktor-feld schicht" hidden></canvas>
+        <canvas id="ton-kopf" class="attraktor-feld schicht" hidden></canvas> <!-- Lesekopf beim Hören (attraktor-ton.js) -->
       </div>
     </div>
 
@@ -52,6 +53,19 @@
         </details>
       </details>
 
+      <!-- id: unter diesem Namen merkt sich script.js, ob der Abschnitt offen ist; gerechnet wird erst beim Öffnen -->
+      <details class="abschnitt" id="parameterkarte">
+        <summary>Parameterkarte</summary>
+        <div class="steuerung">
+          <label>waagerecht <select id="karte-x"></select></label>
+          <label>senkrecht <select id="karte-y"></select></label>
+          <label>Bereich ± <input type="number" id="karte-bereich" min="0.001" max="100" step="any" value="2"></label>
+          <button type="button" id="karte-rechnen">Um die aktuellen Werte neu rechnen</button>
+        </div>
+        <canvas id="karte" class="karte-feld"></canvas>
+        <p class="hinweis" id="karte-wert"></p>
+      </details>
+
       <details class="abschnitt" open>
         <summary>Darstellung</summary>
         <div class="steuerung">
@@ -63,14 +77,165 @@
           <label>Abstand <input type="number" id="abstand" min="0.2" max="20" step="0.1"></label>
           <button type="button" id="zuruecksetzen">Ansicht zurücksetzen</button>
         </div>
-        <!-- data-wert="name": main.js liest den Wert als einstellung.name, ein <output> dahinter zeigt ihn an (/lib/regler.js) -->
+        <!-- data-wert: landet als einstellung.punktgroesse / .weich / .nebel in main.js und von dort in zeichne() -->
         <div class="steuerung">
-          <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
-          <label><input type="checkbox" data-wert="invertiert"> Invertieren</label>
-          <label><input type="checkbox" data-wert="farbig"> Farbe</label>
-          <label>Rot <input type="range" data-wert="red" min="0" max="1" step="0.01" value="1"><output></output></label>
-          <label>Blau <input type="range" data-wert="blue" min="0" max="1" step="0.01" value="1"><output></output></label>
+          <!-- Linie: jeder Punkt mit dem nächsten verbunden, ein durchgehender Faden (immer 1 Pixel breit) -->
+          <label>Zeichnen als
+            <select data-wert="darstellung">
+              <option value="punkte">Punkte</option>
+              <option value="linie">Linie</option>
+            </select>
+          </label>
+          <label data-nur="darstellung=punkte">Punktgröße <input type="range" data-wert="punktgroesse" min="1" max="16" step="1" value="1"><output></output></label>
+          <label data-nur="darstellung=punkte"><input type="checkbox" data-wert="weich"> weiche Punkte</label>
+          <label>Tiefennebel <input type="range" data-wert="nebel" min="0" max="3" step="0.1" value="0"><output></output></label>
+          <!-- Schärfentiefe: nur die Fokus-Ebene ist scharf, davor und dahinter werden Punkte zu Scheibchen -->
+          <label data-nur="darstellung=punkte"><input type="checkbox" data-wert="schaerfe"> Schärfentiefe</label>
+          <label data-nur="darstellung=punkte schaerfe=true">Fokus (vorn bis hinten) <input type="range" data-wert="fokus" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+          <label data-nur="darstellung=punkte schaerfe=true">Unschärfe <input type="range" data-wert="unschaerfe" min="1" max="30" step="1" value="8"><output></output></label>
         </div>
+        <!-- der Attraktor selbst (Grad); Boden, Wände und Licht bleiben stehen. „Drehen lassen“ und die Musik
+             drehen ihn hier, die Kamera bewegt nur die Maus -->
+        <div class="steuerung">
+          <label>Attraktor drehen <input type="range" data-wert="drehung" min="0" max="360" step="1" value="0"><output></output></label>
+          <label>Attraktor kippen <input type="range" data-wert="kippung" min="-90" max="90" step="1" value="0"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Farbe</summary>
+        <div class="steuerung">
+          <label>Hintergrund <input type="color" data-wert="hintergrund" value="#111111"></label>
+          <label>Färben
+            <select data-wert="faerbung">
+              <option value="einfarbig">eine Farbe</option>
+              <option value="reihenfolge">Verlauf nach Reihenfolge</option>
+              <option value="dichte">Verlauf nach Dichte</option>
+              <option value="tiefe">Verlauf nach Tiefe (vorn = Ende)</option>
+              <option value="tempo">Verlauf nach Geschwindigkeit (schnell = Ende)</option>
+            </select>
+          </label>
+          <!-- data-nur: nur sichtbar, wenn die Bedingung stimmt (Komma = oder, Leerzeichen = und) -->
+          <label data-nur="faerbung=einfarbig">Punktfarbe <input type="color" data-wert="punktfarbe" value="#ffffff"></label>
+          <label data-nur="faerbung=reihenfolge,dichte,tiefe,tempo">Verlauf
+            <select data-wert="verlauf">
+              <option value="eigen">eigene Farben</option>
+              <option value="glut">Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="grau">Grau</option>
+            </select>
+          </label>
+          <label data-nur="faerbung=reihenfolge,dichte,tiefe,tempo verlauf=eigen">Anfang <input type="color" data-wert="anfang" value="#0000ff"></label>
+          <label data-nur="faerbung=reihenfolge,dichte,tiefe,tempo verlauf=eigen">Ende <input type="color" data-wert="ende" value="#ff0000"></label>
+          <label data-nur="faerbung=reihenfolge,dichte,tiefe,tempo"><input type="checkbox" data-wert="umgedreht"> Verlauf umdrehen</label>
+          <label>Helligkeit <input type="range" data-wert="staerke" min="1" max="255" step="1" value="15"><output></output></label>
+        </div>
+        <!-- data-setze: ein Klick setzt alle genannten Felder auf einmal -->
+        <div class="presets" role="group" aria-label="Farb-Presets">
+          <button type="button" data-setze='{"hintergrund": "#111111", "faerbung": "einfarbig", "punktfarbe": "#ffffff", "bodenfarbe": "#262626", "wandfarbe": "#202020", "schattenfarbe": "#000000"}'>Weiß auf Schwarz</button>
+          <button type="button" data-setze='{"hintergrund": "#f2f2f2", "faerbung": "einfarbig", "punktfarbe": "#111111", "bodenfarbe": "#dddddd", "wandfarbe": "#e6e6e6", "schattenfarbe": "#777777"}'>Schwarz auf Weiß</button>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Licht und Raum</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="schatten"> Boden und Schatten</label>
+          <!-- Boden: eine weite Fläche, die nach außen ausläuft. Raum: Boden und Wände wie eine Bühne;
+               eine Wand, auf deren Rückseite die Kamera schaut, wird ausgeblendet (wie ein Puppenhaus) -->
+          <label data-nur="schatten=true">Umgebung
+            <select data-wert="umgebung">
+              <option value="boden">nur Boden</option>
+              <option value="raum">Raum</option>
+            </select>
+          </label>
+          <label data-nur="schatten=true">Abstand zum Boden <input type="range" data-wert="bodenAbstand" min="0" max="1.5" step="0.01" value="0.08"><output></output></label>
+          <label data-nur="schatten=true">Boden <input type="color" data-wert="bodenfarbe" value="#262626"></label>
+        </div>
+        <div class="steuerung" data-nur="schatten=true umgebung=raum">
+          <label>Raumgröße <input type="range" data-wert="raumGroesse" min="1.2" max="6" step="0.1" value="2"><output></output></label>
+          <label><input type="checkbox" data-wert="wandHinten" checked> Wand hinten</label>
+          <label><input type="checkbox" data-wert="wandRechts" checked> Wand rechts</label>
+          <label><input type="checkbox" data-wert="wandLinks"> Wand links</label>
+          <label><input type="checkbox" data-wert="wandVorn"> Wand vorn</label>
+          <label><input type="checkbox" data-wert="decke"> Decke</label>
+          <label>Wände <input type="color" data-wert="wandfarbe" value="#202020"></label>
+        </div>
+        <!-- Licht von: Grad rundherum, Lichthöhe: Grad über dem Boden (90 = von genau oben, kurzer Schatten) -->
+        <div class="steuerung" data-nur="schatten=true">
+          <!-- Sonne: Strahlen parallel, der Schatten ist so groß wie der Attraktor.
+               Lampe: Strahlen gehen auseinander, der Schatten wächst, je näher die Lampe; ihr Licht nimmt mit dem Abstand ab -->
+          <label>Licht
+            <select data-wert="licht">
+              <option value="sonne">Sonne (weit weg)</option>
+              <option value="lampe">Lampe (nah)</option>
+              <option value="scheinwerfer">Scheinwerfer (Lichtkegel)</option>
+            </select>
+          </label>
+          <label>Licht von <input type="range" data-wert="lichtRichtung" min="0" max="360" step="1" value="40"><output></output></label>
+          <label>Lichthöhe <input type="range" data-wert="lichtHoehe" min="-30" max="90" step="1" value="55"><output></output></label>
+          <label data-nur="licht=lampe,scheinwerfer">Lampe von der Mitte <input type="range" data-wert="lampenAbstand" min="0.3" max="10" step="0.1" value="3"><output></output></label>
+          <!-- Scheinwerfer: Öffnung = ganzer Winkel des Kegels; weich = wie breit der Rand ausläuft (0 hart, 1 von der Mitte an) -->
+          <label data-nur="licht=scheinwerfer">Kegel <input type="range" data-wert="kegel" min="5" max="150" step="1" value="40"><output></output></label>
+          <label data-nur="licht=scheinwerfer">Rand weich <input type="range" data-wert="kegelWeich" min="0" max="1" step="0.05" value="0.3"><output></output></label>
+          <label data-nur="licht=scheinwerfer">Zeigt
+            <select data-wert="kegelZiel">
+              <option value="attraktor">auf den Attraktor</option>
+              <option value="kabel">nach unten (am Kabel mitschwingend)</option>
+            </select>
+          </label>
+          <!-- am Kabel: hängt an einem Haken über der eingestellten Stelle (im Raum mit Decke an der Decke) und schwingt -->
+          <label data-nur="licht=lampe,scheinwerfer"><input type="checkbox" data-wert="lampeHaengt"> Lampe hängt am Kabel</label>
+          <label data-nur="licht=lampe,scheinwerfer lampeHaengt=true">Kabellänge <input type="range" data-wert="lampenFaden" min="0.2" max="4" step="0.05" value="1.2"><output></output></label>
+          <label><input type="checkbox" data-wert="lichtDreht"> Licht drehen lassen</label>
+          <!-- Umgebungslicht: 1 = jede Fläche gleich hell (ohne Lichtabfall), 0 = nur, wo das Licht hinfällt -->
+          <label>Umgebungslicht <input type="range" data-wert="umgebungslicht" min="0" max="1" step="0.05" value="1"><output></output></label>
+          <label data-nur="licht=lampe,scheinwerfer"><input type="checkbox" data-wert="lampeZeigen"> Lampe zeigen</label>
+          <label data-nur="licht=lampe,scheinwerfer">Lampe auf den Punkten <input type="range" data-wert="punkteBeleuchten" min="0" max="1" step="0.05" value="0"><output></output></label>
+          <label>Schatten <input type="range" data-wert="schattenStaerke" min="0" max="1" step="0.05" value="0.8"><output></output></label>
+          <label>Schattenfarbe <input type="color" data-wert="schattenfarbe" value="#000000"></label>
+        </div>
+        <p class="hinweis" data-nur="schatten=true licht=lampe,scheinwerfer">Mit „Lampe zeigen“ lässt sich die Lampe im Bild greifen und ziehen; am Kabel ziehst du sie zur Seite und lässt sie los. Den Lichtkegel sieht man auf Boden und Wänden erst mit wenig Umgebungslicht.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Strick</summary>
+        <!-- Strick: der Attraktor hängt an einem Faden über seiner Mitte.
+             Mobile: mehrere Attraktoren an Balken im Gleichgewicht (mobile.js). Kurz ins Bild klicken stupst an -->
+        <div class="steuerung">
+          <label>Aufhängen
+            <select data-wert="aufhaengen">
+              <option value="frei">nicht (steht frei)</option>
+              <option value="strick">am Strick</option>
+              <option value="mobile">als Mobile (mehrere)</option>
+            </select>
+          </label>
+          <!-- wo der Faden festgemacht ist; der Schwerpunkt dreht sich dann von selbst darunter (koerper.js) -->
+          <label data-nur="aufhaengen=strick">Faden an
+            <select data-wert="aufhaengPunkt">
+              <option value="oben">dem höchsten Punkt</option>
+              <option value="mitte">dem Punkt nächst der Mitte</option>
+              <option value="schwerpunkt">dem Schwerpunkt</option>
+            </select>
+          </label>
+          <label data-nur="aufhaengen=strick">Fadenlänge <input type="range" data-wert="fadenLaenge" min="0.2" max="3" step="0.05" value="1"><output></output></label>
+          <label data-nur="aufhaengen=mobile">Teile
+            <select data-wert="mobileAnzahl">
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+          <label data-nur="aufhaengen=strick,mobile">Dämpfung <input type="range" data-wert="daempfung" min="0" max="1" step="0.01" value="0.15"><output></output></label>
+          <span class="steuerung-gruppe" data-nur="aufhaengen=strick,mobile">
+            <button type="button" id="stupsen">Anstupsen</button>
+            <button type="button" id="pendel-halt">Anhalten</button>
+          </span>
+        </div>
+        <!-- eine Auswahl pro Teil, gebaut in main.js (baueMobileWahl) -->
+        <div class="steuerung" id="mobile-teile" data-nur="aufhaengen=mobile"></div>
+        <p class="hinweis" data-nur="aufhaengen=strick,mobile">Kurz ins Bild klicken stupst an: links oder rechts von der Mitte dreht es andersherum. Ziehen dreht weiter die Kamera. Im Raum mit Decke hängt der Faden an der Decke.</p>
       </details>
 
       <details class="abschnitt">
@@ -86,14 +251,70 @@
         </div>
       </details>
 
+      <details class="abschnitt" id="ton">
+        <summary>Ton</summary>
+        <!-- die Ansicht wie in bild-zu-ton gelesen; gebaut und verbunden in /lib/attraktor-ton.js -->
+        <p class="hinweis">Die Ansicht als Spektrogramm gelesen: von links nach rechts die Zeit, unten tief, oben hoch. Je deutlicher ein Punkt vom Hintergrund absticht, desto lauter. Boden und Schatten bleiben weg.</p>
+        <div class="steuerung">
+          <label>Dauer (s) <input type="range" id="ton-dauer" min="2" max="60" step="1" value="10"><output></output></label>
+          <label>Zeilen <input type="range" id="ton-zeilen" min="32" max="256" step="16" value="128"><output></output></label>
+          <label>tiefste (Hz) <input type="number" id="ton-tief" min="20" max="20000" step="1" value="50"></label>
+          <label>höchste (Hz) <input type="number" id="ton-hoch" min="20" max="20000" step="1" value="8000"></label>
+          <label>Dynamik (dB) <input type="range" id="ton-dynamik" min="10" max="90" step="1" value="50"><output></output></label>
+          <label><input type="checkbox" id="ton-anschlag"> angeschlagen</label>
+          <button type="button" id="ton-erzeugen">Ton aus der Ansicht</button>
+        </div>
+        <audio id="ton-spieler" controls></audio>
+        <div class="steuerung">
+          <label><input type="checkbox" id="ton-rueckwaerts"> rückwärts</label>
+          <label><input type="checkbox" id="ton-schleife"> Schleife</label>
+          <button type="button" id="ton-speichern">WAV speichern</button>
+          <button type="button" id="ton-video">Video speichern</button> <!-- Ansicht, Lesekopf und Ton -->
+        </div>
+        <p class="hinweis" id="ton-meldung"></p>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt den Attraktor; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- das ganze Spektrum verformt den Attraktor: nah an seiner Mitte der Bass, außen die Höhen -->
+        <div class="steuerung">
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Jedes Signal kann etwas bewegen, der Balken zeigt, was gerade ankommt. „Live aufnehmen“ nimmt den Ton jeder Quelle mit; „Video rendern“ geht nur mit einer Datei, dann aber mit Musik als Ton.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>
+
       <details class="abschnitt">
         <summary>Effekte</summary>
         <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
         <div data-effekt-regler="crt"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
       </details>
 
+      <details class="abschnitt">
+        <summary>Szenen</summary>
+        <!-- alle Einstellungen auf einmal speichern und laden (/lib/szenen.js) -->
+        <div class="steuerung" id="szenen"></div>
+      </details>
+
       <details class="abschnitt" open>
         <summary>Export</summary>
+        <!-- Bewegungsunschärfe nur beim Rendern: so viele Zwischenschritte pro Bild (1 = aus) -->
+        <div class="steuerung">
+          <label>Bewegungsunschärfe <input type="range" data-wert="zwischenschritte" min="1" max="8" step="1" value="1"><output></output></label>
+        </div>
         <div class="steuerung export"></div>
       </details>
     </div>
@@ -129,3 +350,5 @@
 
 </body>
 </html>
+
+

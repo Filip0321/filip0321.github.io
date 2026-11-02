@@ -71,6 +71,10 @@
           </span>
         </div>
         <audio id="spieler" controls></audio>
+        <!-- wie die Datei: nur bei Quelle Datei; nach einer Aufnahme wechselt die Quelle von selbst auf Datei -->
+        <div class="steuerung" id="rueckwaertsFeld">
+          <label><input type="checkbox" id="rueckwaerts"> rückwärts hören</label>
+        </div>
         <p class="hinweis"><output id="aufnahmeInfo"></output></p> <!-- Infos zur geladenen Datei -->
         <!-- nur beim Systemton sichtbar (js/quelle.js, zeigeQuelle) -->
         <p class="hinweis" id="systemHinweis" hidden>

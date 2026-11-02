@@ -1,4 +1,4 @@
-import { canvas, einsaetzeZeigen, ctx, ansicht, spieler, minDb, maxDb, LESEKOPF_FARBE, lesekopfBreite } from "./seite.js";
+import { canvas, einsaetzeZeigen, ctx, ansicht, spieler, wiedergabe, minDb, maxDb, LESEKOPF_FARBE, lesekopfBreite } from "./seite.js";
 import { farbenZahlen } from "/lib/farben.js";
 import { ZEILEN, gesamtDb, gesamtStuecke, zeitZuSpalte, spalteZuZeit } from "./datei.js";
 import { zeichneEinsaetze } from "./einsaetze.js";
@@ -157,7 +157,7 @@ export function xZuZeit(x) {
 }
 
 function zeichneKopf() {
-  const x = Math.round(zeitZuX(spieler.currentTime));
+  const x = Math.round(zeitZuX(wiedergabe.zeit())); // Zeit im Ton vorwärts, auch beim Rückwärtshören
   const breite = lesekopfBreite();
   // ganz am Anfang und Ende liegt die Zeit vor der ersten bzw. hinter der letzten Stückmitte
   const xImBild = Math.min(Math.max(x, 0), canvas.width - breite);
@@ -182,10 +182,12 @@ function stoppeKopf() {
 // beim Abspielen mit Zoom: läuft der Kopf aus dem Ausschnitt, eine Seite weiterblättern
 function folgeKopf() {
   if (sichtBis - sichtVon >= 1) return; // nicht gezoomt
-  const x = zeitZuX(spieler.currentTime);
+  const x = zeitZuX(wiedergabe.zeit());
   if (x > canvas.width || x < 0) {
-    const anteil = zeitZuSpalte(spieler.currentTime) / gesamtStuecke;
-    verschiebeSicht(anteil - sichtVon - 0.05 * (sichtBis - sichtVon)); // Kopf dann kurz hinter dem linken Rand
+    const anteil = zeitZuSpalte(wiedergabe.zeit()) / gesamtStuecke;
+    // Kopf dann kurz hinter dem linken Rand, rückwärts (er läuft nach links) kurz vor dem rechten
+    const rand = wiedergabe.istRueckwaerts() ? 0.95 : 0.05;
+    verschiebeSicht(anteil - sichtVon - rand * (sichtBis - sichtVon));
   }
 }
 
@@ -218,13 +220,13 @@ canvas.addEventListener("pointerdown", (event) => {
     bereichStart = zeitBeiZeiger(event);
   } else {
     bereichStart = null;
-    spieler.currentTime = zeitBeiZeiger(event);
+    wiedergabe.springe(zeitBeiZeiger(event));
   }
 });
 canvas.addEventListener("pointermove", (event) => {
   if (!canvas.hasPointerCapture(event.pointerId)) return;
   if (bereichStart === null) {
-    spieler.currentTime = zeitBeiZeiger(event);
+    wiedergabe.springe(zeitBeiZeiger(event));
   } else {
     setzeBereich(bereichStart, zeitBeiZeiger(event));
     zeigeGesamt();

@@ -1,4 +1,4 @@
-import { spieler, zeigeMeldung } from "./seite.js";
+import { wiedergabe, zeigeMeldung } from "./seite.js";
 import { FENSTER, fft } from "/lib/fft.js";
 import { fachTabelle } from "./frequenzen.js";
 import { warte } from "/lib/export.js";
@@ -9,11 +9,15 @@ export const ANALYSE_RATE = 48000;
 export let aufnahme = null;
 export let dateiName = "aufnahme";
 export let originalTon = null; // kein Mono
+let dateiAdresse = null; // blob:… der Datei, zum Freigeben beim nächsten Laden
 
 export async function ladeDatei(datei) {
   dateiName = datei.name.replace(/\.[^.]+$/, "");
-  if (spieler.src.startsWith("blob:")) URL.revokeObjectURL(spieler.src);
-  spieler.src = URL.createObjectURL(datei);
+  if (dateiAdresse) URL.revokeObjectURL(dateiAdresse);
+  dateiAdresse = URL.createObjectURL(datei);
+  // die Datei selbst spielt vorwärts (gleich, noch während sie gelesen wird);
+  // rückwärts geht erst, wenn unten der Puffer da ist
+  wiedergabe.lade({ url: dateiAdresse });
 
   const bytes = await datei.arrayBuffer();
   const dekoder = new OfflineAudioContext(1, 1, ANALYSE_RATE);
@@ -28,6 +32,7 @@ export async function ladeDatei(datei) {
   }
   aufnahme = zuMono(puffer);
   originalTon = puffer;
+  wiedergabe.setzePuffer(puffer); // jetzt geht auch rückwärts
   if (anzahlStuecke(aufnahme.length) > MAX_STUECKE) {
     gesamtDb = null;
     zeigeAufnahme(puffer);
