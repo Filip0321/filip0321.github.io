@@ -77,6 +77,29 @@
         <div id="strichEigenschaften"></div> <!-- Einstellungen des aktiven Strichs -->
       </details>
 
+      <!-- nur fürs Auge: was man sieht, ändert nichts am Ton. Lesebreite und sichtbare Dicke stellt jeder
+           Strich selbst ein (oben); hier, was überhaupt zu sehen ist, und was davon in den Export kommt -->
+      <details class="abschnitt" open>
+        <summary>Anzeige</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="zeigeStriche" checked> Striche</label>
+          <label>Deckkraft
+            <input type="range" data-wert="deckkraft" min="0.05" max="1" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <!-- Balken (bei der Wellenform die Kurve) neben dem Strich: was er gerade liest -->
+          <label><input type="checkbox" data-wert="balken" checked> Balken: was gelesen wird</label>
+          <label>Farbe <input type="color" data-wert="balkenFarbe" value="#ff4040"></label>
+          <label><input type="checkbox" data-wert="skala" checked> Skala</label>
+        </div>
+        <h3 class="gruppe">Im Export (Bild, Video, Live)</h3>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="exportStriche" checked> Striche</label>
+          <label><input type="checkbox" data-wert="exportBalken" checked> Balken</label>
+          <label><input type="checkbox" data-wert="exportSkala"> Skala</label>
+        </div>
+      </details>
+
       <details class="abschnitt" open>
         <summary>Vorbearbeitung</summary>
         <div class="steuerung">
@@ -168,9 +191,6 @@
             <input type="range" data-wert="dichte" min="0" max="1" step="0.05" value="0">
             <output></output>
           </label>
-          <label><input type="checkbox" data-wert="skala" checked> Skala</label>
-          <!-- rote Balken (bei der Wellenform die Kurve): was jeder Strich gerade liest -->
-          <label><input type="checkbox" data-wert="balken" checked> zeigen, was gelesen wird</label>
         </div>
         <h3 class="gruppe">Vorlagen (angenehme Bereiche)</h3>
         <div class="presets">
@@ -268,3 +288,4 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+

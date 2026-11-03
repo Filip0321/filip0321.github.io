@@ -61,6 +61,11 @@ export function richteFotoExportEin({
     },
   });
 
+  // im Export-Fenster wurde ein Effekt an- oder ausgeschaltet: neu vorausrechnen
+  window.addEventListener("effekte-geaendert", () => {
+    if (rechne) rechne = rechner();
+  });
+
   function bedienung(gesperrt) {
     bildKnopf.disabled = gesperrt;
     videoKnopf.disabled = gesperrt;
@@ -212,3 +217,4 @@ export function richteFotoExportEin({
   aktualisiere();
   return { aktualisiere };
 }
+

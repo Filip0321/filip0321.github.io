@@ -3,6 +3,9 @@ import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
 import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig, nimmAuf, nimmRaus } from "./kette.js";
 import { baueSammlung } from "/lib/effekte/sammlung-ui.js";
+import { meldeEffekte } from "/lib/export-dialog.js";
+import { male, loescheMaske } from "/lib/effekte/mosh-maske.js";
+import { SAMMLUNG } from "/lib/effekte/sammlung.js";
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
@@ -789,6 +792,59 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
   planeAnwenden();
 });
 
+// Datamosh-Imitat: Bereiche malen. Unter den Reglern des Effekts ein Häkchen „Bereich malen“ (dann malt
+// Ziehen auf dem Bild, statt Overlays zu verschieben), Pinselgröße, Radieren und Löschen.
+const malen = { an: false, groesse: 0.05, weg: false, zieht: false };
+{
+  const platz = hole("moshbild-regler");
+  const zeile = document.createElement("div");
+  zeile.className = "steuerung";
+  zeile.innerHTML = `
+    <label><input type="checkbox" class="mal-an"> Bereich malen (auf dem Bild ziehen)</label>
+    <label>Pinsel <input type="range" class="mal-groesse" min="0.01" max="0.2" step="0.005" value="0.05"></label>
+    <label><input type="checkbox" class="mal-weg"> radieren</label>
+    <button type="button" class="mal-loeschen">Bereich löschen</button>`;
+  platz.prepend(zeile);
+  zeile.querySelector(".mal-an").addEventListener("change", (e) => (malen.an = e.target.checked));
+  zeile.querySelector(".mal-groesse").addEventListener("input", (e) => (malen.groesse = Number(e.target.value)));
+  zeile.querySelector(".mal-weg").addEventListener("change", (e) => (malen.weg = e.target.checked));
+  zeile.querySelector(".mal-loeschen").addEventListener("click", () => {
+    loescheMaske();
+    planeAnwenden();
+  });
+}
+function maleBei(e) {
+  const p = punktAusEreignis(e);
+  male(p.x, p.y, malen.groesse, malen.weg);
+  planeAnwenden();
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (!malen.an) return;
+  malen.zieht = true;
+  canvas.setPointerCapture(e.pointerId);
+  maleBei(e);
+  e.stopImmediatePropagation(); // nicht auch noch ein Overlay greifen
+}, { capture: true });
+canvas.addEventListener("pointermove", (e) => malen.an && malen.zieht && maleBei(e));
+for (const ende of ["pointerup", "pointercancel"]) canvas.addEventListener(ende, () => (malen.zieht = false));
+
+// im Export-Fenster dieselben Häkchen (/lib/export-dialog.js); ein Umstellen dort ist wie ein Klick hier
+const HAEKCHEN = [
+  ["dither-an", "Dithering"],
+  ["farbverlauf-an", "Farbverlauf"],
+  ["vhs-an", "VHS"],
+  ...SAMMLUNG.map((def) => [`${def.id}-an`, def.name]),
+  ["rahmen-an", "Fenster ums Bild"],
+  ["crt-an", "CRT"],
+];
+meldeEffekte({
+  liste: () => HAEKCHEN.map(([id, name]) => ({ id, name, an: hole(id).checked })),
+  setze(id, an) {
+    hole(id).checked = an;
+    hole(id).dispatchEvent(new Event("change"));
+  },
+});
+
 // zustand.werte aus den Reglern übernehmen, bei jeder Änderung neu rechnen
 // (die Regler für VHS und CRT baut /lib/effekt-regler.js, die für das Fenster stehen im HTML)
 verbindeRegler(zustand.werte, planeAnwenden);
@@ -814,3 +870,4 @@ abspielKnopf.addEventListener("click", () => {
 // Start
 beiGeladen(planeAnwenden)
 zeigeModus("bild"); // starte mit Bild, wenn Video wird es auch geändert
+

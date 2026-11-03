@@ -75,13 +75,29 @@
               <option value="julia">Julia</option>
               <option value="schiff">Burning Ship</option>
               <option value="tricorn">Tricorn</option>
+              <option value="multibrot">Multibrot (z hoch d)</option>
+              <option value="phoenix">Phoenix</option>
+              <option value="newton">Newton (z³ = 1)</option>
             </select>
           </label>
-          <label data-nur="dimension=2d art=julia">c (reell)
-            <input type="range" data-wert="juliaRe" min="-1.5" max="1" step="0.001" value="-0.8">
+          <label data-nur="dimension=2d art=multibrot">d
+            <input type="range" data-wert="hoch" min="1.5" max="8" step="0.01" value="3">
             <output></output>
           </label>
-          <label data-nur="dimension=2d art=julia">c (imaginär)
+          <label data-nur="dimension=2d art=phoenix">p (Echo)
+            <input type="range" data-wert="phoenixP" min="-1" max="1" step="0.001" value="-0.5">
+            <output></output>
+          </label>
+          <!-- 1: das echte Newton-Verfahren; anders: „relaxiert“, die Becken greifen wilder ineinander -->
+          <label data-nur="dimension=2d art=newton">Schritt
+            <input type="range" data-wert="newtonSchritt" min="0.2" max="2" step="0.01" value="1">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d art=julia,phoenix">c (reell)
+            <input type="range" data-wert="juliaRe" min="-1.5" max="1" step="0.0001" value="-0.8">
+            <output></output>
+          </label>
+          <label data-nur="dimension=2d art=julia,phoenix">c (imaginär)
             <input type="range" data-wert="juliaIm" min="-1" max="1" step="0.001" value="0.156">
             <output></output>
           </label>
@@ -103,24 +119,46 @@
           </label>
 
           <!-- 3D: W A S D (oder Pfeile vor/zurück) gehen, Pfeile links/rechts drehen, Q E runter und hoch,
-               Umschalt schneller, ziehen schaut; die Lampe folgt der Maus -->
+               Umschalt rennen, ziehen schaut; die Lampe folgt der Maus, Klick oder F: an die Kamera -->
           <label data-nur="dimension=3d">Welt
             <select data-wert="welt">
               <option value="mandelbulb">Mandelbulb</option>
               <option value="menger">Menger-Schwamm (endlos)</option>
               <option value="apollonisch">Apollonisch (endlos)</option>
+              <option value="kleinian">Pseudo-Kleinian (endlos, Höhlen)</option>
+              <option value="mandelbox">Mandelbox</option>
+              <option value="sierpinski">Sierpinski (KIFS)</option>
+              <option value="qjulia">Quaternion-Julia</option>
             </select>
+          </label>
+          <!-- Mandelbox: −1,5 Kammern und Türme, 2 bis 3 eine Stadt aus Kästen; nahe −1 und 1 zerfällt sie -->
+          <label data-nur="dimension=3d welt=mandelbox">Skala
+            <input type="range" data-wert="boxSkala" min="-3" max="3" step="0.01" value="-1.5">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d welt=sierpinski">Drehung (Grad)
+            <input type="range" data-wert="drehung" min="0" max="60" step="0.1" value="0">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d welt=qjulia">Form
+            <input type="range" data-wert="qjForm" min="0" max="1" step="0.001" value="0">
+            <output></output>
           </label>
           <label data-nur="dimension=3d welt=mandelbulb">Potenz
             <input type="range" data-wert="potenz" min="2" max="12" step="0.1" value="8">
             <output></output>
           </label>
-          <label data-nur="dimension=3d welt=apollonisch">Form
+          <label data-nur="dimension=3d welt=apollonisch,kleinian">Kugel
             <input type="range" data-wert="form" min="0.9" max="1.5" step="0.01" value="1.2">
             <output></output>
           </label>
           <label data-nur="dimension=3d">Tempo
             <input type="range" data-wert="tempo" min="0.05" max="2" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <!-- Kopf beim Gehen: Schritte und Atmen; beim Rennen (Umschalt) stärker. 0: Kamera ganz ruhig -->
+          <label data-nur="dimension=3d">Wackeln
+            <input type="range" data-wert="wackeln" min="0" max="3" step="0.05" value="1">
             <output></output>
           </label>
           <button type="button" id="vor" data-nur="dimension=3d">▲ vor</button>
@@ -133,18 +171,15 @@
         <div class="steuerung">
           <label>Licht
             <select data-wert="licht">
+              <option value="ueberall" selected>überall hell (Sonne und Himmel)</option>
               <option value="lampe">nur Taschenlampe</option>
-              <option value="ueberall">überall hell (Sonne und Himmel)</option>
               <option value="beides">beides</option>
             </select>
           </label>
           <label><input type="checkbox" data-wert="schatten" checked> Schatten</label>
-          <label data-nur="licht=lampe,beides">Lampe
-            <select data-wert="lampe">
-              <option value="maus">folgt der Maus</option>
-              <option value="fest">an der Kamera fest</option>
-            </select>
-          </label>
+          <!-- Klang: Drohne, Wind und Hall, gesteuert von der Höhle (js/klang.js) -->
+          <label><input type="checkbox" id="klang"> Klang der Höhle</label>
+          <p class="hinweis" data-nur="licht=lampe,beides">Die Lampe folgt der Maus. Klick ins Bild (ohne zu ziehen) oder F: fest an der Kamera, leuchtet geradeaus. Noch einmal: wieder in der Hand.</p>
           <label data-nur="licht=lampe,beides">Zittern (Hand)
             <input type="range" data-wert="zittern" min="0" max="3" step="0.05" value="1">
             <output></output>
@@ -165,6 +200,11 @@
           </label>
           <label>Nebel
             <input type="range" data-wert="nebel" min="0" max="2" step="0.01" value="0.4">
+            <output></output>
+          </label>
+          <!-- Staubkörner in der Luft (leuchten, wo Licht ist) und Schwaden im Nebel -->
+          <label>Staub
+            <input type="range" data-wert="staub" min="0" max="2" step="0.01" value="0.6">
             <output></output>
           </label>
         </div>
@@ -203,3 +243,4 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+

@@ -6,7 +6,6 @@ const SKALA = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 const HELL = "#dddddd";
 const LINIE = "rgba(221, 221, 221, 0.3)";
 const RAND = "rgba(17, 17, 17, 0.8)";
-const BALKEN = "rgba(255, 64, 64, 0.7)";
 const SCHRIFT = 12;
 
 export function richteKopfEin(canvas) {
@@ -41,24 +40,31 @@ export function richteKopfEin(canvas) {
     else ctx.fillRect(0, x, b, Math.max(1, Math.round(dpr / 2)));
   }
 
-  // der Strich selbst: deckend weiß (der aktive), mit dunklem Rand, damit man ihn auf Hellem sieht
-  function strichMitte(s, x, aktiv) {
+  // der Strich selbst: eine Fläche von anfang bis ende (so dick, wie er sich zeigt), deckkraft 0 bis 1,
+  // mit dunklem Rand, damit man ihn auf Hellem sieht. Dünner als 2 Pixel wird er nie, sonst wäre er weg.
+  function strichFlaeche(s, anfang, ende, aktiv, deckkraft) {
     const { width: b, height: h } = canvas;
-    const dicke = Math.round(2 * dpr);
+    const min = 2 * dpr;
+    if (ende - anfang < min) {
+      const m = (anfang + ende) / 2;
+      anfang = m - min / 2;
+      ende = m + min / 2;
+    }
+    const rand = Math.max(1, Math.round(dpr));
+    const flaeche = (von, bis) => (s.senkrecht ? ctx.fillRect(von, 0, bis - von, h) : ctx.fillRect(0, von, b, bis - von));
     ctx.fillStyle = RAND;
-    if (s.senkrecht) ctx.fillRect(x - dicke, 0, dicke * 2, h);
-    else ctx.fillRect(0, x - dicke, b, dicke * 2);
-    ctx.fillStyle = aktiv ? "#ffffff" : "rgba(255, 255, 255, 0.6)";
-    if (s.senkrecht) ctx.fillRect(x - dicke / 2, 0, dicke, h);
-    else ctx.fillRect(0, x - dicke / 2, b, dicke);
+    flaeche(anfang - rand, anfang);
+    flaeche(ende, ende + rand);
+    ctx.fillStyle = `rgba(255, 255, 255, ${aktiv ? deckkraft : deckkraft * 0.6})`;
+    flaeche(anfang, ende);
   }
 
   // Wellenform: die gelesene Schwingung als Kurve neben dem Strich (wie auf einem Oszilloskop)
-  function kurve(s, grenzen, werte, anfang, ende) {
+  function kurve(s, grenzen, werte, anfang, ende, farbe) {
     let mittel = 0;
     for (const w of werte) mittel += w;
     mittel /= werte.length;
-    ctx.strokeStyle = BALKEN;
+    ctx.strokeStyle = farbe;
     ctx.lineWidth = 1.5 * dpr;
     ctx.beginPath();
     werte.forEach((w, z) => {
@@ -72,9 +78,10 @@ export function richteKopfEin(canvas) {
   }
 
   // striche: [{ strich, grenzen, werte }]; aktiv: id; skala: { tief, hoch, zeilen } oder null;
-  // balken: zeigen, was jeder Strich liest (rote Balken, bei der Wellenform die Kurve);
+  // zeigeStriche: die Striche selbst; deckkraft: wie deckend ihre Fläche ist;
+  // balken: zeigen, was jeder Strich liest (Balken, bei der Wellenform die Kurve), in balkenFarbe;
   // rechteck: { links, unten, rechts, oben } (beim Aufziehen des Ausschnitts) oder null
-  function zeichne({ striche, aktiv, skala, rechteck, balken = true }) {
+  function zeichne({ striche, aktiv, skala, rechteck, balken = true, zeigeStriche = true, deckkraft = 0.5, balkenFarbe = "#ff4040" }) {
     const { width: b, height: h } = canvas;
     ctx.clearRect(0, 0, b, h);
 
@@ -102,12 +109,20 @@ export function richteKopfEin(canvas) {
 
     for (const { strich: s, grenzen, werte } of striche) {
       const quer = s.senkrecht ? b : h;
-      const anfang = s.senkrecht ? (s.mitte - s.breite / 200) * quer : (1 - s.mitte - s.breite / 200) * quer;
-      const ende = anfang + (s.breite / 100) * quer;
-      // was der Strich gerade liest: pro Zeile ein Balken daneben, so lang wie hell
-      if (werte && balken && s.art === "welle") kurve(s, grenzen, werte, anfang, ende);
+      // gelesen wird von anfang bis ende (Lesebreite), gezeigt von sichtAnfang bis sichtEnde (Dicke)
+      const lage = (prozent) => {
+        const von = s.senkrecht ? (s.mitte - prozent / 200) * quer : (1 - s.mitte - prozent / 200) * quer;
+        return [von, von + (prozent / 100) * quer];
+      };
+      const [anfang, ende] = lage(s.breite);
+      const [sichtAnfang, sichtEnde] = s.dickeWieBreite === false ? lage(s.dicke) : [anfang, ende];
+      // was der Strich gerade liest: pro Zeile ein Balken daneben (außen an der Fläche), so lang wie hell
+      const aussen0 = Math.min(anfang, sichtAnfang);
+      const aussen1 = Math.max(ende, sichtEnde);
+      ctx.globalAlpha = 0.75;
+      if (werte && balken && s.art === "welle") kurve(s, grenzen, werte, aussen0, aussen1, balkenFarbe);
       else if (werte && balken) {
-        ctx.fillStyle = BALKEN;
+        ctx.fillStyle = balkenFarbe;
         for (let z = 0; z < werte.length; z++) {
           const laenge = werte[z] * 40 * dpr;
           if (laenge < 0.5) continue;
@@ -115,16 +130,18 @@ export function richteKopfEin(canvas) {
           const p1 = laengs(s, grenzen[2 * z + 1]);
           const von = Math.min(p0, p1);
           const dicke = Math.max(1, Math.abs(p1 - p0) - 1);
-          if (s.senkrecht) ctx.fillRect(ende + 2 * dpr, von, laenge, dicke);
-          else ctx.fillRect(von, anfang - 2 * dpr - laenge, dicke, laenge);
+          if (s.senkrecht) ctx.fillRect(aussen1 + 2 * dpr, von, laenge, dicke);
+          else ctx.fillRect(von, aussen0 - 2 * dpr - laenge, dicke, laenge);
         }
       }
-      // breiter als ein paar Pixel: die Lesebreite mit zwei feinen Rändern zeigen
-      if (ende - anfang > 6 * dpr) {
+      ctx.globalAlpha = 1;
+      if (!zeigeStriche) continue;
+      strichFlaeche(s, sichtAnfang, sichtEnde, s.id === aktiv, deckkraft);
+      // eigene Dicke und breiter gelesen als gezeigt: die Lesebreite mit zwei feinen Rändern zeigen
+      if (s.dickeWieBreite === false && ende - anfang > 6 * dpr && (anfang < sichtAnfang || ende > sichtEnde)) {
         rand(s, anfang);
         rand(s, ende);
       }
-      strichMitte(s, (anfang + ende) / 2, s.id === aktiv);
     }
 
     if (rechteck) {
@@ -138,3 +155,4 @@ export function richteKopfEin(canvas) {
 
   return { passeGroesseAn, zeichne };
 }
+

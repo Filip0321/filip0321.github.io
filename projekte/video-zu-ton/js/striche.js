@@ -19,7 +19,9 @@ export function neuerStrich(werte = {}) {
   return {
     id: naechsteId++,
     mitte: 0.5, // quer zum Strich, Anteil des Bildes (bzw. der Lupe)
-    breite: 1, // Prozent des Bildes quer
+    breite: 1, // Prozent des Bildes quer: so breit wird gelesen (Mittel über die Breite)
+    dickeWieBreite: true, // gezeigt so dick wie gelesen; sonst eigene Dicke
+    dicke: 1, // Prozent des Bildes quer, nur Anzeige (und Export, wenn die Striche dort mit sollen)
     senkrecht: true,
     rueckwaerts: false, // tief oben (bzw. rechts) statt unten (links)
     pan: 0, // −1 links, 1 rechts
@@ -42,7 +44,9 @@ export const VORLAGEN = {
 
 const FELDER = [
   { name: "senkrecht", text: "Richtung", typ: "select", optionen: [[true, "senkrecht"], [false, "waagerecht"]] },
-  { name: "breite", text: "Breite (%)", typ: "range", min: 0.1, max: 20, step: 0.1 },
+  { name: "breite", text: "Lesebreite (%)", typ: "range", min: 0.1, max: 20, step: 0.1 },
+  { name: "dickeWieBreite", text: "so dick zeigen, wie gelesen wird", typ: "checkbox", neuZeigen: true },
+  { name: "dicke", text: "Dicke sichtbar (%)", typ: "range", min: 0, max: 40, step: 0.1, nur: (s) => s.dickeWieBreite === false },
   { name: "rueckwaerts", text: "rückwärts (tief oben bzw. rechts)", typ: "checkbox" },
   { name: "pan", text: "Panorama", typ: "range", min: -1, max: 1, step: 0.05 },
   { name: "art", text: "Art", typ: "select", optionen: [["spektrum", "Spektrum (jede Zeile ein Ton)"], ["welle", "Wellenform (Wavetable)"], ["ausloesen", "Auslösen (Noten)"]] },
@@ -78,7 +82,7 @@ export function richteStrichListeEin({ liste, eigenschaften, beiWahl, beiAenderu
     for (const attr of ["min", "max", "step"]) if (b[attr] !== undefined) feld[attr] = b[attr];
     if (b.typ === "checkbox") {
       feld.checked = s[b.name];
-      feld.addEventListener("input", () => beiAenderung(s.id, { [b.name]: feld.checked }));
+      feld.addEventListener("input", () => beiAenderung(s.id, { [b.name]: feld.checked }, b.neuZeigen));
       label.append(feld, ` ${b.text}`);
       return label;
     }
@@ -119,3 +123,4 @@ export function richteStrichListeEin({ liste, eigenschaften, beiWahl, beiAenderu
     },
   };
 }
+
