@@ -230,13 +230,20 @@ function starteSchleife() {
 
 let rahmenBeimZiehen = null; // Ausschnitt, solange er aufgezogen wird
 
-function zeichneKopf(mitWerten) {
+// fuerExport: was in Bild, Video und Live-Aufnahme soll (Abschnitt Anzeige, „Im Export“); dort auch
+// kein Rahmen beim Aufziehen und kein heller „aktiver“ Strich
+function zeichneKopf(mitWerten, fuerExport = false) {
+  const e = einstellung;
+  const mitSkala = fuerExport ? e.exportSkala : e.skala;
   kopf.zeichne({
     striche: striche.map((s, i) => ({ strich: s, grenzen: grenzen.get(s.id), werte: mitWerten[i] ?? null })),
-    aktiv,
-    skala: einstellung.skala ? { tief: einstellung.tief, hoch: einstellung.hoch, zeilen: einstellung.zeilen } : null,
-    balken: einstellung.balken,
-    rechteck: rahmenBeimZiehen,
+    aktiv: fuerExport ? null : aktiv,
+    skala: mitSkala ? { tief: e.tief, hoch: e.hoch, zeilen: e.zeilen } : null,
+    balken: fuerExport ? e.exportBalken : e.balken,
+    zeigeStriche: fuerExport ? e.exportStriche : e.zeigeStriche,
+    deckkraft: e.deckkraft,
+    balkenFarbe: e.balkenFarbe,
+    rechteck: fuerExport ? null : rahmenBeimZiehen,
   });
 }
 
@@ -251,11 +258,12 @@ const gesamt = document.createElement("canvas");
 const gesamtCtx = gesamt.getContext("2d");
 function gesamtBild(mitWerten = werte) {
   gpu.zeichne({ zeigeBearbeitet: einstellung.zeigen === "bearbeitet", ...rechtecke() });
-  zeichneKopf(mitWerten);
+  zeichneKopf(mitWerten, true);
   gesamt.width = bild.width;
   gesamt.height = bild.height;
   gesamtCtx.drawImage(bild, 0, 0); // direkt nach dem Zeichnen, sonst ist WebGL schon leer
   gesamtCtx.drawImage(kopfCanvas, 0, 0, gesamt.width, gesamt.height);
+  zeichneKopf(mitWerten); // und wieder so, wie man es auf der Seite sehen will
   return gesamt;
 }
 
@@ -298,6 +306,7 @@ const strichListe = richteStrichListeEin({
     Object.assign(findeStrich(id), aenderung);
     sendeStriche(); // Panorama, Halbtöne, Art, Richtung: alles geht an den Klang
     if (neuZeigen) zeigeStriche();
+    zeichneNeu(); // auch in der Pause: Lesebreite und Dicke gleich sehen
   },
   beiLoeschen: (id) => {
     striche = striche.filter((s) => s.id !== id);
@@ -547,3 +556,4 @@ sendeEinstellung();
 zeigeEigene();
 sendeStriche();
 zeigeStriche();
+

@@ -75,3 +75,9 @@ Export-Fenster (/lib/export-dialog.js): Vorschau links, Einstellungen rechts; am
 .export-dialog[data-art="video"] .nur-bild {
   display: none;
 }
+
+
+/* Effekte der Seite im Export-Fenster (lib/export-dialog.js) */
+.export-effekte {
+  margin-top: 0.8rem;
+}

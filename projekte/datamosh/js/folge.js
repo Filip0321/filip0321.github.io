@@ -11,9 +11,12 @@
 //           (im Datamosh-Jargon „Bloom“).
 //   heilen  an dieser Stelle kommt das Bild der Quelle als Keyframe (aus daten.schluessel): der Mosh ist
 //           vorbei, das Bild wieder sauber.
+//   wiederholen  (aus der Zeitleiste, wie Kopieren und Einfügen in Avidemux) die Einträge "liste" werden
+//           "mal" Mal eingefügt; danach geht es weiter, wo es war. Wiederholte P-Frames schieben weiter.
 // Dazu zwei Schalter:
 //   schnitteMoshen  an jedem Schnitt (Anfang eines Clips) den Keyframe weglassen. Dann fließt jeder Clip
-//                   in den nächsten über, ganz ohne Eingriffe.
+//                   in den nächsten über, ganz ohne Eingriffe. Zahl: so viele Bilder lang, danach heilt es
+//                   (0 = an den Schnitten nicht moshen, Infinity = nie heilen).
 //   heilenNach      so viele Bilder nach jedem Sprung (und jedem Schnitt-Mosh) automatisch heilen, 0 = nie.
 //                   Ein Mosh, der nie endet, wird nach ein paar Sekunden nur noch Rauschen.
 //
@@ -37,28 +40,28 @@ export function baueFolge({ pakete, anfaenge }, ereignisse, { schnitteMoshen, he
   }
   let pos = 0;
   let heile = false;
-  let halteNoch = 0; // so viele Bilder wird noch gehalten
-  let haltePaket = 0;
+  let einschub = []; // was gerade statt der Quelle eingefügt wird (Halten, Wiederholen), ein Eintrag pro Bild
   // ein Bild nach dem anderen, damit jedes Ereignis an seiner Stelle drankommt, auch mitten im Halten
   while (folge.length < maxLaenge) {
     for (const e of nachBild.get(folge.length) ?? []) {
       if (e.art === "sprung") {
-        pos = Math.min(Math.max(e.nach, 0), pakete.length - 1);
-        if (pakete[pos].typ === "key" && folge.length > 0) pos++; // genau den nicht
-        halteNoch = 0;
+        pos = Math.min(Math.max(e.nach, 0), pakete.length); // pakete.length = ans Ende (Rest gelöscht)
+        if (pos < pakete.length && pakete[pos].typ === "key" && folge.length > 0) pos++; // genau den nicht
+        einschub = [];
       } else if (e.art === "halten" && folge.length > 0) {
         let letztes = folge[folge.length - 1];
         if (letztes >= pakete.length) letztes -= pakete.length; // nach dem Heilen: das P-Frame dieser Stelle
-        haltePaket = bezugsPaket(pakete, letztes);
-        halteNoch = e.dauer;
+        einschub = Array(e.dauer).fill(bezugsPaket(pakete, letztes));
+      } else if (e.art === "wiederholen") {
+        einschub = [];
+        for (let k = 0; k < e.mal; k++) einschub.push(...e.liste);
       } else if (e.art === "heilen") {
         heile = true;
-        halteNoch = 0; // Heilen beendet auch das Halten
+        einschub = []; // Heilen beendet auch das Halten
       }
     }
-    if (halteNoch > 0) {
-      folge.push(haltePaket);
-      halteNoch--;
+    if (einschub.length) {
+      folge.push(einschub.shift());
       continue;
     }
     if (pos >= pakete.length) break;
@@ -69,8 +72,8 @@ export function baueFolge({ pakete, anfaenge }, ereignisse, { schnitteMoshen, he
       continue;
     }
     // Keyframe an einem Schnitt: weglassen (außer ganz am Anfang, irgendwo muss ein Bild herkommen)
-    if (schnitteMoshen && pakete[pos].typ === "key" && folge.length > 0) {
-      if (heilenNach > 0) merke({ art: "heilen", bei: folge.length + heilenNach });
+    if (schnitteMoshen > 0 && pakete[pos].typ === "key" && folge.length > 0) {
+      if (Number.isFinite(schnitteMoshen)) merke({ art: "heilen", bei: folge.length + schnitteMoshen });
       pos++;
       continue;
     }

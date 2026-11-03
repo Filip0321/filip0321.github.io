@@ -44,3 +44,17 @@ Datamosh: nur was es nirgends sonst auf der Website gibt
   background: currentColor;
   color: #111;
 }
+
+/* Zeitleiste: so breit wie die Folge, der Rahmen scrollt waagerecht */
+.zeitleiste-rahmen {
+  overflow-x: auto;
+  border: 1px solid currentColor;
+  background: #111;
+}
+
+#zeitleiste {
+  display: block;
+  height: 48px;
+  cursor: pointer;
+  touch-action: pan-x; /* am Handy: wischen scrollt, Tippen wählt */
+}
