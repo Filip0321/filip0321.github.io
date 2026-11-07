@@ -253,24 +253,24 @@ hole("anhalten").addEventListener("click", halteAn);
 // Im Video-Modus darf man beim Bild speichern wählen, WELCHES Bild (zeit: 0 bis 1 im Bereich). Die Vorschau
 // dafür rechnet klein (640 breit) und nur so weit wie nötig: vorwärts geht es dort weiter, wo sie war,
 // rückwärts fängt sie von vorn an (die Chronofotografie baut sich Bild für Bild auf, wie beim Abspielen).
-let vorschau = null; // { leinwand, iter, n, schluessel }
+let zeitVorschau = null; // { leinwand, iter, n, schluessel }
 const bilderImBereich = (e) => Math.max(1, Math.round((e.bis - e.von) * quelle.fps));
 async function vorschauBei(zeit) {
   const e = auswahl();
   const ziel = Math.round(zeit * bilderImBereich(e));
   const schluessel = JSON.stringify(e);
-  if (!vorschau || ziel < vorschau.n || vorschau.schluessel !== schluessel) {
+  if (!zeitVorschau || ziel < zeitVorschau.n || zeitVorschau.schluessel !== schluessel) {
     const g = quelle.groesse(640);
     const inst = await neueExportInstanz(g, e);
-    vorschau = { leinwand: inst.leinwand, iter: videoSchritte(inst.chrono, quelle, maske, g, inst.e, einsaetze), n: 0, schluessel };
+    zeitVorschau = { leinwand: inst.leinwand, iter: videoSchritte(inst.chrono, quelle, maske, g, inst.e, einsaetze), n: 0, schluessel };
     zeigeFortschritt(null);
   }
-  while (vorschau.n < ziel) {
-    const r = await vorschau.iter.next();
+  while (zeitVorschau.n < ziel) {
+    const r = await zeitVorschau.iter.next();
     if (r.done) break;
-    vorschau.n = r.value.n;
+    zeitVorschau.n = r.value.n;
   }
-  return vorschau.leinwand;
+  return zeitVorschau.leinwand;
 }
 const dialog = erstelleExportDialog({
   zeichneVorschau: async (einst, zeit) => (zeit !== null && quelle ? mitRahmen(await vorschauBei(zeit), einst) : mitRahmen(bild, einst)),
@@ -297,7 +297,7 @@ hole("bildSpeichern").addEventListener("click", async () => {
   const imVideo = einstellung.modus !== "standbild";
   const sekunden = (auswahl().bis - auswahl().von);
   const einst = await dialog.oeffne({ art: "bild", ueberschrift: "Bild speichern (volle Größe)", bildZeit: imVideo, laenge: sekunden });
-  vorschau = null; // die kleine Vorschau wird nicht mehr gebraucht
+  zeitVorschau = null; // die kleine Vorschau wird nicht mehr gebraucht
   if (!einst) return;
   beschaeftigt = true;
   try {

@@ -217,10 +217,13 @@
           <label>Licht
             <select data-wert="licht">
               <option value="ueberall" selected>überall hell (Sonne und Himmel)</option>
-              <option value="lampe">nur Taschenlampe</option>
-              <option value="beides">beides</option>
+              <option value="lampe">Taschenlampe (und eigene Lampen)</option>
+              <option value="beides">Sonne und Taschenlampe</option>
+              <option value="dunkel">dunkel, nur eigene Lampen</option>
             </select>
           </label>
+          <!-- eigene Lampen: hinfliegen, abstellen (L); sie leuchten in alle Richtungen und im Nebel (js/lampen.js) -->
+          <button type="button" id="lampeAbstellen">Lampe hier abstellen (L)</button>
           <label><input type="checkbox" data-wert="schatten" checked> Schatten</label>
           <!-- Klang: Drohne, Wind und Hall, gesteuert von der Höhle (js/klang.js) -->
           <label><input type="checkbox" id="klang"> Klang der Höhle</label>
@@ -252,6 +255,7 @@
             <input type="range" data-wert="nebel" min="0" max="2" step="0.01" value="0.4">
             <output></output>
           </label>
+          <div id="lampenListe" class="lampen-liste"></div>
           <!-- Staubkörner in der Luft: man sieht sie nur, wo Licht hinfällt, und so hell, wie das Licht dort ist;
                dazu Schwaden im Nebel -->
           <label>Staub
