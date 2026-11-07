@@ -9,6 +9,7 @@ import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
 import { setzeBewegungsVideo, moshVonVorn } from "/lib/effekte/mosh-imitat.js";
+import { setzeEigeneRechtecke } from "/lib/effekte/blobs.js";
 import { verbindeRegler } from "/lib/effekt-regler.js";
 import { setzeFarbverlauf } from "/lib/effekte/farbverlauf.js";
 import { hexZuRgb, skalaAnker } from "/lib/farben.js"; // baut die Regler für VHS und CRT ins HTML, vor allem anderen
@@ -793,8 +794,10 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
 });
 
 // Datamosh-Imitat: Bewegung (P-Frames) aus einem anderen Video. Unter den Reglern des Effekts: Video laden,
-// von–bis in Sekunden, „von vorn“ (Keyframe, dann läuft das Video von „von“ bis „bis“ und bleibt stehen:
-// so sieht man, wie das Bild nach diesen Sekunden P-Frames aussieht), Schleife, und wieder weg.
+// von–bis in Sekunden. „Ergebnis rechnen“ setzt einen Keyframe und geht das Video von „von“ bis „bis“ Bild
+// für Bild durch (springen statt abspielen, so schnell es geht und ohne ein Bild auszulassen); danach steht
+// das Bild, wie es nach diesen Sekunden P-Frames aussieht. „Abspielen“ zeigt dasselbe in Echtzeit.
+// Mit Video verschwinden die Regler, die dann nichts mehr tun (künstliche Bewegung, Rechteck, Keyframes).
 {
   const platz = hole("moshbild-regler");
   const zeile = document.createElement("div");
@@ -803,8 +806,9 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
     <label class="datei-knopf">Bewegung aus Video <input type="file" class="mosh-video" accept="video/*"></label>
     <label>von (s) <input type="number" class="mosh-von" min="0" step="0.1" value="0"></label>
     <label>bis (s) <input type="number" class="mosh-bis" min="0" step="0.1" value="3"></label>
+    <button type="button" class="mosh-rechnen" disabled>Ergebnis rechnen</button>
+    <button type="button" class="mosh-abspielen" disabled>abspielen</button>
     <label><input type="checkbox" class="mosh-schleife"> Schleife</label>
-    <button type="button" class="mosh-start" disabled>von vorn</button>
     <button type="button" class="mosh-weg" disabled>Video weg</button>
     <span class="hinweis mosh-info"></span>`;
   platz.prepend(zeile);
@@ -812,17 +816,63 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
   const video = document.createElement("video");
   video.muted = true;
   video.playsInline = true;
+  video.preload = "auto";
   let url = null;
+  let rechnet = false;
   const von = () => Number(feld(".mosh-von").value) || 0;
-  const bis = () => Math.max(von() + 0.1, Number(feld(".mosh-bis").value) || 0);
-  function starte() {
-    moshVonVorn(); // Keyframe: das Bild ist wieder sauber, dann kommen nur die P-Frames dieses Videos
+  const bis = () => Math.min(video.duration || Infinity, Math.max(von() + 0.1, Number(feld(".mosh-bis").value) || 0));
+  const info = (t) => (feld(".mosh-info").textContent = t);
+
+  // Regler, die mit Video nichts tun, verstecken (und Gruppen, in denen dann nichts mehr übrig ist)
+  const OHNE_VIDEO = ["art", "kuenstlich", "flaeche", "muster", "wirbel", "tempo", "keyframe", "bx", "by", "bb", "bh", "bewX", "bewY"];
+  function zeigeRegler(mitVideo) {
+    for (const name of OHNE_VIDEO) {
+      const label = platz.querySelector(`[data-regler="moshbild.${name}"]`)?.closest("label");
+      if (label) label.hidden = mitVideo;
+    }
+    for (const gruppe of platz.querySelectorAll(".regler-gruppe")) {
+      gruppe.hidden = [...gruppe.querySelectorAll("label")].every((l) => l.hidden);
+    }
+  }
+  const knoepfe = (an) => ["rechnen", "abspielen", "weg"].forEach((k) => (feld(`.mosh-${k}`).disabled = !an));
+
+  const springe = (t) =>
+    new Promise((fertig) => {
+      video.addEventListener("seeked", fertig, { once: true });
+      video.currentTime = t;
+    });
+  const zweiBilder = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  async function rechne() {
+    if (rechnet) return;
+    rechnet = true;
+    video.pause();
+    try {
+      await springe(von());
+      moshVonVorn(); // Keyframe: das Bild ist sauber, dann kommen nur noch die P-Frames des Videos
+      planeAnwenden();
+      await zweiBilder();
+      const fps = 30; // so viele Bilder pro Sekunde werden durchgegangen
+      const n = Math.max(1, Math.round((bis() - von()) * fps));
+      for (let i = 1; i <= n; i++) {
+        await springe(von() + i / fps);
+        planeAnwenden(); // ein neues Bild im Video: eine Runde Mosh
+        await zweiBilder();
+        if (i % 5 === 0) info(`rechne … ${Math.round((i / n) * 100)} %`);
+      }
+      info(`fertig: so sieht es nach ${(bis() - von()).toFixed(1).replace(".", ",")} s aus`);
+    } finally {
+      rechnet = false;
+    }
+  }
+  function spiele() {
+    moshVonVorn();
     video.currentTime = von();
     video.play();
-    planeAnwenden();
   }
   video.addEventListener("timeupdate", () => {
-    feld(".mosh-info").textContent = `${video.currentTime.toFixed(1).replace(".", ",")} s`;
+    if (rechnet || video.paused) return;
+    info(`${video.currentTime.toFixed(1).replace(".", ",")} s`);
     if (video.currentTime < bis()) return;
     if (feld(".mosh-schleife").checked) video.currentTime = von(); // weiter moshen, ohne Keyframe
     else video.pause(); // stehen bleiben: so sieht es nach von–bis aus
@@ -836,19 +886,75 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
     video.addEventListener("loadeddata", () => {
       setzeBewegungsVideo(video);
       feld(".mosh-bis").max = feld(".mosh-von").max = video.duration.toFixed(1);
-      feld(".mosh-start").disabled = feld(".mosh-weg").disabled = false;
-      starte();
+      knoepfe(true);
+      zeigeRegler(true);
+      rechne();
     }, { once: true });
   });
-  feld(".mosh-start").addEventListener("click", starte);
+  feld(".mosh-rechnen").addEventListener("click", rechne);
+  feld(".mosh-abspielen").addEventListener("click", spiele);
   feld(".mosh-weg").addEventListener("click", () => {
     video.pause();
     setzeBewegungsVideo(null);
-    feld(".mosh-start").disabled = feld(".mosh-weg").disabled = true;
-    feld(".mosh-info").textContent = "";
+    knoepfe(false);
+    zeigeRegler(false);
+    info("");
     moshVonVorn();
     planeAnwenden();
   });
+}
+
+// Blob-Tracking: eigene Rechtecke. Mit „Rechtecke ziehen“ zieht man auf dem Bild Rahmen auf (statt Overlays
+// zu verschieben); sie zählen wie erkannte Flecken (blobs.js).
+{
+  const platz = hole("blobs-regler");
+  const zeile = document.createElement("div");
+  zeile.className = "steuerung";
+  zeile.innerHTML = `
+    <label><input type="checkbox" class="blob-ziehen"> Rechtecke ziehen (auf dem Bild)</label>
+    <button type="button" class="blob-letztes">letztes weg</button>
+    <button type="button" class="blob-alle">alle weg</button>`;
+  platz.prepend(zeile);
+  const rechtecke = []; // in Anteilen des Bildes
+  let zieht = null; // das Rechteck, das gerade aufgezogen wird
+  let an = false;
+  const neu = () => {
+    setzeEigeneRechtecke(zieht ? [...rechtecke, zieht] : rechtecke);
+    planeAnwenden();
+  };
+  zeile.querySelector(".blob-ziehen").addEventListener("change", (e) => (an = e.target.checked));
+  zeile.querySelector(".blob-letztes").addEventListener("click", () => {
+    rechtecke.pop();
+    neu();
+  });
+  zeile.querySelector(".blob-alle").addEventListener("click", () => {
+    rechtecke.length = 0;
+    neu();
+  });
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!an) return;
+    const p = punktAusEreignis(e);
+    zieht = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+    canvas.setPointerCapture(e.pointerId);
+    e.stopImmediatePropagation(); // nicht auch noch ein Overlay greifen
+    neu();
+  }, { capture: true });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!zieht) return;
+    const p = punktAusEreignis(e);
+    zieht.x1 = p.x;
+    zieht.y1 = p.y;
+    neu();
+  });
+  const fertig = () => {
+    if (!zieht) return;
+    // ein bloßer Klick (fast kein Rechteck) zählt nicht
+    if (Math.abs(zieht.x1 - zieht.x0) > 0.005 && Math.abs(zieht.y1 - zieht.y0) > 0.005) rechtecke.push(zieht);
+    zieht = null;
+    neu();
+  };
+  canvas.addEventListener("pointerup", fertig);
+  canvas.addEventListener("pointercancel", fertig);
 }
 
 // im Export-Fenster dieselben Häkchen (/lib/export-dialog.js); ein Umstellen dort ist wie ein Klick hier

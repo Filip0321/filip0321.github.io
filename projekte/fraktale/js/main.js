@@ -24,6 +24,7 @@ import { farbtabelle, skalaAnker, hexZuRgb } from "/lib/farben.js";
 import { ladeVerlauf } from "/lib/verlauf.js";
 import { VOLLBILD, ZWEI_D, DREI_D, SCHAERFE } from "./shader.js";
 import { flug, vorn } from "./kamera.js";
+import { richteLampenEin, stelleLampeAb, lampenFuerShader, wechsleWelt } from "./lampen.js";
 
 const bild = hole("feld"); // "feld": so heißt das Bild, das /lib/effekt-schicht.js mit Effekten überzieht
 const stapel = hole("stapel");
@@ -42,7 +43,8 @@ function programm(fragment) {
   const ort = {};
   for (let i = 0; i < gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i++) {
     const n = gl.getActiveUniform(p, i).name;
-    ort[n] = gl.getUniformLocation(p, n);
+    // Listen (uniform vec3 lampenOrt[4]) heißen hier "lampenOrt[0]": unter dem Namen ohne [0] merken
+    ort[n.replace(/\[0\]$/, "")] = gl.getUniformLocation(p, n);
   }
   return { p, ort };
 }
@@ -129,6 +131,7 @@ const { einstellung, setze } = richteReglerEin({
     umgedreht: () => neueSkala(),
     welt: () => {
       kam = startKamera(einstellung.welt);
+      wechsleWelt(einstellung.welt);
     },
     format: () => stelleFormat(),
     art: () => {
@@ -338,6 +341,17 @@ function stelleFokus(dt) {
   fokusJetzt = Math.exp(j + (z - j) * Math.min(1, dt * 5));
 }
 
+// ---------- eigene Lampen (lampen.js) ----------
+// Abgestellt wird etwas vor der Kamera (dort, wohin man schaut, nicht im Auge: sonst stünde man im Licht
+// und sähe keine Schatten), aber nie in einer Wand: höchstens bis kurz vor die Oberfläche.
+function lampeHierAbstellen() {
+  if (einstellung.dimension !== "3d") return;
+  const v = vorn(sicht.gier, sicht.nick);
+  const weit = Math.min(abstand(sicht.pos) * 0.8, WELTEN[einstellung.welt].gross ? 0.3 : 0.08);
+  const ort = sicht.pos.map((x, k) => x + v[k] * weit);
+  if (!stelleLampeAb(ort)) hole("info").textContent = "Mehr als vier eigene Lampen gehen nicht.";
+}
+
 // Quaternion-Julia: c wandert mit „Form“ auf einem Kreis durch den vierdimensionalen Raum
 function qjuliaC() {
   const w = (einstellung.qjForm + 0.15 * musik.wirkung.form) * Math.PI * 2;
@@ -356,6 +370,7 @@ document.addEventListener("keydown", (event) => {
   if (feld?.type === "range" && t.startsWith("arrow")) return;
   if (einstellung.dimension !== "3d") return;
   if (t === "f" && !event.repeat) return schalteLampe();
+  if (t === "l" && !event.repeat) return lampeHierAbstellen();
   if (t === "r" && !event.repeat) return schalteFahrt();
   if (t in TASTEN || t === "arrowleft" || t === "arrowright" || t === "shift") {
     event.preventDefault();
@@ -471,7 +486,7 @@ for (const [id, t] of [["vor", "w"], ["zurueck", "s"]]) {
 }
 
 function schalteLampe() {
-  if (einstellung.licht === "ueberall") return; // keine Lampe da
+  if (["ueberall", "dunkel"].includes(einstellung.licht)) return; // keine Taschenlampe da
   lampeAnKamera = !lampeAnKamera;
 }
 
@@ -611,7 +626,18 @@ function zeichne(b, h, jetzt, fein) {
     gl.uniform1f(ort.nebel, (einstellung.nebel + musik.wirkung.nebel) * (welt.gross ? 1 : 4));
     gl.uniform1f(ort.zeit, jetzt / 1000);
     gl.uniform1i(ort.verlauf, 0);
-    gl.uniform1i(ort.lichtArt, ["lampe", "ueberall", "beides"].indexOf(einstellung.licht));
+    gl.uniform1i(ort.lichtArt, ["lampe", "ueberall", "beides", "dunkel"].indexOf(einstellung.licht));
+    // eigene Lampen (lampen.js): je Ort, Farbe, Helligkeit, Schatten; reichen so weit wie die Welt groß ist
+    const eigene = lampenFuerShader().slice(0, 4);
+    const vier = (werte, je) => werte.concat(Array(4 * je).fill(0)).slice(0, 4 * je);
+    gl.uniform1i(ort.lampenAnzahl, eigene.length);
+    if (eigene.length) {
+      gl.uniform3fv(ort.lampenOrt, vier(eigene.flatMap((l) => l.ort), 3));
+      gl.uniform3fv(ort.lampenFarbe, vier(eigene.flatMap((l) => l.farbe), 3));
+      gl.uniform1fv(ort.lampenStaerke, vier(eigene.map((l) => l.staerke * (1 + 2 * musik.wirkung.licht)), 1));
+      gl.uniform1fv(ort.lampenSchatten, vier(eigene.map((l) => (l.schatten ? 1 : 0)), 1));
+    }
+    gl.uniform1f(ort.lampenMass, welt.gross ? 1 : 0.25);
     gl.uniform1i(ort.mitSchatten, einstellung.schatten ? 1 : 0);
     // Genauigkeit an die Pixelgröße binden: doppelt so viele Pixel, halb so großer Fehler erlaubt
     // Tiefe, Genauigkeit, Schrittweite („Qualität“): gelten für die Anzeige UND fürs Rendern, damit man sieht,
@@ -622,7 +648,7 @@ function zeichne(b, h, jetzt, fein) {
     gl.uniform1f(ort.massstab, bo?.groesse ?? (welt.gross ? 1 : 0.25));
     gl.uniform1i(ort.bodenArt, einstellung.bodenArt === "einfarbig" ? 1 : 0);
     gl.uniform3f(ort.bodenFarbe, ...hexZuRgb(einstellung.bodenFarbe).map((x) => x / 255));
-    const lampeText = einstellung.licht === "ueberall" ? "" : lampeAnKamera ? " · Lampe an der Kamera (Klick oder F: in die Hand)" : " · Lampe in der Hand (Klick oder F: an die Kamera)";
+    const lampeText = ["ueberall", "dunkel"].includes(einstellung.licht) ? "" : lampeAnKamera ? " · Lampe an der Kamera (Klick oder F: in die Hand)" : " · Lampe in der Hand (Klick oder F: an die Kamera)";
     hole("info").textContent = `Abstand zur Oberfläche ${abstand(kam.pos).toFixed(3).replace(".", ",")}${lampeText}`;
   }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -864,3 +890,8 @@ hole("klang").addEventListener("change", (e) => klang.an(e.target.checked));
 setInterval(() => {
   if (einstellung.dimension === "3d") klang.stelle({ abstand: abstand(kam.pos), geht, licht: einstellung.licht });
 }, 50);
+
+// eigene Lampen: Bedienung (lampen.js), Knopf zum Abstellen
+richteLampenEin(hole("lampenListe"), () => {});
+wechsleWelt(einstellung.welt);
+hole("lampeAbstellen").addEventListener("click", lampeHierAbstellen);

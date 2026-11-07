@@ -123,7 +123,18 @@ uniform float staub;       // Staub in der Luft (0 = keiner)
 uniform float pixelWinkel; // wie groß ein Pixel als Winkel ist (Staubkörner werden nie kleiner)
 uniform vec3 lampeOrt, lampeRichtung;
 uniform float kegel, lampeStaerke, umgebung, nebel, zeit;
-uniform int lichtArt;       // 0 nur Taschenlampe, 1 überall hell (Sonne und Himmel), 2 beides
+uniform int lichtArt;       // 0 nur Taschenlampe, 1 überall hell (Sonne und Himmel), 2 beides, 3 dunkel (nur eigene Lampen)
+// eigene Lampen (lampen.js): Glühbirnen, die man in der Welt abstellt. Leuchten in alle Richtungen.
+uniform int lampenAnzahl;
+uniform vec3 lampenOrt[4];
+uniform vec3 lampenFarbe[4];
+uniform float lampenStaerke[4];
+uniform float lampenSchatten[4];
+uniform float lampenMass;   // typische Größe der Welt: so weit reicht eine Lampe
+bool mitTaschenlampe() { return lichtArt == 0 || lichtArt == 2; }
+bool mitSonne() { return lichtArt == 1 || lichtArt == 2; }
+// Licht einer eigenen Lampe in Abstand d: wie die Taschenlampe 1 / (1 + 4 d²), gemessen in Größen der Welt
+float lampenAbfall(float d) { return 1.0 / (1.0 + 4.0 * d * d / (lampenMass * lampenMass)); }
 uniform int mitSchatten;
 uniform float genauigkeit;  // wie nah ein Treffer sein muss (relativ zur Entfernung); klein = schärfer
 uniform int maxSchritte;
@@ -336,10 +347,14 @@ vec3 staubkoerner(vec3 o, vec3 r, float bis, float zelle) {
     vec3 zl = lampeOrt - korn;
     float al = length(zl);
     float kegelLicht = smoothstep(cos(kegel), cos(kegel * 0.6), dot(-zl / al, lampeRichtung)) * lampeStaerke / (1.0 + al * al * 4.0);
-    if (lichtArt == 1) kegelLicht = 0.0;
+    if (!mitTaschenlampe()) kegelLicht = 0.0;
     // im Schatten des Fraktals bleibt das Korn dunkel (kurzer Schattenstrahl, nur für Körner, die man sieht)
     if (mitSchatten == 1 && kegelLicht > 0.001 && punkt > 0.02) kegelLicht *= schatten(korn, zl / al, al, 24);
-    vec3 licht = kegelLicht * lampeFarbe + (lichtArt >= 1 ? vec3(0.25, 0.24, 0.21) : vec3(0.0));
+    vec3 licht = kegelLicht * lampeFarbe + (mitSonne() ? vec3(0.25, 0.24, 0.21) : vec3(0.0));
+    for (int k = 0; k < 4; k++) {
+      if (k >= lampenAnzahl) break;
+      licht += lampenFarbe[k] * lampenStaerke[k] * lampenAbfall(length(lampenOrt[k] - korn));
+    }
     summe += punkt * licht * (0.3 + 0.7 * z.x * z.x) * exp(-tk / (zelle * 25.0));
   }
   return summe;
@@ -416,12 +431,24 @@ void main() {
     vec3 l = zurLampe / abstand;
     float imKegel = smoothstep(cos(kegel), cos(kegel * 0.6), dot(-l, lampeRichtung));
     float licht = imKegel * max(dot(n, l), 0.0) * lampeStaerke / (1.0 + abstand * abstand * 4.0);
-    if (lichtArt == 1) { licht = 0.0; imKegel = 0.0; }
+    if (!mitTaschenlampe()) { licht = 0.0; imKegel = 0.0; }
     if (mitSchatten == 1 && licht > 0.001) licht *= schatten(p + n * 0.0005, l, abstand, 80);
     // ein Glanzlicht, wie bei feuchtem Stein
     float glanz = imKegel * pow(max(dot(reflect(-l, n), -r), 0.0), 24.0) * lampeStaerke * (istBoden ? 0.08 : 0.3) / (1.0 + abstand * abstand * 4.0);
     f = grund * (licht * lampeFarbe + umgebung * ao) + glanz * lampeFarbe;
-    if (lichtArt >= 1) {
+    // eigene Lampen: wie die Taschenlampe, nur ohne Kegel; jede mit eigenem Schattenstrahl
+    for (int k = 0; k < 4; k++) {
+      if (k >= lampenAnzahl) break;
+      vec3 z = lampenOrt[k] - p;
+      float d = length(z);
+      vec3 lk = z / d;
+      float a = lampenStaerke[k] * lampenAbfall(d);
+      float diffus = max(dot(n, lk), 0.0) * a;
+      if (lampenSchatten[k] > 0.5 && mitSchatten == 1 && diffus > 0.001) diffus *= schatten(p + n * 0.0005, lk, d, 64);
+      float spitze = diffus > 0.0 ? pow(max(dot(reflect(-lk, n), -r), 0.0), 24.0) * a * (istBoden ? 0.08 : 0.3) : 0.0;
+      f += (grund * diffus + spitze) * lampenFarbe[k];
+    }
+    if (mitSonne()) {
       // überall hell: eine Sonne schräg von oben und ein Himmel, der von oben mehr Licht gibt als von unten
       vec3 sonne = normalize(vec3(0.5, 0.8, 0.35));
       float s1 = max(dot(n, sonne), 0.0);
@@ -430,7 +457,7 @@ void main() {
       f += grund * (s1 * vec3(1.0, 0.93, 0.8) * 1.2 + himmelLicht * vec3(0.35, 0.42, 0.55));
     }
   }
-  vec3 himmel = lichtArt >= 1 ? mix(vec3(0.03, 0.035, 0.05), vec3(0.22, 0.27, 0.36), 0.5 + 0.5 * r.y) : vec3(0.0);
+  vec3 himmel = mitSonne() ? mix(vec3(0.03, 0.035, 0.05), vec3(0.22, 0.27, 0.36), 0.5 + 0.5 * r.y) : vec3(0.0);
   // Nebel ist nie gleich dicht: dreimal Rauschen längs des Strahls, das treibt langsam (Schwaden)
   float bis = treffer ? t : 3.0;
   vec3 wind = vec3(0.05, 0.01, 0.03) * zeit;
@@ -441,7 +468,21 @@ void main() {
   // Nebel: auch die Luft im Kegel leuchtet ein wenig (wie Staub im Licht)
   float luft = smoothstep(cos(kegel), cos(kegel * 0.5), dot(r, lampeRichtung)) * lampeStaerke * 0.02 * nebel * schwaden;
   float dunst = 1.0 - exp(-t * nebel * 0.3 * schwaden);
-  f = mix(f, himmel, treffer ? dunst : 1.0) + (lichtArt == 1 ? 0.0 : luft) * lampeFarbe;
+  f = mix(f, himmel, treffer ? dunst : 1.0) + (mitTaschenlampe() ? luft : 0.0) * lampeFarbe;
+  // eigene Lampen leuchten im Nebel: Licht, das unterwegs an der Luft gestreut wird. Für eine punktförmige
+  // Lampe lässt sich das Integral längs des Strahls genau ausrechnen (h: wie nah der Strahl der Lampe kommt,
+  // tc: wo): ∫ ds / (h² + (s − tc)²) = (atan((ende − tc) / h) − atan((0 − tc) / h)) / h.
+  // Nah an der Lampe wird es hell: man sieht die Birne als Lichtpunkt mit Hof.
+  float strahlEnde = treffer ? t : 40.0 * lampenMass;
+  for (int k = 0; k < 4; k++) {
+    if (k >= lampenAnzahl) break;
+    vec3 v = lampenOrt[k] - auge;
+    float tc = dot(v, r);
+    float h = max(length(v - r * tc), 1e-4 * lampenMass);
+    float integral = (atan((strahlEnde - tc) / h) - atan(-tc / h)) / h;
+    float hof = integral * lampenMass * lampenMass * 0.25 * (0.01 + nebel * 0.05) * schwaden;
+    f += lampenFarbe[k] * lampenStaerke[k] * min(hof, 8.0);
+  }
   if (staub > 0.0) f += staubkoerner(auge, r, min(bis, zelle * 24.0), zelle) * staub;
   // Tonemapping (ACES, Näherung von Krzysztof Narkowicz): helles Licht wird weich zusammengedrückt statt bei
   // 1 hart abgeschnitten. So behält eine helle Lampe Farbe und Zeichnung, wie bei einer Kamera.
