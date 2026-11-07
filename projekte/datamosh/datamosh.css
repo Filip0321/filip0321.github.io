@@ -45,16 +45,42 @@ Datamosh: nur was es nirgends sonst auf der Website gibt
   color: #111;
 }
 
-/* Zeitleiste: so breit wie die Folge, der Rahmen scrollt waagerecht */
+/* Zeitleiste: der Rahmen scrollt waagerecht, das Canvas bleibt stehen (sticky) und zeichnet nur, was zu
+   sehen ist; .zl-breite gibt dem Rahmen die Breite der ganzen Folge (js/zeitleiste.js) */
 .zeitleiste-rahmen {
+  position: relative;
   overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid currentColor;
   background: #111;
 }
 
 #zeitleiste {
+  position: sticky;
+  left: 0;
   display: block;
-  height: 48px;
-  cursor: pointer;
   touch-action: pan-x; /* am Handy: wischen scrollt, Tippen wählt */
+}
+
+.zl-breite {
+  height: 1px;
+}
+
+/* kurze Zahlenfelder (wiederholen, Clip, Sekunden) */
+input.kurz {
+  width: 4.5rem;
+}
+
+.einheit {
+  flex: 0 !important;
+}
+
+/* Protokoll zur Fehlersuche: klein, scrollbar, Zeilen nicht umbrechen */
+.protokoll {
+  max-height: 14rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre;
+  margin: 0.5rem 0 0;
 }

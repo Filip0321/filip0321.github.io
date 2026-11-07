@@ -45,7 +45,7 @@
       <details class="abschnitt" open>
         <summary>Clips</summary>
         <div class="steuerung">
-          <label class="datei-knopf">Clips öffnen <input type="file" id="dateien" multiple accept="video/*,.mp4,.mov,.webm,.m4v"></label>
+          <label class="datei-knopf">Clips öffnen <input type="file" id="dateien" multiple accept="video/*,image/*,.mp4,.mov,.webm,.m4v"></label>
           <!-- kleiner = schneller vorbereitet und flüssiger live. Groß geht auch: jedes Bild wird zweimal
                kodiert (normal und als Heil-Keyframe) und beim Abspielen in Echtzeit dekodiert, ab 1920
                kann das live ruckeln, das gerenderte Video ruckelt nie. Größer als der Clip wird nichts. -->
@@ -70,7 +70,7 @@
           <button type="button" id="vorbereiten" disabled>Vorbereiten</button>
         </div>
         <ol class="clip-liste" id="clipListe"></ol>
-        <p class="hinweis">Die Clips laufen in dieser Reihenfolge hintereinander. „Vorbereiten“ kodiert sie neu, mit nur einem Keyframe am Anfang jedes Clips.</p>
+        <p class="hinweis">Videos und Standbilder. Neue Clips kommen hinten an die oberste Spur, unter „Zeitleiste“ verschiebst du sie. „Vorbereiten“ kodiert sie neu, mit nur einem Keyframe am Anfang jedes Clips und gleichmäßiger Bildrate (die des ersten Videos). Danach wird nur noch kodiert, was neu ist.</p>
       </details>
 
       <details class="abschnitt" open>
@@ -113,23 +113,41 @@
 
       <details class="abschnitt" open>
         <summary>Zeitleiste</summary>
-        <div class="zeitleiste-rahmen">
-          <canvas id="zeitleiste" height="48"></canvas> <!-- js/zeitleiste.js -->
+        <!-- js/zeitleiste.js: das Canvas ist so breit wie der Rahmen, das leere div gibt dem Rahmen die
+             Breite der ganzen Folge, damit er scrollt -->
+        <div class="zeitleiste-rahmen" id="zeitleisteRahmen">
+          <canvas id="zeitleiste"></canvas>
+          <div class="zl-breite"></div>
         </div>
-        <p class="hinweis" id="auswahlInfo">keine Auswahl (ziehen oder Umschalt-Klick)</p>
         <div class="steuerung">
-          <button type="button" id="auswahlWeg">Auswahl löschen</button>
-          <label>wiederholen
-            <input type="number" id="wiederholMal" min="1" max="50" step="1" value="3"> ×
-          </label>
-          <button type="button" id="auswahlWiederholen">Auswahl wiederholen</button>
-          <button type="button" id="auswahlAufheben">Auswahl aufheben</button>
-          <label>Breite pro Bild
-            <input type="range" data-wert="pxBild" min="1" max="20" step="1" value="6">
-            <output></output>
-          </label>
+          <button type="button" id="zoomRaus" title="Strg + Mausrad">−</button>
+          <button type="button" id="zoomRein" title="Strg + Mausrad">+</button>
+          <button type="button" id="zoomGanz">ganz</button>
+          <span class="hinweis" id="clipInfo">Clip anklicken zum Wählen, ziehen zum Verschieben, Ränder ziehen zum Kürzen</span>
+          <button type="button" id="spurHoch">Spur ↑</button>
+          <button type="button" id="spurRunter">Spur ↓</button>
+          <button type="button" id="clipHierher">Clip an die Stelle</button>
         </div>
-        <p class="hinweis">Rot: Keyframe · Orange: geheilt · Violett: gehalten oder wiederholt · weißer Strich: Schnitt oder Sprung. Klicken zeigt das Bild, Ziehen wählt aus. Einen Keyframe am Schnitt löschen ist der klassische Mosh.</p>
+        <p class="hinweis" id="auswahlInfo">keine Auswahl (ziehen, Umschalt-Klick, oder A und B)</p>
+        <div class="steuerung">
+          <button type="button" id="auswahlWeg" title="Entf">Löschen</button>
+          <label>
+            <input type="number" id="wiederholMal" class="kurz" min="1" max="50" step="1" value="3"> ×
+          </label>
+          <button type="button" id="auswahlWiederholen">Wiederholen</button>
+          <button type="button" id="auswahlUmkehren">Umkehren</button>
+          <label>P-Frames von Clip
+            <input type="number" id="mischClip" class="kurz" min="1" step="1" value="2">
+          </label>
+          <label>ab Bild
+            <input type="number" id="mischAb" class="kurz" min="0" step="1" value="1">
+          </label>
+          <button type="button" id="auswahlMischen">Mischen</button>
+          <button type="button" id="auswahlI">I-Frame löschen / zurück</button>
+          <label class="datei-knopf">I durch Bild ersetzen <input type="file" id="iBild" accept="image/*"></label>
+          <button type="button" id="auswahlAufheben">Auswahl aufheben</button>
+        </div>
+        <p class="hinweis">Oben der Schnitt: oberste Spur gewinnt, Lücken fallen weg. Unten das Ergebnis, wie es in den Dekoder geht: Bilder, I-Frames (rot am Schnitt, orange geheilt, roter Rahmen: gelöscht) und P-Frames (violett: wiederholt oder eingesetzt). Tasten: ← → ein Bild (Umschalt: zehn), Pos1, Ende, A und B setzen Anfang und Ende der Auswahl, Entf löscht, Esc hebt auf. Strg + Mausrad zoomt.</p>
       </details>
 
       <details class="abschnitt">
@@ -156,7 +174,7 @@
           <button type="button" id="ereignisDazu">Dazu</button>
           <button type="button" id="alleWeg">Alle löschen</button>
         </div>
-        <p class="hinweis">Was du live machst, landet hier. „bei Bild“ zählt die Bilder des fertigen Videos. Bild 0 eines Clips ist sein Keyframe, ein Sprung dorthin nimmt Bild 1.</p>
+        <p class="hinweis">Was du live machst, landet hier. „bei Bild“ zählt die Bilder des fertigen Videos. Bild 0 eines Clips ist sein Keyframe, ein Sprung dorthin nimmt Bild 1. Ein Sprung gilt bis zum nächsten Schnitt.</p>
       </details>
 
       <details class="abschnitt">
@@ -165,7 +183,28 @@
           <button type="button" id="videoRendern">Video rendern</button>
           <!-- Bild speichern und Live aufnehmen kommen aus /lib/export.js -->
         </div>
-        <p class="hinweis">„Video rendern“ spielt alle Eingriffe noch einmal ab, Bild für Bild. Ohne Ton.</p>
+        <div class="steuerung">
+          <!-- js/ton.js -->
+          <label>Ton
+            <select data-wert="tonArt">
+              <option value="bilder" selected>folgt den Bildern (stottert mit)</option>
+              <option value="durch">läuft durch (Ton des Schnitts)</option>
+              <option value="datei">eigene Datei</option>
+              <option value="aus">kein Ton</option>
+            </select>
+          </label>
+          <label class="datei-knopf">Tondatei <input type="file" id="tonDatei" accept="audio/*,video/*"></label>
+        </div>
+        <p class="hinweis">„Video rendern“ spielt alle Eingriffe noch einmal ab, Bild für Bild. „Folgt den Bildern“: zu jedem Bild sein Stück Originalton, wiederholte Bilder wiederholen ihren Ton. „Läuft durch“: der Ton des Schnitts, ungestört vom Mosh.</p>
+      </details>
+
+      <details class="abschnitt" id="protokollAbschnitt">
+        <summary>Protokoll (zur Fehlersuche)</summary>
+        <div class="steuerung">
+          <button type="button" id="protokollKopieren">Kopieren</button>
+        </div>
+        <pre class="protokoll" id="protokoll"></pre>
+        <p class="hinweis">Was beim Vorbereiten, Abspielen und Rendern passiert, Schritt für Schritt. Wenn etwas hängt oder schwarz bleibt: kopieren und schicken.</p>
       </details>
     </div>
   </main>

@@ -16,18 +16,86 @@
 // Die P-Frames danach passen fast genau dazu (sie erwarten das Bild des ersten Kodierers, bekommen das
 // des zweiten, und beide zeigen dasselbe Bild in fast derselben Qualität).
 
+// Runde 5: jeder Clip wird für sich kodiert und das Ergebnis am Clip gemerkt (clip.kodiert). Kommt ein Clip
+// dazu oder ändert sich die Länge eines Standbilds, wird nur dieser eine neu kodiert. Die anderen bleiben,
+// solange Größe, Bildrate, Bitrate und „wild“ gleich sind.
+//
+// Gleichmäßige Bildrate: Viele Videos haben keine feste Bildrate (variable frame rate). Ein Standbild, aus
+// DaVinci oder vom Handy als Video gespeichert, besteht oft nur aus ein paar Bildern, die jeweils sekundenlang
+// gelten. Früher wurde jedes gespeicherte Bild genau einmal kodiert: aus 10 Sekunden wurden 3 Bilder.
+// Jetzt wird abgetastet wie bei einem Film: zu jeder Zeit i / fps das Bild, das gerade gilt.
+
 import { leseKopf } from "./vp8-kopf.js";
+import { helligkeit } from "/lib/yuv.js";
 
 const CODEC = "vp8";
+const VORSCHAU_BREITE = 64; // Bildchen für die Zeitleiste
 
-export async function bereite(clips, { breite, bitrate, wild = false, beiFortschritt }) {
+export async function bereite(clips, { breite, bitrate, wild = false, software = false, beiFortschritt }) {
   // gemeinsame Größe: die des ersten Clips, auf "breite" verkleinert, gerade Zahlen
   const g = clips[0].groesse(breite);
-  const fps = Math.round(clips[0].fps) || 30;
-  const pakete = []; // { daten (Uint8Array), typ, clip, bild }
-  const anfaenge = []; // Index des ersten Pakets jedes Clips
+  // gemeinsame Bildrate: die des ersten Videos (Standbilder haben keine)
+  const fps = Math.round(clips.find((c) => c.art === "video")?.fps ?? 30) || 30;
 
+  const pakete = []; // { daten (Uint8Array), typ, clip, bild }
   const schluessel = []; // dasselbe Bild als Keyframe, zum Heilen
+  const vorschau = []; // pro Paket ein kleines Bild (ImageBitmap) für die Zeitleiste
+  const anfaenge = []; // Index des ersten Pakets jedes Clips
+  const quellHelligkeit = []; // pro Clip: wie hell das erste Bild ist (0 = schwarz), zur Fehlersuche
+  let zeitschichten = true;
+
+  for (let c = 0; c < clips.length; c++) {
+    const clip = clips[c];
+    const merkmal = JSON.stringify({ g, fps, bitrate, wild, software, sekunden: clip.art === "bild" ? clip.sekunden : null });
+    if (clip.kodiert?.merkmal !== merkmal) {
+      clip.kodiert = { merkmal, ...(await kodiereClip(clip, g, fps, { bitrate, wild, software, beiFortschritt: (t) => beiFortschritt?.(`Clip ${c + 1}/${clips.length}: ${t}`) })) };
+    }
+    const k = clip.kodiert;
+    anfaenge.push(pakete.length);
+    k.pakete.forEach((p, n) => {
+      p.clip = k.schluessel[n].clip = c;
+      p.bild = k.schluessel[n].bild = n;
+    });
+    pakete.push(...k.pakete);
+    schluessel.push(...k.schluessel);
+    vorschau.push(...k.vorschau);
+    quellHelligkeit.push(k.helligkeit);
+    zeitschichten &&= k.zeitschichten;
+    clip.bilderGesamt = k.pakete.length;
+  }
+  return { pakete, schluessel, vorschau, anfaenge, fps, breite: g.breite, hoehe: g.hoehe, codec: CODEC, zeitschichten, quellHelligkeit, software };
+}
+
+// Die Bilder eines Clips, gleichmäßig abgetastet, alle in dasselbe Canvas (leinwand) gezeichnet.
+// Ein Bild gilt ab seinem Zeitstempel bis zum nächsten; Zielzeit i / fps bekommt das Bild, das dann gilt
+// (mit einem halben Bild Spielraum, damit 29,97 und 30 nicht ständig um eins danebenliegen).
+async function* gleichmaessig(clip, leinwand, fps, software) {
+  const ctx = leinwand.getContext("2d");
+  const n = Math.max(1, Math.round(clip.dauer * fps));
+  if (clip.art === "bild") {
+    ctx.drawImage(clip.bitmap, 0, 0, leinwand.width, leinwand.height);
+    for (let i = 0; i < n; i++) yield i;
+    return;
+  }
+  const halb = 0.5 / fps;
+  let i = 0;
+  let hatBild = false;
+  for await (const b of clip.bilder(clip.groesse(leinwand.width), 0, clip.dauer, software)) {
+    const t = b.timestamp - clip.anfang; // Sekunden ab Anfang des Clips
+    if (!hatBild) {
+      ctx.drawImage(b.canvas, 0, 0, leinwand.width, leinwand.height); // vor dem ersten Bild: das erste Bild
+      hatBild = true;
+    }
+    while (i < n && i / fps + halb < t) yield i++; // bis hierher gilt noch das vorige Bild
+    ctx.drawImage(b.canvas, 0, 0, leinwand.width, leinwand.height);
+  }
+  while (i < n) yield i++; // das letzte Bild gilt bis zum Ende
+}
+
+async function kodiereClip(clip, g, fps, { bitrate, wild, software, beiFortschritt }) {
+  const pakete = [];
+  const schluessel = [];
+  const vorschau = [];
   let fehler = null;
   const kopiere = (ziel) => (paket) => {
     const daten = new Uint8Array(paket.byteLength);
@@ -40,7 +108,7 @@ export async function bereite(clips, { breite, bitrate, wild = false, beiFortsch
   // Die Schichten selbst brauchen wir nicht, aber der Kodierer schreibt dann jedes Paket so, dass es die
   // Wahrscheinlichkeiten des Bool-Kodierers nicht dauerhaft ändert (vp8-kopf.js). Erst dadurch verschiebt
   // ein Sprung Blöcke, statt die Bits falsch zu lesen.
-  let einstellung = { codec: CODEC, width: g.breite, height: g.hoehe, bitrate, framerate: fps, latencyMode: "quality", scalabilityMode: "L1T2" };
+  const einstellung = { codec: CODEC, width: g.breite, height: g.hoehe, bitrate, framerate: fps, latencyMode: "quality", scalabilityMode: "L1T2" };
   // wild: absichtlich ohne, dann liest der Dekoder nach jedem Sprung die Bits falsch (Rauschen statt Blöcke)
   let zeitschichten = !wild && (await VideoEncoder.isConfigSupported(einstellung)).supported;
   if (!zeitschichten) {
@@ -58,42 +126,32 @@ export async function bereite(clips, { breite, bitrate, wild = false, beiFortsch
   const leinwand = document.createElement("canvas");
   leinwand.width = g.breite;
   leinwand.height = g.hoehe;
-  const ctx = leinwand.getContext("2d");
+  const hoeheVorschau = Math.max(1, Math.round((VORSCHAU_BREITE * g.hoehe) / g.breite));
+  let hell = 0;
+  const gesamt = Math.max(1, Math.round(clip.dauer * fps));
 
-  let nummer = 0;
-  for (let c = 0; c < clips.length; c++) {
-    anfaenge.push(nummer);
-    const clip = clips[c];
-    let i = 0;
-    for await (const b of clip.bilder(clip.groesse(breite), 0, clip.dauer)) {
-      ctx.drawImage(b.canvas, 0, 0, g.breite, g.hoehe);
-      const bild = new VideoFrame(leinwand, { timestamp: Math.round((nummer * 1e6) / fps) });
-      kodierer.encode(bild, { keyFrame: i === 0 }); // Keyframe nur am Anfang eines Clips
-      heiler.encode(bild, { keyFrame: true }); // und jedes Bild noch einmal als Keyframe
-      bild.close();
-      nummer++;
-      i++;
-      // nicht mehr als ein paar Bilder vorauslaufen (sonst sammelt sich Speicher im Kodierer)
-      while (kodierer.encodeQueueSize > 4 || heiler.encodeQueueSize > 4) await new Promise((r) => setTimeout(r, 1));
-      if (i % 15 === 0) beiFortschritt?.(`Clip ${c + 1}/${clips.length}: ${Math.round((i / (clip.dauer * clip.fps)) * 100)} %`);
-      if (fehler) throw fehler;
-    }
+  for await (const i of gleichmaessig(clip, leinwand, fps, software)) {
+    if (i === 0) hell = helligkeit(leinwand);
+    const bild = new VideoFrame(leinwand, { timestamp: Math.round((i * 1e6) / fps) });
+    kodierer.encode(bild, { keyFrame: i === 0 }); // Keyframe nur am Anfang des Clips
+    heiler.encode(bild, { keyFrame: true }); // und jedes Bild noch einmal als Keyframe
+    bild.close();
+    vorschau.push(createImageBitmap(leinwand, { resizeWidth: VORSCHAU_BREITE, resizeHeight: hoeheVorschau, resizeQuality: "low" }));
+    // nicht mehr als ein paar Bilder vorauslaufen (sonst sammelt sich Speicher im Kodierer)
+    while (kodierer.encodeQueueSize > 4 || heiler.encodeQueueSize > 4) await new Promise((r) => setTimeout(r, 1));
+    if (i % 15 === 0) beiFortschritt?.(`${Math.round((i / gesamt) * 100)} %`);
+    if (fehler) throw fehler;
   }
   await Promise.all([kodierer.flush(), heiler.flush()]);
   kodierer.close();
   heiler.close();
   if (fehler) throw fehler;
 
-  // jedem Paket sagen, zu welchem Clip und Bild es gehört (die Ausgabe kommt in derselben Reihenfolge)
-  pakete.forEach((p, n) => {
-    Object.assign(p, leseKopf(p.daten));
+  for (let n = 0; n < pakete.length; n++) {
+    Object.assign(pakete[n], leseKopf(pakete[n].daten));
     Object.assign(schluessel[n], leseKopf(schluessel[n].daten));
-    let c = anfaenge.length - 1;
-    while (anfaenge[c] > n) c--;
-    p.clip = schluessel[n].clip = c;
-    p.bild = schluessel[n].bild = n - anfaenge[c];
-  });
+  }
   // hat es geklappt? (sonst glitcht jeder Sprung zu Rauschen, main.js sagt es dann)
   zeitschichten = zeitschichten && [...pakete, ...schluessel].every((p) => !p.wahrscheinlichkeitenBleiben);
-  return { pakete, schluessel, anfaenge, fps, breite: g.breite, hoehe: g.hoehe, codec: CODEC, zeitschichten };
+  return { pakete, schluessel, vorschau: await Promise.all(vorschau), helligkeit: hell, zeitschichten };
 }
