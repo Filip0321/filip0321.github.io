@@ -17,11 +17,12 @@
 import { richteReglerEin } from "/lib/regler.js";
 import { richteExportEin, speichereCanvas, zeitstempel } from "/lib/export.js";
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
-import { richteKlangEin } from "./klang.js";
+import { richteKlangEin, rendereKlang } from "./klang.js";
+import { richteAudioreaktivEin } from "/lib/audioreaktiv.js";
 import { endbild, sichtbaresBild, crtZuschnitt, halteSchichtAn } from "/lib/effekt-schicht.js"; // VHS, CRT und die Sammlung über dem Bild
 import { farbtabelle, skalaAnker, hexZuRgb } from "/lib/farben.js";
 import { ladeVerlauf } from "/lib/verlauf.js";
-import { VOLLBILD, ZWEI_D, DREI_D } from "./shader.js";
+import { VOLLBILD, ZWEI_D, DREI_D, SCHAERFE } from "./shader.js";
 import { flug, vorn } from "./kamera.js";
 
 const bild = hole("feld"); // "feld": so heißt das Bild, das /lib/effekt-schicht.js mit Effekten überzieht
@@ -47,6 +48,28 @@ function programm(fragment) {
 }
 const zweiD = programm(ZWEI_D);
 const dreiD = programm(DREI_D);
+const schaerfe = programm(SCHAERFE);
+
+// Schärfentiefe braucht ein Zwischenbild mit Kommazahlen (Farbe und in Alpha der Abstand). In so eine
+// Textur darf man in WebGL2 nur zeichnen, wenn der Browser EXT_color_buffer_float kann (fast alle Rechner,
+// viele Handys). Sonst gibt es eben keine Schärfentiefe.
+const kommaZiel = gl.getExtension("EXT_color_buffer_float");
+const zwischen = { textur: null, rahmen: null, b: 0, h: 0 };
+function zwischenbild(b, h) {
+  if (zwischen.b === b && zwischen.h === h) return zwischen;
+  zwischen.textur ??= gl.createTexture();
+  zwischen.rahmen ??= gl.createFramebuffer();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, zwischen.textur);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, b, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, zwischen.rahmen);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, zwischen.textur, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  Object.assign(zwischen, { b, h });
+  return zwischen;
+}
 let verlauf = null;
 
 // ---------- Zustand ----------
@@ -76,9 +99,28 @@ let maus = [0, 0]; // −1 bis 1 im Bild
 let geht = 0; // wie stark man sich gerade bewegt (für das Zittern)
 let rennt = 0; // dasselbe fürs Rennen (Umschalt)
 let schrittPhase = 0;
+// Musik bewegt das Fraktal (/lib/audioreaktiv.js, wie bei den Attraktoren): Bass, Mitte, Höhen und Schlag
+// können je ein Ziel steuern. musik.wirkung.zoom usw. (0 bis etwa 2) wird beim Zeichnen auf die eigenen
+// Werte gerechnet; die Regler bleiben, wie sie sind. Beim Video kommt jedes Bild aus der Datei an seiner Zeit.
+const musik = richteAudioreaktivEin({
+  ziele: {
+    zoom: "Zoom",
+    form: "Form (Potenz, Skala, Julia …)",
+    licht: "Lampe heller",
+    nebel: "Nebel",
+    staub: "Staub",
+    wackeln: "Kamera wackelt",
+    vorwaerts: "Kamera fliegt vor",
+    farbe: "Farbe wandert (2D)",
+  },
+  start: { bass: "form", mitte: "licht", schlag: "zoom" },
+  beiStart: () => {},
+});
+let musikFarbe = 0; // wie weit die Musik die Farben schon geschoben hat (2D)
+let stand = 0; // zählt Änderungen an den Reglern (für die Fahrt: Einstellungen nur neu merken, wenn sich etwas tat)
 
 const { einstellung, setze } = richteReglerEin({
-  beiAenderung: () => {},
+  beiAenderung: () => stand++,
   extra: {
     skala: () => neueSkala(),
     farbe1: () => neueSkala(),
@@ -88,6 +130,7 @@ const { einstellung, setze } = richteReglerEin({
     welt: () => {
       kam = startKamera(einstellung.welt);
     },
+    format: () => stelleFormat(),
     art: () => {
       const a = einstellung.art;
       // Phoenix klingt nur bei wenigen c gut; das klassische (Ushiki): c = 0,5667, p = −0,5
@@ -98,16 +141,30 @@ const { einstellung, setze } = richteReglerEin({
   },
 });
 
+// Format des Bildes: frei (16:9 wie bisher) oder fest, z. B. quadratisch. Das Feld bekommt das
+// Seitenverhältnis als CSS-Variable; höher als 80 % des Fensters wird es nicht (9:16 am Rechner)
+function stelleFormat() {
+  const [x, y] = (einstellung.format ?? "16:9").split(":").map(Number);
+  stapel.style.setProperty("--format", String(x / y));
+}
+
 // eine Farbskala oder eigene Farben (dunkel, Mitte, hell), wie bei den Attraktoren
 function neueSkala() {
   const anker = einstellung.skala === "eigen" ? [einstellung.farbe1, einstellung.farbe2, einstellung.farbe3].map(hexZuRgb) : skalaAnker(einstellung.skala);
   verlauf = ladeVerlauf(gl, farbtabelle(einstellung.umgedreht ? [...anker].reverse() : anker), verlauf ?? undefined);
 }
 neueSkala();
+stelleFormat();
 
-// ---------- Abstand zur Oberfläche auf der CPU (nur für das Tempo der Kamera) ----------
+// ---------- Abstand zur Oberfläche auf der CPU (für das Tempo der Kamera und den Boden) ----------
 // dieselben Formeln wie im Shader; nah an der Oberfläche fliegt man langsamer, sonst kommt man nie hinein
+// Mit Boden zählt auch der: man fliegt an ihm langsamer und kommt nicht hindurch.
 function abstand(p) {
+  const b = boden();
+  return b ? Math.min(abstandFraktal(p), Math.max(0, p[1] - b.hoehe)) : abstandFraktal(p);
+}
+
+function abstandFraktal(p) {
   if (einstellung.welt === "mandelbulb") {
     let [x, y, z] = p;
     let dr = 1;
@@ -183,9 +240,107 @@ function abstand(p) {
   return 0.25; // in Menger und Apollonisch überall ungefähr gleich
 }
 
+// ---------- Boden ----------
+// Nur bei Welten, die aufhören. Wo er liegt: knapp unter dem tiefsten Punkt des Fraktals. Den findet man
+// mit derselben Abstandsfunktion wie die Kamera: von unten senkrecht nach oben marschieren, auf einem Gitter
+// von Säulen; um die tiefste Säule herum noch einmal feiner. (Ein Strahl von unten trifft die Unterseite.)
+const ENDLICH = ["mandelbulb", "mandelbox", "sierpinski", "qjulia"];
+// wie groß das Fraktal etwa ist (halbe Breite). Mandelbox: für |Skala| > 1 liegt alles in einer Kugel mit
+// Radius 2(|s| + 1) / (|s| − 1); nahe 1 wird die riesig, darum gedeckelt
+function groesse() {
+  const w = einstellung.welt;
+  if (w === "mandelbox") {
+    const s = Math.abs(einstellung.boxSkala);
+    return s > 1.05 ? Math.min(8, (2 * (s + 1)) / (s - 1)) : 8;
+  }
+  return { mandelbulb: 1.25, sierpinski: 1.8, qjulia: 1.6 }[w] ?? 1;
+}
+let bodenMerk = { schluessel: "", wert: null };
+function boden() {
+  if (!einstellung.boden || einstellung.dimension !== "3d" || !ENDLICH.includes(einstellung.welt)) return null;
+  // nur neu suchen, wenn sich die Form geändert hat
+  const schluessel = [einstellung.welt, einstellung.potenz, einstellung.boxSkala, einstellung.drehung, einstellung.qjForm].join();
+  if (bodenMerk.schluessel !== schluessel) bodenMerk = { schluessel, wert: { hoehe: sucheBoden(), groesse: groesse() } };
+  // Höhe verstellbar: der Regler verschiebt den gefundenen Boden, in Größen des Fraktals (−1 bis 1)
+  const { hoehe, groesse: g } = bodenMerk.wert;
+  return { hoehe: hoehe + einstellung.bodenVersatz * g, groesse: g };
+}
+function sucheBoden() {
+  const g = groesse();
+  let tiefste = { y: Infinity, x: 0, z: 0 };
+  const saeule = (x, z) => {
+    let y = -g * 1.6;
+    for (let s = 0; s < 400 && y < g * 1.6; s++) {
+      const d = abstandFraktal([x, y, z]);
+      if (d < g * 0.002) {
+        if (y < tiefste.y) tiefste = { y, x, z };
+        return;
+      }
+      y += Math.max(d, g * 0.002);
+    }
+  };
+  const N = 17;
+  for (let i = 0; i < N; i++) for (let k = 0; k < N; k++) saeule(-g + (2 * g * i) / (N - 1), -g + (2 * g * k) / (N - 1));
+  // feiner um die tiefste Säule (dort kann eine Spitze zwischen den Säulen liegen)
+  const zelle = (2 * g) / (N - 1);
+  const { x: mx, z: mz } = tiefste;
+  for (let i = -4; i <= 4; i++) for (let k = -4; k <= 4; k++) saeule(mx + (i * zelle) / 4, mz + (k * zelle) / 4);
+  return Number.isFinite(tiefste.y) ? tiefste.y - g * 0.01 : -g;
+}
+
+// Taschenlampe flackern: meist ruhig (nur ein leichtes Schwanken, wie eine schwache Batterie), ab und zu
+// ein Wackelkontakt: für einen Moment springt sie zwischen fast aus und an. Kein Math.random(): alles hängt
+// nur von der Zeit ab (ein Hash der Zeitfenster). So flackert eine gerenderte Fahrt genau wie beim Fliegen.
+const hash = (n) => {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+function flacker(t) {
+  const f = einstellung.flackern;
+  if (!f || einstellung.licht === "ueberall") return 1;
+  let w = 1 - f * 0.08 * (0.5 + 0.5 * rauschen(t * 3, 23));
+  const LANG = 1.7; // Sekunden pro Fenster; in jedem kann ein Aussetzer sein
+  const fenster = Math.floor(t / LANG);
+  if (hash(fenster) < f * 0.45) {
+    const anfang = fenster * LANG + hash(fenster + 0.5) * 1.1;
+    const dauer = 0.08 + hash(fenster + 0.7) * 0.5 * f;
+    if (t > anfang && t < anfang + dauer) {
+      const h = hash(Math.floor(t * 24) + 0.3); // 24 Mal pro Sekunde neu: an oder fast aus
+      if (h < 0.55) w *= 0.04 + h * 0.4;
+    }
+  }
+  return w;
+}
+
+// ---------- Fokus für die Schärfentiefe ----------
+// „Bildmitte“: wie ein Autofokus. Den Abstand zur Oberfläche in der Bildmitte findet man wie der Shader:
+// vom Auge geradeaus marschieren (Sphere Tracing mit abstand()). Der Fokus läuft weich hinterher (wie ein
+// Objektiv, das nachstellt), gerechnet mit dem Logarithmus, weil 0,1 → 0,2 genauso weit ist wie 1 → 2.
+// In den endlosen Welten Menger und Apollonisch kennt JavaScript den Abstand nicht: dort nur „fest“.
+let fokusJetzt = 1;
+function fokusZiel() {
+  if (einstellung.fokusArt === "fest" || ["menger", "apollonisch"].includes(einstellung.welt)) {
+    return 10 ** (einstellung.fokusAbstand * 3.5 - 2.5) * (WELTEN[einstellung.welt].gross ? 1 : 0.25);
+  }
+  const v = vorn(sicht.gier, sicht.nick);
+  let t = 0;
+  for (let i = 0; i < 300; i++) {
+    const d = abstand(sicht.pos.map((x, k) => x + v[k] * t));
+    if (d < 1e-4 + t * 1e-3) break;
+    t += d * 0.9;
+    if (t > 60) break;
+  }
+  return Math.max(t, 1e-3);
+}
+function stelleFokus(dt) {
+  const z = Math.log(fokusZiel());
+  const j = Math.log(fokusJetzt);
+  fokusJetzt = Math.exp(j + (z - j) * Math.min(1, dt * 5));
+}
+
 // Quaternion-Julia: c wandert mit „Form“ auf einem Kreis durch den vierdimensionalen Raum
 function qjuliaC() {
-  const w = einstellung.qjForm * Math.PI * 2;
+  const w = (einstellung.qjForm + 0.15 * musik.wirkung.form) * Math.PI * 2;
   return [-0.2 + 0.25 * Math.sin(w), 0.6 + 0.2 * Math.cos(w * 1.3), 0.2 + 0.2 * Math.sin(w * 0.7 + 1), 0.2 * Math.cos(w * 0.5)];
 }
 
@@ -193,9 +348,15 @@ function qjuliaC() {
 const TASTEN = { w: [1, 0, 0], arrowup: [1, 0, 0], s: [-1, 0, 0], arrowdown: [-1, 0, 0], a: [0, -1, 0], d: [0, 1, 0], e: [0, 0, 1], q: [0, 0, -1] };
 const gedrueckt = new Set();
 document.addEventListener("keydown", (event) => {
-  if (einstellung.dimension !== "3d" || event.target.closest("input, select, textarea")) return;
   const t = event.key.toLowerCase();
+  // in Text- und Zahlenfeldern tippt man; auf einem Schieberegler gehören die Pfeile ihm; Häkchen und
+  // Knöpfe stören nicht (sonst ginge nach einem Klick auf „Klang“ keine Taste mehr)
+  const feld = event.target.closest("input, select, textarea");
+  if (feld && !["checkbox", "button", "range"].includes(feld.type)) return;
+  if (feld?.type === "range" && t.startsWith("arrow")) return;
+  if (einstellung.dimension !== "3d") return;
   if (t === "f" && !event.repeat) return schalteLampe();
+  if (t === "r" && !event.repeat) return schalteFahrt();
   if (t in TASTEN || t === "arrowleft" || t === "arrowright" || t === "shift") {
     event.preventDefault();
     gedrueckt.add(t);
@@ -203,9 +364,23 @@ document.addEventListener("keydown", (event) => {
 });
 document.addEventListener("keyup", (event) => gedrueckt.delete(event.key.toLowerCase()));
 
-stapel.addEventListener("pointermove", (event) => {
+// Lampe und Blick getrennt:
+//   Maus ohne Taste bewegen  → nur die Lampe        linke Taste ziehen → nur der Blick (die Lampe bleibt,
+//   rechte Taste ziehen      → nur die Lampe          wohin sie relativ zum Blick zeigte)
+//   am Handy: ein Finger schaut, oder mit „Finger: Lampe“ richtet er die Lampe
+let fingerLampe = false;
+function setzeMaus(event) {
   const r = bild.getBoundingClientRect();
   maus = [((event.clientX - r.left) / r.width) * 2 - 1, 1 - ((event.clientY - r.top) / r.height) * 2];
+}
+stapel.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "mouse" && event.buttons === 0) setzeMaus(event);
+});
+stapel.addEventListener("contextmenu", (event) => event.preventDefault()); // rechte Taste gehört der Lampe
+hole("fingerLampe").addEventListener("click", (event) => {
+  fingerLampe = !fingerLampe;
+  event.target.setAttribute("aria-pressed", String(fingerLampe));
+  event.target.textContent = fingerLampe ? "Finger: Lampe" : "Finger: Blick";
 });
 
 // ziehen: in 2D verschieben, in 3D umschauen; zwei Finger: zoomen (2D) oder vor und zurück (3D)
@@ -236,7 +411,9 @@ stapel.addEventListener("pointerdown", (event) => {
     ziehen = null;
     return;
   }
-  ziehen = { x: event.clientX, y: event.clientY, mitte: [...ansicht2.mitte], gier: kam.gier, nick: kam.nick, weit: 0 };
+  // nur die Lampe: rechte Taste, oder am Handy mit „Finger: Lampe“
+  const nurLampe = event.button === 2 || (event.pointerType !== "mouse" && fingerLampe);
+  ziehen = { x: event.clientX, y: event.clientY, mitte: [...ansicht2.mitte], gier: kam.gier, nick: kam.nick, weit: 0, nurLampe, taste: event.button };
 });
 stapel.addEventListener("pointermove", (event) => {
   if (finger.has(event.pointerId)) finger.set(event.pointerId, [event.clientX, event.clientY]);
@@ -255,6 +432,9 @@ stapel.addEventListener("pointermove", (event) => {
   if (einstellung.dimension === "2d") {
     const f = ansicht2.massstab / bild.clientHeight;
     ansicht2.mitte = [ziehen.mitte[0] - dx * f, ziehen.mitte[1] + dy * f];
+  } else if (ziehen.nurLampe) {
+    setzeMaus(event);
+    lampeAnKamera = false; // wer die Lampe richtet, nimmt sie in die Hand
   } else {
     kam.gier = ziehen.gier - dx * 0.004;
     kam.nick = Math.max(-1.5, Math.min(1.5, ziehen.nick - dy * 0.004));
@@ -265,7 +445,7 @@ for (const ende of ["pointerup", "pointercancel"]) {
     finger.delete(event.pointerId);
     if (finger.size < 2) zange = null;
     // nur angetippt (nicht gezogen): Lampe an die Kamera bzw. wieder in die Hand
-    if (ziehen && ziehen.weit < 5 && event.type === "pointerup" && einstellung.dimension === "3d") schalteLampe();
+    if (ziehen && ziehen.weit < 5 && ziehen.taste === 0 && event.type === "pointerup" && einstellung.dimension === "3d") schalteLampe();
     ziehen = null;
   });
 }
@@ -310,13 +490,17 @@ function bewege(dt, zeit) {
   const v = vorn(kam.gier, kam.nick);
   const rechts = [-Math.cos(kam.gier), 0, Math.sin(kam.gier)];
   for (let k = 0; k < 3; k++) kam.pos[k] += (v[k] * r[0] + rechts[k] * r[1] + (k === 1 ? r[2] : 0)) * tempo;
+  // Musik: „vorwärts“ schiebt die Kamera mit dem Signal nach vorn (wie ein Herzschlag beim Fliegen)
+  if (musik.wirkung.vorwaerts) for (let k = 0; k < 3; k++) kam.pos[k] += v[k] * musik.wirkung.vorwaerts * lokal * dt * 2;
+  const b = boden();
+  if (b) kam.pos[1] = Math.max(kam.pos[1], b.hoehe + b.groesse * 0.01); // nicht durch den Boden
   const bewegt = r[0] || r[1] || r[2] ? 1 : 0;
   geht += (bewegt - geht) * Math.min(1, dt * 3);
   rennt += ((sprint ? bewegt : 0) - rennt) * Math.min(1, dt * 3);
 
   // Kamera wackeln: Schritte (ein Auf und Ab pro Schritt, ein Hin und Her pro zwei) und Rauschen.
   // Rennen: schnellere Schritte, viel mehr Ausschlag
-  const w = einstellung.wackeln;
+  const w = einstellung.wackeln + 3 * musik.wirkung.wackeln;
   schrittPhase += dt * geht * (6 + rennt * 5);
   const schritt = geht * (1 + rennt * 2.5);
   const ruhe = 0.0015 + geht * 0.004 + rennt * 0.012; // Atmen im Stehen, mehr beim Gehen und Rennen
@@ -337,7 +521,9 @@ function bewege(dt, zeit) {
 
 // wo die Lampe gerade ist und wohin sie leuchtet: etwas rechts unterhalb des Auges (in der Hand) bzw.
 // knapp unter dem Auge (an der Kamera, wie eine Stirnlampe). Genau im Auge wären keine Schatten zu sehen.
+let lampeFest = null; // beim Abspielen einer Fahrt: { ort, richtung } aus der Aufnahme
 function lampeImRaum() {
+  if (lampeFest) return lampeFest;
   const rechts = [-Math.cos(sicht.gier), 0, Math.sin(sicht.gier)];
   const s = WELTEN[einstellung.welt].gross ? 0.03 : 0.01;
   const seite = lampeAnKamera ? 0.2 : 1;
@@ -354,7 +540,11 @@ function takt(jetzt) {
   if (rechnetGross) return;
   const dt = Math.min(0.05, (jetzt - vorher) / 1000);
   vorher = jetzt;
+  musik.schritt(dt); // Musik hören, bevor bewegt und gezeichnet wird
+  musikFarbe = (musikFarbe + 0.5 * musik.wirkung.farbe * dt) % 1;
   if (einstellung.dimension === "3d") lampeRichtung = bewege(dt, jetzt / 1000);
+  if (einstellung.schaerfe) stelleFokus(dt);
+  if (aufnahme) merkeProbe(jetzt);
   const dpr = Math.min(devicePixelRatio || 1, 2);
   zeichne(Math.round(bild.clientWidth * dpr * einstellung.aufloesung), Math.round(bild.clientHeight * dpr * einstellung.aufloesung), jetzt, false);
 }
@@ -373,19 +563,19 @@ function zeichne(b, h, jetzt, fein) {
     gl.useProgram(p);
     gl.uniform2f(ort.aufloesung, b, h);
     gl.uniform2f(ort.mitte, ...ansicht2.mitte);
-    gl.uniform1f(ort.massstab, ansicht2.massstab);
+    gl.uniform1f(ort.massstab, ansicht2.massstab / (1 + 0.5 * musik.wirkung.zoom));
     gl.uniform1i(ort.art, ["mandelbrot", "julia", "schiff", "tricorn", "multibrot", "phoenix", "newton"].indexOf(einstellung.art));
-    gl.uniform1f(ort.hoch, einstellung.hoch);
+    gl.uniform1f(ort.hoch, einstellung.hoch + 0.5 * musik.wirkung.form);
     gl.uniform1f(ort.phoenixP, einstellung.phoenixP);
     gl.uniform1f(ort.newtonSchritt, einstellung.newtonSchritt);
-    gl.uniform2f(ort.julia, einstellung.juliaRe, einstellung.juliaIm);
+    gl.uniform2f(ort.julia, einstellung.juliaRe + 0.04 * musik.wirkung.form, einstellung.juliaIm);
     gl.uniform1i(ort.schritte, einstellung.schritte);
     gl.uniform1f(ort.farbdichte, einstellung.farbdichte);
-    gl.uniform1f(ort.farbversatz, (einstellung.farbversatz + jetzt * 0.00005 * einstellung.farbfluss) % 1);
+    gl.uniform1f(ort.farbversatz, (einstellung.farbversatz + jetzt * 0.00005 * einstellung.farbfluss + musikFarbe) % 1);
     gl.uniform1i(ort.verlauf, 0);
     hole("info").textContent = `Zoom ${(2.6 / ansicht2.massstab).toExponential(1).replace(".", ",")}${ansicht2.massstab < 2e-5 ? " · hier ist float am Ende: es wird pixelig" : ""}`;
   } else {
-    const k = flug(sicht, b / h);
+    const k = flug(sicht, b / h, 1.0 / (1 + 0.5 * musik.wirkung.zoom)); // Musik zoomt: engerer Blickwinkel
     const { p, ort } = dreiD;
     gl.useProgram(p);
     gl.uniform2f(ort.aufloesung, b, h);
@@ -393,38 +583,233 @@ function zeichne(b, h, jetzt, fein) {
     gl.uniform3fv(ort.auge, k.auge);
     const welt = WELTEN[einstellung.welt];
     gl.uniform1i(ort.welt, Object.keys(WELTEN).indexOf(einstellung.welt));
-    gl.uniform1f(ort.boxSkala, einstellung.boxSkala);
-    gl.uniform1f(ort.drehung, (einstellung.drehung * Math.PI) / 180);
+    // Musik „Form“: je Welt der Regler, der die Form bestimmt (Bass pumpt die Mandelbox …)
+    const mf = musik.wirkung.form;
+    gl.uniform1f(ort.boxSkala, einstellung.boxSkala + 0.4 * mf * Math.sign(einstellung.boxSkala || 1));
+    gl.uniform1f(ort.drehung, ((einstellung.drehung + 8 * mf) * Math.PI) / 180);
     gl.uniform4f(ort.qc, ...qjuliaC());
-    gl.uniform1f(ort.staub, einstellung.staub);
+    gl.uniform1f(ort.staub, einstellung.staub + 2 * musik.wirkung.staub);
     gl.uniform1f(ort.pixelWinkel, 1.0 / h); // Blickwinkel 1 (Bogenmaß) auf h Pixel
-    gl.uniform1f(ort.potenz, einstellung.potenz);
-    gl.uniform1f(ort.form, einstellung.form);
+    gl.uniform1f(ort.potenz, einstellung.potenz + 2 * mf);
+    gl.uniform1f(ort.form, einstellung.form + 0.08 * mf);
     const l = lampeImRaum();
     gl.uniform3f(ort.lampeOrt, ...l.ort);
     gl.uniform3f(ort.lampeRichtung, ...l.richtung);
     gl.uniform1f(ort.kegel, (einstellung.kegel * Math.PI) / 180);
-    gl.uniform1f(ort.lampeStaerke, einstellung.lampeStaerke * (welt.gross ? 1 : 0.15));
+    gl.uniform1f(ort.lampeStaerke, einstellung.lampeStaerke * (welt.gross ? 1 : 0.15) * flacker(jetzt / 1000) * (1 + 2 * musik.wirkung.licht));
+    const bo = boden();
+    gl.uniform1i(ort.mitBoden, bo ? 1 : 0);
+    gl.uniform1f(ort.bodenHoehe, bo?.hoehe ?? 0);
+    gl.uniform1f(ort.bodenGroesse, bo?.groesse ?? 1);
+    // Schärfentiefe: erst ins Zwischenbild (mit Abstand in Alpha), danach der zweite Durchgang (unten)
+    tiefenschaerfe = einstellung.schaerfe && kommaZiel ? zwischenbild(b, h) : null;
+    gl.uniform1i(ort.tiefeInAlpha, tiefenschaerfe ? 1 : 0);
+    if (tiefenschaerfe) gl.bindFramebuffer(gl.FRAMEBUFFER, tiefenschaerfe.rahmen);
     gl.uniform3f(ort.lampeFarbe, ...hexZuRgb(einstellung.lampeFarbe).map((x) => x / 255));
     gl.uniform3f(ort.grundFarbe, ...hexZuRgb(einstellung.grundFarbe).map((x) => x / 255));
     gl.uniform1f(ort.umgebung, einstellung.umgebung);
-    gl.uniform1f(ort.nebel, einstellung.nebel * (welt.gross ? 1 : 4));
+    gl.uniform1f(ort.nebel, (einstellung.nebel + musik.wirkung.nebel) * (welt.gross ? 1 : 4));
     gl.uniform1f(ort.zeit, jetzt / 1000);
     gl.uniform1i(ort.verlauf, 0);
     gl.uniform1i(ort.lichtArt, ["lampe", "ueberall", "beides"].indexOf(einstellung.licht));
     gl.uniform1i(ort.mitSchatten, einstellung.schatten ? 1 : 0);
     // Genauigkeit an die Pixelgröße binden: doppelt so viele Pixel, halb so großer Fehler erlaubt
-    gl.uniform1f(ort.genauigkeit, (fein ? 0.4 : 1) * 0.0005 * (900 / Math.max(h, 300)));
-    gl.uniform1i(ort.maxSchritte, fein ? 900 : 220);
+    // Tiefe, Genauigkeit, Schrittweite („Qualität“): gelten für die Anzeige UND fürs Rendern, damit man sieht,
+    // was man bekommt. fein (Video, Groß rechnen) rechnet nur noch die Oberfläche genauer nach (Normale).
+    gl.uniform1f(ort.genauigkeit, einstellung.renderGenau * 0.0005 * (900 / Math.max(h, 300)));
+    gl.uniform1i(ort.maxSchritte, einstellung.renderSchritte);
+    gl.uniform1f(ort.schrittweite, einstellung.schrittweite);
+    gl.uniform1f(ort.massstab, bo?.groesse ?? (welt.gross ? 1 : 0.25));
+    gl.uniform1i(ort.bodenArt, einstellung.bodenArt === "einfarbig" ? 1 : 0);
+    gl.uniform3f(ort.bodenFarbe, ...hexZuRgb(einstellung.bodenFarbe).map((x) => x / 255));
     const lampeText = einstellung.licht === "ueberall" ? "" : lampeAnKamera ? " · Lampe an der Kamera (Klick oder F: in die Hand)" : " · Lampe in der Hand (Klick oder F: an die Kamera)";
     hole("info").textContent = `Abstand zur Oberfläche ${abstand(kam.pos).toFixed(3).replace(".", ",")}${lampeText}`;
   }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
+  if (einstellung.dimension === "3d" && tiefenschaerfe) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(schaerfe.p);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, tiefenschaerfe.textur);
+    gl.uniform1i(schaerfe.ort.bild, 1);
+    gl.uniform2f(schaerfe.ort.aufloesung, b, h);
+    gl.uniform1f(schaerfe.ort.fokus, fokusJetzt);
+    gl.uniform1f(schaerfe.ort.blende, einstellung.unschaerfe);
+    gl.uniform1f(schaerfe.ort.maxRadius, h * 0.03); // größer wird kein Scheibchen (3 % der Bildhöhe)
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
+  }
 }
+let tiefenschaerfe = null;
 requestAnimationFrame(takt);
 
 const name = () => `fraktal-${einstellung.dimension === "2d" ? einstellung.art : einstellung.welt}`;
-richteExportEin({ canvas: bild, ziel: hole("exportKnoepfe"), name, anzeige: () => sichtbaresBild(), zuschnitt: crtZuschnitt });
+// ---------- Fahrt aufnehmen ----------
+// „Live aufnehmen“ kodiert, während man fliegt: jedes Bild, das der Kodierer nicht schafft, fehlt, darum
+// ruckelt es. Besser: erst nur die Fahrt aufnehmen (wo die Kamera war, wohin sie und die Lampe schauten,
+// die Regler, Abstand und Gehen für den Klang), das kostet fast nichts. „Video rendern“ spielt sie danach
+// Bild für Bild nach, 30 Bilder pro Sekunde, so langsam wie nötig und so groß wie eingestellt. Zwischen
+// zwei gemerkten Proben wird gemischt (linear; die Größe in 2D logarithmisch, weil Zoomen ein Faktor ist).
+// Der Klang wird aus denselben Proben neu gerechnet (rendereKlang in klang.js).
+let fahrt = null; // { proben, dauer } der letzten Aufnahme
+let aufnahme = null; // { start, proben, e, stand } solange aufgenommen wird
+const fahrtKnopf = hole("fahrt");
+
+function merkeProbe(jetzt) {
+  aufnahme.start ??= jetzt;
+  if (aufnahme.stand !== stand || !aufnahme.e) {
+    aufnahme.e = { ...einstellung }; // nur neu kopieren, wenn sich ein Regler bewegt hat
+    aufnahme.stand = stand;
+  }
+  const l = lampeImRaum();
+  const t = (jetzt - aufnahme.start) / 1000;
+  aufnahme.proben.push({
+    t,
+    zeit: jetzt / 1000,
+    pos: [...sicht.pos],
+    gier: sicht.gier,
+    nick: sicht.nick,
+    ort: [...l.ort],
+    richtung: [...l.richtung],
+    mitte: [...ansicht2.mitte],
+    massstab: ansicht2.massstab,
+    abstand: einstellung.dimension === "3d" ? abstand(kam.pos) : 0.3,
+    geht,
+    e: aufnahme.e,
+  });
+  fahrtKnopf.textContent = `Stopp (${Math.floor(t)} s)`;
+}
+
+function schalteFahrt() {
+  if (!aufnahme) {
+    aufnahme = { start: null, proben: [], e: null, stand: -1 };
+    fahrtKnopf.setAttribute("aria-pressed", "true");
+    return;
+  }
+  const proben = aufnahme.proben;
+  aufnahme = null;
+  fahrtKnopf.setAttribute("aria-pressed", "false");
+  fahrtKnopf.textContent = "Fahrt aufnehmen";
+  if (proben.length < 2) return;
+  fahrt = { proben, dauer: proben.at(-1).t };
+  hole("fahrtInfo").textContent = `Fahrt: ${fahrt.dauer.toFixed(1).replace(".", ",")} s gemerkt. Jetzt „Video rendern“.`;
+}
+fahrtKnopf.addEventListener("click", schalteFahrt);
+
+const mische = (a, b, f) => a + (b - a) * f;
+const FARB_REGLER = ["skala", "farbe1", "farbe2", "farbe3", "umgedreht"];
+
+// den Zustand zur Zeit t (Sekunden in der Fahrt) herstellen
+function zeigeProbe(t) {
+  const p = fahrt.proben;
+  let lo = 0;
+  let hi = p.length - 1;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (p[m].t <= t) lo = m;
+    else hi = m;
+  }
+  const a = p[lo];
+  const b = p[hi];
+  const f = Math.max(0, Math.min(1, (t - a.t) / Math.max(b.t - a.t, 1e-6)));
+  const farbeNeu = FARB_REGLER.some((n) => einstellung[n] !== a.e[n]);
+  Object.assign(einstellung, a.e);
+  if (farbeNeu) neueSkala();
+  sicht = { pos: a.pos.map((x, k) => mische(x, b.pos[k], f)), gier: mische(a.gier, b.gier, f), nick: mische(a.nick, b.nick, f) };
+  const r = a.richtung.map((x, k) => mische(x, b.richtung[k], f));
+  const lr = Math.hypot(...r);
+  lampeFest = { ort: a.ort.map((x, k) => mische(x, b.ort[k], f)), richtung: r.map((x) => x / lr) };
+  ansicht2.mitte = a.mitte.map((x, k) => mische(x, b.mitte[k], f));
+  ansicht2.massstab = Math.exp(mische(Math.log(a.massstab), Math.log(b.massstab), f));
+  return mische(a.zeit, b.zeit, f);
+}
+
+// alles merken, was das Abspielen verändert, und eine Funktion, die es zurückstellt
+function schnappe() {
+  const alt = { kam: structuredClone(kam), sicht, mitte: [...ansicht2.mitte], massstab: ansicht2.massstab, e: { ...einstellung } };
+  return () => {
+    kam = alt.kam;
+    sicht = alt.sicht;
+    ansicht2.mitte = alt.mitte;
+    ansicht2.massstab = alt.massstab;
+    const farbeNeu = FARB_REGLER.some((n) => einstellung[n] !== alt.e[n]);
+    Object.assign(einstellung, alt.e);
+    if (farbeNeu) neueSkala();
+    lampeFest = null;
+  };
+}
+
+let vorDemRendern = null;
+let startZeit = 0;
+// Wie groß gerechnet wird. Vorher: immer 1920 breit, und das Export-Fenster zog es dann auf seine „Größe“
+// hoch (Standard 4K): doppelt so groß aufgeblasen, darum war das Video unscharf. Jetzt: genau die Breite, die
+// das Video bekommt (so rechnet export-dialog.js sie aus: mitRahmen), mal Supersampling. Danach verkleinert
+// (mehrere Strahlen pro Pixel gemittelt = glatte Kanten, kein Flimmern). Vorschau im Fenster: kleiner.
+let renderZiel = null; // { breite, ss } während des Renderns, sonst null
+function zeigeVideoBild(t, vorschau = false) {
+  const zeit = fahrt ? zeigeProbe(Math.min(t, fahrt.dauer)) : startZeit + t; // ohne Fahrt: stehen, die Zeit läuft
+  const b = renderZiel && !vorschau ? renderZiel.breite * renderZiel.ss : Math.min(1280, bild.width * 2);
+  const h = Math.round((b * bild.clientHeight) / bild.clientWidth / 2) * 2;
+  if (einstellung.schaerfe) stelleFokus(1 / 30); // der Fokus zieht Bild für Bild nach, wie beim Fliegen
+  zeichne(b, h, zeit * 1000, true);
+}
+// das gerechnete (große) Bild auf die Breite des Videos verkleinern
+const videoKlein = document.createElement("canvas");
+function aufVideobreite(quelle) {
+  if (!renderZiel || renderZiel.ss === 1) return quelle;
+  const b = renderZiel.breite;
+  const h = Math.round((b * quelle.height) / quelle.width);
+  if (videoKlein.width !== b || videoKlein.height !== h) {
+    videoKlein.width = b;
+    videoKlein.height = h;
+  }
+  const c = videoKlein.getContext("2d");
+  c.imageSmoothingQuality = "high";
+  c.drawImage(quelle, 0, 0, b, h);
+  return videoKlein;
+}
+
+richteExportEin({
+  canvas: bild,
+  ziel: hole("exportKnoepfe"),
+  name,
+  anzeige: () => sichtbaresBild(),
+  zuschnitt: crtZuschnitt,
+  endbild: (t) => aufVideobreite(endbild(t)),
+  liveTon: () => (hole("klang").checked ? klang.liveTon() : null),
+  // Ton im Video: die Musik, wenn eine Datei geladen ist; sonst der Klang der Höhle (mit Fahrt)
+  ton: () => musik.tonFuerExport() ?? (fahrt && hole("klang").checked ? rendereKlang(fahrt.proben, fahrt.dauer) : null),
+  dauer: () => fahrt?.dauer ?? null,
+  render: {
+    merke: () => schnappe(),
+    start(n, einst) {
+      musik.exportStart(n, 30); // die Musik einmal für alle Bilder vorausrechnen (30 Bilder pro Sekunde)
+      // mit einst: das Rendern beginnt gleich (sonst nur die Vorschau im Fenster)
+      if (einst) renderZiel = { breite: mitRahmen(sichtbaresBild(), einst).width, ss: Number(einstellung.renderSS) };
+      vorDemRendern ??= schnappe();
+      startZeit = performance.now() / 1000;
+      rechnetGross = true; // die Anzeige steht, solange gerendert wird
+      halteSchichtAn(true);
+    },
+    bild: (i, dt) => {
+      musik.exportBild(i); // was die Musik bei diesem Bild macht
+      musikFarbe = (musikFarbe + 0.5 * musik.wirkung.farbe * dt) % 1;
+      zeigeVideoBild(i * dt);
+    },
+    vorschau: (i, n, dt) => {
+      musik.exportBild(i);
+      zeigeVideoBild(i * dt, true);
+    },
+    ende() {
+      musik.exportEnde();
+      renderZiel = null;
+      vorDemRendern?.();
+      vorDemRendern = null;
+      rechnetGross = false;
+      halteSchichtAn(false);
+    },
+  },
+});
 
 // Groß rechnen: das Bild noch einmal in Exportgröße, mit feinerer Genauigkeit und doppelt so vielen
 // Pixeln in jede Richtung (Supersampling: vier Strahlen pro Pixel, danach verkleinert = glatte Kanten).

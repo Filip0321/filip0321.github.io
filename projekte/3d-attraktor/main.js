@@ -14,6 +14,7 @@ import { drehX, drehY, drehZ, mal, anwenden, drehVonNach, EINHEIT } from "./lage
 import { erstelleMobile } from "./mobile.js";
 import { vermesseKoerper, erstelleKoerper } from "./koerper.js";
 import { richteSzenenEin } from "/lib/szenen.js";
+import { richteLampenEin, weitereLampen } from "./lampen.js";
 
 const MAX_PUNKTE = 10000000;
 const BILDER_PRO_ANIMATION = 1500; // in so vielen Bildern entsteht der Attraktor (60 pro Sekunde = 25 s)
@@ -306,6 +307,7 @@ function zeichne(ohneBoden = false, teil = null) {
     verlaufVersatz: farbVersatz,
     lichtPos: lampe?.pos ?? null,
     kegelRichtung: lampe?.richtung ?? null,
+    weitereLampen: weitereLampen(),
     teil,
   });
 }
@@ -1230,4 +1232,9 @@ richteAttraktorTonEin({
   zuschnitt: crtZuschnitt,
 });
 
-
+// weitere Lampen (lampen.js): jede Änderung zeichnet neu
+// (ohne Boden gibt es nichts, worauf sie leuchten: dann „Boden und Schatten“ gleich mit an)
+richteLampenEin(hole("lampenListe"), hole("lampeDazu"), () => {
+  if (weitereLampen().length && !einstellung.schatten) setze("schatten", true);
+  zeichne();
+});

@@ -196,6 +196,14 @@
           <label>Schatten <input type="range" data-wert="schattenStaerke" min="0" max="1" step="0.05" value="0.8"><output></output></label>
           <label>Schattenfarbe <input type="color" data-wert="schattenfarbe" value="#000000"></label>
         </div>
+        <!-- weitere Lampen, jede mit eigenen Einstellungen und eigenem Schatten (lampen.js) -->
+        <div>
+          <div class="steuerung">
+            <button type="button" id="lampeDazu">Lampe hinzufügen</button>
+          </div>
+          <div id="lampenListe"></div>
+          <p class="hinweis">Bis zu drei weitere Lampen, zusätzlich zum Licht oben. Sie leuchten auf Boden und Wände: „Lampe hinzufügen“ schaltet „Boden und Schatten“ darum gleich mit ein. Jede wirft ihren eigenen Schatten, der nur ihr eigenes Licht abdunkelt. Am besten sieht man sie mit wenig Umgebungslicht.</p>
+        </div>
         <p class="hinweis" data-nur="schatten=true licht=lampe,scheinwerfer">Mit „Lampe zeigen“ lässt sich die Lampe im Bild greifen und ziehen; am Kabel ziehst du sie zur Seite und lässt sie los. Den Lichtkegel sieht man auf Boden und Wänden erst mit wenig Umgebungslicht.</p>
       </details>
 
@@ -351,5 +359,6 @@
 
 </body>
 </html>
+
 
 

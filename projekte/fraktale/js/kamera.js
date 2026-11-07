@@ -71,10 +71,11 @@ export function vorn(gier, nick) {
 // freie Kamera („fliegen“): steht bei pos und schaut in Richtung vorn(gier, nick). Dieselbe Mathematik
 // wie beim Kreisen, nur ist hier das Auge fest und das Ziel wandert mit dem Blick, statt umgekehrt.
 // Steht das Auge im Block, beginnt der Strahl im Shader einfach bei 0 (rein = max(…, 0)).
-export function flug({ pos, gier, nick }, seitenverhaeltnis) {
+// blickwinkel: senkrecht, im Bogenmaß (kleiner = hineingezoomt, wie ein Teleobjektiv)
+export function flug({ pos, gier, nick }, seitenverhaeltnis, blickwinkel = 1.0) {
   const v = vorn(gier, nick);
   const ziel = [pos[0] + v[0], pos[1] + v[1], pos[2] + v[2]];
-  const vp = mal(perspektive(1.0, seitenverhaeltnis, 0.01, 100), blick(pos, ziel, [0, 1, 0]));
+  const vp = mal(perspektive(blickwinkel, seitenverhaeltnis, 0.01, 100), blick(pos, ziel, [0, 1, 0]));
   return { auge: new Float32Array(pos), zurueck: umgekehrt(vp) };
 }
 
@@ -94,3 +95,4 @@ export function kamera({ drehung, neigung, abstand }, seitenverhaeltnis) {
   const vp = mal(perspektive(0.8, seitenverhaeltnis, 0.05, 100), blick(auge, [0, 0, 0], [0, 1, 0]));
   return { auge: new Float32Array(auge), zurueck: umgekehrt(vp) };
 }
+
