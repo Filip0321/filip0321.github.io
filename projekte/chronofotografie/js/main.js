@@ -250,7 +250,31 @@ hole("anhalten").addEventListener("click", halteAn);
 // Eine eigene GPU-Instanz auf einem eigenen Canvas in Exportgröße: Puffer, Grundbild und Median werden
 // dort noch einmal gerechnet. So ist die Vorschau schnell und der Export trotzdem scharf.
 
-const dialog = erstelleExportDialog({ zeichneVorschau: (einst) => mitRahmen(bild, einst) });
+// Im Video-Modus darf man beim Bild speichern wählen, WELCHES Bild (zeit: 0 bis 1 im Bereich). Die Vorschau
+// dafür rechnet klein (640 breit) und nur so weit wie nötig: vorwärts geht es dort weiter, wo sie war,
+// rückwärts fängt sie von vorn an (die Chronofotografie baut sich Bild für Bild auf, wie beim Abspielen).
+let vorschau = null; // { leinwand, iter, n, schluessel }
+const bilderImBereich = (e) => Math.max(1, Math.round((e.bis - e.von) * quelle.fps));
+async function vorschauBei(zeit) {
+  const e = auswahl();
+  const ziel = Math.round(zeit * bilderImBereich(e));
+  const schluessel = JSON.stringify(e);
+  if (!vorschau || ziel < vorschau.n || vorschau.schluessel !== schluessel) {
+    const g = quelle.groesse(640);
+    const inst = await neueExportInstanz(g, e);
+    vorschau = { leinwand: inst.leinwand, iter: videoSchritte(inst.chrono, quelle, maske, g, inst.e, einsaetze), n: 0, schluessel };
+    zeigeFortschritt(null);
+  }
+  while (vorschau.n < ziel) {
+    const r = await vorschau.iter.next();
+    if (r.done) break;
+    vorschau.n = r.value.n;
+  }
+  return vorschau.leinwand;
+}
+const dialog = erstelleExportDialog({
+  zeichneVorschau: async (einst, zeit) => (zeit !== null && quelle ? mitRahmen(await vorschauBei(zeit), einst) : mitRahmen(bild, einst)),
+});
 
 function exportGroesse() {
   return quelle.groesse(Number(einstellung.exportBreite));
@@ -270,7 +294,10 @@ async function neueExportInstanz(g, e) {
 hole("bildSpeichern").addEventListener("click", async () => {
   if (!quelle || beschaeftigt) return;
   halteAn();
-  const einst = await dialog.oeffne({ art: "bild", ueberschrift: "Bild speichern (volle Größe)" });
+  const imVideo = einstellung.modus !== "standbild";
+  const sekunden = (auswahl().bis - auswahl().von);
+  const einst = await dialog.oeffne({ art: "bild", ueberschrift: "Bild speichern (volle Größe)", bildZeit: imVideo, laenge: sekunden });
+  vorschau = null; // die kleine Vorschau wird nicht mehr gebraucht
   if (!einst) return;
   beschaeftigt = true;
   try {
@@ -280,8 +307,9 @@ hole("bildSpeichern").addEventListener("click", async () => {
     if (einstellung.modus === "standbild") {
       await rechneStandbild(chrono, quelle, maske, g, e, standbildZeiten(quelle, e, einsaetze));
     } else {
-      // im Video-Modus: das letzte Bild des Bereichs, mit allem, was sich bis dahin aufgebaut hat
-      for await (const _schritt of videoSchritte(chrono, quelle, maske, g, e, einsaetze)); // nur durchlaufen
+      // im Video-Modus: das gewählte Bild (sonst das letzte des Bereichs), mit allem, was sich bis dahin aufgebaut hat
+      const ziel = einst.zeit !== null ? Math.max(1, Math.round(einst.zeit * bilderImBereich(e))) : Infinity;
+      for await (const { n } of videoSchritte(chrono, quelle, maske, g, e, einsaetze)) if (n >= ziel) break;
     }
     await speichereCanvas(mitRahmen(leinwand, einst), einst.bildTyp, `${quelle.name}-chrono-${zeitstempel()}`);
   } catch (fehler) {
@@ -331,3 +359,4 @@ hole("videoRendern").addEventListener("click", async () => {
     zeigeFortschritt(null);
   }
 });
+

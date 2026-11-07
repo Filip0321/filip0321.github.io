@@ -118,6 +118,9 @@ uniform float schattenModus; // 1 = diesen Durchgang die Punkte als Schatten auf
 uniform vec3 licht;          // Richtung, in die das Licht fällt (zeigt nach unten: y < 0)
 uniform float lampe;         // 0 = Sonne (alle Strahlen parallel, licht), 1 = Lampe an der Stelle lichtPos
 uniform vec3 lichtPos;       // wo die Lampe steht (in der Welt, Mitte = 0)
+uniform int extraAnzahl;     // weitere Lampen (lampen.js), 0 bis 3
+uniform vec3 extraPos[3];
+uniform float extraStaerke[3];
 out float lichtAufPunkt;     // wie hell die Lampe diesen Punkt trifft (1 bei der Sonne)
 out float kegel;             // 1 = der Punkt liegt im Lichtkegel des Scheinwerfers, 0 = im Dunkeln
 
@@ -161,6 +164,12 @@ void main() {
   vec3 zurLampe = lichtPos - p;
   kegel = imKegel(p); // außerhalb des Kegels kommt kein Licht hin: kein Licht auf dem Punkt, kein Schatten
   lichtAufPunkt = (lampe > 0.5 ? min(LAMPE_BEZUG * LAMPE_BEZUG / dot(zurLampe, zurLampe), 4.0) : 1.0) * kegel;
+  // weitere Lampen (lampen.js) machen die Punkte auch heller, wie die Lampe oben (nur ohne Kegel)
+  for (int k = 0; k < 3; k++) {
+    if (k >= extraAnzahl) break;
+    vec3 z = extraPos[k] - p;
+    lichtAufPunkt += extraStaerke[k] * min(LAMPE_BEZUG * LAMPE_BEZUG / dot(z, z), 4.0);
+  }
 
   // Schatten: vom Punkt aus in Lichtrichtung weiter, bis zur ersten Fläche (Boden, Wand oder Decke).
   // Sonne: alle Strahlen parallel (licht). Lampe: der Strahl geht von der Lampe durch den Punkt,
@@ -309,7 +318,9 @@ void main() {
   // welches der drei Bilder wirklich beschrieben wird, entscheidet drawBuffers in zeichne():
   // beim Attraktor Bild 0 und 1, beim Schatten nur Bild 2
   // ein Punkt außerhalb des Lichtkegels wirft keinen Schatten (er steht ja gar nicht im Licht)
-  schattenSumme = vec4(gewicht * kegel, 0.0, 0.0, 0.0);
+  // in alle vier Kanäle: welcher wirklich beschrieben wird, entscheidet gl.colorMask (pro Lampe ein Kanal,
+  // Rot für das Licht oben, Grün, Blau, Alpha für die weiteren Lampen)
+  schattenSumme = vec4(gewicht * kegel);
 }`;
 
 const VERTEX_SHADER_FARBE = /* glsl */ `#version 300 es
@@ -337,7 +348,7 @@ uniform float faerbung;    // 0 eine Farbe, 1 Reihenfolge, 2 Dichte, 3 Tiefe, 4 
 uniform float staerke;
 uniform float verlaufVersatz; // wie im 1. Durchgang
 
-uniform sampler2D schattenBild; // r: wie viele Schatten-Punkte in diesem Pixel auf einer Fläche liegen
+uniform sampler2D schattenBild; // r: wie viele Schatten-Punkte in diesem Pixel auf einer Fläche liegen (g, b, a: die weiteren Lampen)
 uniform float schattenAn;
 uniform float schattenStaerke;  // 0 kein Schatten bis 1 ganz in Schattenfarbe
 uniform vec3 bodenfarbe;
@@ -351,6 +362,16 @@ uniform float lampe;
 uniform vec3 lichtPos;
 uniform float punkteBeleuchten; // wie stark die Lampe die Punkte selbst heller und dunkler macht
 uniform vec3 lampeBild;      // xy: wo die Lampe im Bild ist (−1 bis 1), z: 1 = zeigen
+// weitere Lampen (lampen.js): jede mit Ort, Farbe, Helligkeit, Kegel (innen, außen als Kosinus, wie oben),
+// eigenem Schatten (Kanal g, b, a der Schattentextur) und wo sie im Bild ist (z: 1 = zeigen)
+uniform int extraAnzahl;
+uniform vec3 extraPos[3];
+uniform vec3 extraFarbe[3];
+uniform float extraStaerke[3];
+uniform vec3 extraRichtung[3];
+uniform vec2 extraKegel[3];
+uniform float extraSchatten[3];
+uniform vec3 extraBild[3];
 // Fäden und Balken (Strick, Mobile): bis zu 16 Strecken im Bild, je (x1, y1, x2, y2) von −1 bis 1
 uniform vec4 striche[16];
 uniform float strichDicke[16]; // in Canvas-Pixeln: Fäden dünn, Balken dicker
@@ -458,8 +479,22 @@ void main() {
     float anteil = raum > 0.0 ? 1.0 : 1.0 - smoothstep(1.2, 2.8, length(treffer.xz));
     vec3 flaeche = (welche == 0 ? bodenfarbe : wandfarbe) * beleuchtung(treffer, normale(welche));
     // Schatten wie die Punkte: je mehr Schatten-Punkte, desto dunkler, nie mehr als ganz
-    float schatten = (1.0 - exp(-texture(schattenBild, uv).r * staerke)) * schattenStaerke;
-    grund = mix(hintergrund, mix(flaeche, schattenfarbe, schatten), anteil);
+    vec4 schattenZahl = texture(schattenBild, uv);
+    float schatten = (1.0 - exp(-schattenZahl.r * staerke)) * schattenStaerke;
+    vec3 hell = mix(flaeche, schattenfarbe, schatten);
+    // weitere Lampen: ihr Licht kommt dazu (Farbe der Fläche mal Farbe der Lampe), jede mit 1 / r², Kegel
+    // und ihrem eigenen Schatten. Nicht mit dem Umgebungslicht verrechnet, sonst sähe man bei 1 nichts.
+    vec3 n = normale(welche);
+    vec3 basis = welche == 0 ? bodenfarbe : wandfarbe;
+    for (int k = 0; k < 3; k++) {
+      if (k >= extraAnzahl) break;
+      vec3 z = extraPos[k] - treffer;
+      float im = smoothstep(extraKegel[k].y, extraKegel[k].x, dot(normalize(-z), extraRichtung[k]));
+      float direkt = max(dot(n, normalize(z)), 0.0) * min(LAMPE_BEZUG * LAMPE_BEZUG / dot(z, z), 4.0) * im;
+      float s = extraSchatten[k] > 0.5 ? (1.0 - exp(-schattenZahl[k + 1] * staerke)) * schattenStaerke : 0.0;
+      hell += basis * extraFarbe[k] * extraStaerke[k] * direkt * (1.0 - s) * 2.0;
+    }
+    grund = mix(hintergrund, hell, anteil);
   }
 
   // Fäden und Balken: jede Strecke als Linie ihrer Dicke, an den Rändern weich
@@ -477,6 +512,12 @@ void main() {
   if (lampeBild.z > 0.5) {
     float r = length(pixel - (lampeBild.xy * 0.5 + 0.5) * aufloesung) / (0.012 * aufloesung.y);
     grund += vec3(1.0, 0.92, 0.75) * exp(-r * r);
+  }
+
+  for (int k = 0; k < 3; k++) {
+    if (k >= extraAnzahl || extraBild[k].z < 0.5) continue;
+    float r = length(pixel - (extraBild[k].xy * 0.5 + 0.5) * aufloesung) / (0.012 * aufloesung.y);
+    grund += mix(vec3(1.0), extraFarbe[k], 0.6) * exp(-r * r);
   }
 
   // Nebel: was hinten liegt, geht im Grund (Hintergrund oder Boden) auf, egal wie dicht es ist
@@ -540,7 +581,7 @@ function kommazahlTextur(gl, breite, hoehe, format, kanaele) {
 function erstelleDichtePuffer(gl, breite, hoehe) {
   const textur = kommazahlTextur(gl, breite, hoehe, gl.RGBA16F, gl.RGBA);
   const nebel = kommazahlTextur(gl, breite, hoehe, gl.RG16F, gl.RG);
-  const schatten = kommazahlTextur(gl, breite, hoehe, gl.R16F, gl.RED);
+  const schatten = kommazahlTextur(gl, breite, hoehe, gl.RGBA16F, gl.RGBA); // ein Kanal pro Lampe (lampen.js)
   const fb = gl.createFramebuffer(); // "Zeichne hierhin statt auf den Bildschirm"
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textur, 0);
@@ -583,7 +624,8 @@ export function erstelleShader(canvas) {
                                          "schattenModus", "licht", "lampe", "lichtPos", "lage", "lageVersatz",
                                          "spektrumBild", "spektrumStaerke", "alsLinie", "verlaufVersatz",
                                          "flaechen", "raum", "boden", "kamera", "kegelRichtung", "kegelInnen", "kegelAussen",
-                                         "schaerfeAn", "fokus", "bokeh", "groesstePunkte", "teilGewicht"]);
+                                         "schaerfeAn", "fokus", "bokeh", "groesstePunkte", "teilGewicht",
+                                         "extraAnzahl", "extraPos", "extraStaerke"]);
 
   // wie groß ein Punkt auf diesem Gerät höchstens sein darf (oft 1 bis 1024, auf manchen Handys viel weniger)
   const [kleinstePunkte, groesstePunkte] = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
@@ -593,7 +635,9 @@ export function erstelleShader(canvas) {
                                        "winkel", "neigung", "abstand", "brennweite", "aufloesung", "versatz", "verlaufVersatz",
                                        "umgebung", "licht", "lampe", "lichtPos", "punkteBeleuchten",
                                        "lampeBild", "striche", "strichDicke", "strichAnzahl", "fadenfarbe",
-                                       "flaechen", "raum", "boden", "kamera", "kegelRichtung", "kegelInnen", "kegelAussen"]);
+                                       "flaechen", "raum", "boden", "kamera", "kegelRichtung", "kegelInnen", "kegelAussen",
+                                       "extraAnzahl", "extraPos", "extraFarbe", "extraStaerke", "extraRichtung", "extraKegel",
+                                       "extraSchatten", "extraBild"]);
 
   // dieselbe Kamera wie im Vertex-Shader, in JavaScript: für die Kamera in der Welt,
   // die Lampe und den Faden im Bild
@@ -698,6 +742,7 @@ export function erstelleShader(canvas) {
                      spektrum = null, spektrumStaerke = 0, verlaufVersatz = 0,
                      schaerfe = false, fokus = 0.5, unschaerfe = 8,
                      teil = null, // Bewegungsunschärfe: { nummer, von } = Zwischenschritt nummer von von
+                     weitereLampen = [], // lampen.js: [{ pos, richtung, farbe, staerke, kegelInnen, kegelAussen, schatten, zeigen }]
                      sichtbar = anzahl }) {
     // Puffer passend zur Canvas-Größe; ändert sie sich, alten freigeben und neu anlegen
     if (!dichte || dichte.breite !== canvas.width || dichte.hoehe !== canvas.height) {
@@ -815,6 +860,12 @@ export function erstelleShader(canvas) {
       gl.uniform1f(punktOrte.bokeh, unschaerfe * dpr);
       gl.uniform1f(punktOrte.groesstePunkte, groesstePunkte);
       gl.uniform1f(punktOrte.teilGewicht, teil ? 1 / teil.von : 1);
+      const extra = schatten ? weitereLampen : []; // ohne Boden gibt es nichts, worauf sie leuchten
+      gl.uniform1i(punktOrte.extraAnzahl, extra.length);
+      if (extra.length) {
+        gl.uniform3fv(punktOrte.extraPos, extra.flatMap((l) => l.pos).concat(Array(9).fill(0)).slice(0, 9));
+        gl.uniform1fv(punktOrte.extraStaerke, extra.map((l) => l.staerke).concat([0, 0, 0]).slice(0, 3));
+      }
       gl.uniform1f(punktOrte.alsLinie, darstellung === "linie" ? 1 : 0);
       gl.uniform1f(punktOrte.verlaufVersatz, verlaufVersatz);
       // Spektrum auf Platz 4 (0 bis 3 sind Dichte, Verlauf, Nebel, Schatten); neue Werte nur, wenn es welche gibt
@@ -866,7 +917,26 @@ export function erstelleShader(canvas) {
         if (schatten) {
           gl.drawBuffers([gl.NONE, gl.NONE, gl.COLOR_ATTACHMENT2]);
           gl.uniform1f(punktOrte.schattenModus, 1);
+          gl.colorMask(true, false, false, false); // das Licht oben: Kanal Rot
           gl.drawArrays(zeichenArt, 0, n);
+          // weitere Lampen: dieselben Punkte von ihr aus auf die Flächen gelegt, in ihren eigenen Kanal.
+          // Dafür stellt man kurz die Lampe oben auf sie um und danach zurück.
+          weitereLampen.forEach((l, k) => {
+            if (!l.schatten) return;
+            gl.colorMask(false, k === 0, k === 1, k === 2);
+            gl.uniform1f(punktOrte.lampe, 1);
+            gl.uniform3f(punktOrte.lichtPos, ...l.pos);
+            gl.uniform3f(punktOrte.kegelRichtung, ...l.richtung);
+            gl.uniform1f(punktOrte.kegelInnen, l.kegelInnen);
+            gl.uniform1f(punktOrte.kegelAussen, l.kegelAussen);
+            gl.drawArrays(zeichenArt, 0, n);
+          });
+          gl.colorMask(true, true, true, true); // sonst leert clear() beim nächsten Bild nur Rot
+          gl.uniform1f(punktOrte.lampe, lampeAn);
+          gl.uniform3f(punktOrte.lichtPos, ...lichtPos);
+          gl.uniform3f(punktOrte.kegelRichtung, ...kegelZiel);
+          gl.uniform1f(punktOrte.kegelInnen, kegelInnen);
+          gl.uniform1f(punktOrte.kegelAussen, kegelAussen);
         }
       }
       gl.disableVertexAttribArray(ort); // das Dreieck braucht keine Punktliste
@@ -904,6 +974,21 @@ export function erstelleShader(canvas) {
     gl.uniform3f(farbOrte.lichtPos, ...lichtPos);
     gl.uniform1f(farbOrte.punkteBeleuchten, lampeAn ? punkteBeleuchten : 0);
     gl.uniform3f(farbOrte.lampeBild, ...(lampeImBild ?? [0, 0]), lampeImBild ? 1 : 0);
+    const extra = schatten ? weitereLampen.slice(0, 3) : [];
+    const drei = (liste, je, leer = 0) => liste.concat(Array(3 * je).fill(leer)).slice(0, 3 * je);
+    gl.uniform1i(farbOrte.extraAnzahl, extra.length);
+    if (extra.length) {
+      gl.uniform3fv(farbOrte.extraPos, drei(extra.flatMap((l) => l.pos), 3));
+      gl.uniform3fv(farbOrte.extraFarbe, drei(extra.flatMap((l) => l.farbe), 3));
+      gl.uniform1fv(farbOrte.extraStaerke, drei(extra.map((l) => l.staerke), 1));
+      gl.uniform3fv(farbOrte.extraRichtung, drei(extra.flatMap((l) => l.richtung), 3));
+      gl.uniform2fv(farbOrte.extraKegel, drei(extra.flatMap((l) => [l.kegelInnen, l.kegelAussen]), 2));
+      gl.uniform1fv(farbOrte.extraSchatten, drei(extra.map((l) => (l.schatten ? 1 : 0)), 1));
+      gl.uniform3fv(farbOrte.extraBild, drei(extra.flatMap((l) => {
+        const b = l.zeigen ? insBild(l.pos, blick) : null;
+        return b ? [...b, 1] : [0, 0, 0];
+      }), 3));
+    }
     gl.uniform4fv(farbOrte.striche, strichDaten);
     gl.uniform1fv(farbOrte.strichDicke, dickeDaten);
     gl.uniform1i(farbOrte.strichAnzahl, strichAnzahl);
@@ -927,3 +1012,4 @@ export function erstelleShader(canvas) {
 
   return { setzeVerlauf, ladePunkte, zeichne, insBild };
 }
+

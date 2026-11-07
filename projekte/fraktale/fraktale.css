@@ -1,9 +1,13 @@
 /*
 Fraktale: nur was es nirgends sonst auf der Website gibt
 */
+/* Format: --format ist Breite durch Höhe (setzt js/main.js); nie höher als 80 % des Fensters */
 .fraktalfeld {
+  --format: 1.7778;
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--format);
+  width: min(100%, calc(80vh * var(--format)));
+  margin-inline: auto;
   border: 1px solid currentColor;
   background: #000;
   touch-action: none; /* ziehen verschiebt das Fraktal, nicht die Seite */
@@ -20,3 +24,4 @@ Fraktale: nur was es nirgends sonst auf der Website gibt
 #effekte {
   pointer-events: none;
 }
+

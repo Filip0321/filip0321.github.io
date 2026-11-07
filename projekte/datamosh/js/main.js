@@ -693,17 +693,16 @@ hole("auswahlI").addEventListener("click", () => {
   neueFolge();
 });
 
-// I-Frame durch ein fremdes Bild ersetzen: ein Standbild, ein Bild lang, auf eine neue oberste Spur genau an
-// den Schnitt. Danach geht der Clip ohne seinen I-Frame weiter: seine P-Frames bewegen das fremde Bild.
+// Fremdes Bild als I-Frame: ein Standbild, ein Bild lang, auf eine neue oberste Spur an die Stelle (Anfang der
+// Auswahl, sonst die blaue Linie). Danach geht der Clip darunter ohne I-Frame weiter: seine P-Frames bewegen
+// das fremde Bild. Geht überall, nicht nur an einem Schnitt.
 hole("iBild").addEventListener("change", async (event) => {
   const datei = event.target.files[0];
   event.target.value = "";
-  const a = zeitleiste.auswahl();
-  if (!datei || !a || !daten) return;
-  let i = a[0];
-  while (i <= a[1] && !(herkunft[i].schnitt || i === 0)) i++;
-  if (i > a[1]) return zeige("Wähle einen Schnitt mit I-Frame (roter Streifen) aus.");
-  const t = herkunft[i].t;
+  if (!datei || !daten) return;
+  const i = zeitleiste.auswahl()?.[0] ?? Math.max(0, zeitleiste.stelle());
+  const t = herkunft[i]?.t;
+  if (t === undefined) return;
   const darunter = grund.find((g) => g.t === t);
   try {
     const clip = await oeffneClip(datei);
@@ -715,6 +714,8 @@ hole("iBild").addEventListener("change", async (event) => {
     if (darunter) iWeg.add(`${darunter.id}:${darunter.k + 1}`); // danach: ohne I-Frame weiter
     zeigeClips();
     await vorbereiten();
+    const unten = darunter && clips.find((c) => c.id === darunter.id);
+    zeige(`„${clip.name}“ ist jetzt an Bild ${i} das I-Frame (oberste Spur im Schnitt). Danach bewegen die P-Frames von „${unten?.name ?? "dem Clip darunter"}“ es weiter. Der Rest der P-Frames malt das Original langsam zurück; mit wenig Bitrate bleibt das fremde Bild länger.`);
   } catch (fehler) {
     zeige(`${datei.name}: ${fehler.message}`);
   }
@@ -810,12 +811,12 @@ hole("videoRendern").addEventListener("click", async () => {
     await holeBild(0);
     protokoll("Rendern: erstes Bild da, Aufnahme starten");
     try {
-      aufnahme = await neueAufnahme(mitR(), daten.fps, undefined, ton && { kanaele: 2, rate: ton.sampleRate }, einst.videoTyp);
+      aufnahme = await neueAufnahme(mitR(), daten.fps, undefined, ton && { kanaele: 2, rate: ton.sampleRate }, einst.videoTyp, einst.videoQualitaet);
     } catch (fehler) {
       // kann der Browser kein MP4 (H.264) kodieren, eben WebM
       console.warn(fehler);
       protokoll(`MP4 ging nicht (${fehler.message}), nehme WebM`);
-      aufnahme = await neueAufnahme(mitR(), daten.fps, undefined, ton && { kanaele: 2, rate: ton.sampleRate }, "webm");
+      aufnahme = await neueAufnahme(mitR(), daten.fps, undefined, ton && { kanaele: 2, rate: ton.sampleRate }, "webm", einst.videoQualitaet);
       zeige("MP4 ging hier nicht, das Video wird WebM.");
     }
     for (let i = 0; i < folge.length; i++) {

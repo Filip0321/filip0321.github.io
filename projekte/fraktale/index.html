@@ -62,6 +62,17 @@
           <label data-nur="skala=eigen">Mitte <input type="color" data-wert="farbe2" value="#c2185b"></label>
           <label data-nur="skala=eigen">hell <input type="color" data-wert="farbe3" value="#ffe9a8"></label>
           <label><input type="checkbox" data-wert="umgedreht"> Farben umdrehen</label>
+          <!-- Format des Bildes (auch des Videos): frei ist 16:9 -->
+          <label>Format
+            <select data-wert="format">
+              <option value="16:9" selected>16:9</option>
+              <option value="1:1">1:1 (quadratisch)</option>
+              <option value="4:5">4:5</option>
+              <option value="9:16">9:16 (hochkant)</option>
+              <option value="3:2">3:2</option>
+              <option value="21:9">21:9</option>
+            </select>
+          </label>
           <!-- über 1: mehr Pixel als der Bildschirm (Supersampling, schärfer, langsamer) -->
           <label>Auflösung
             <input type="range" data-wert="aufloesung" min="0.25" max="2" step="0.05" value="0.75">
@@ -131,9 +142,10 @@
               <option value="qjulia">Quaternion-Julia</option>
             </select>
           </label>
-          <!-- Mandelbox: −1,5 Kammern und Türme, 2 bis 3 eine Stadt aus Kästen; nahe −1 und 1 zerfällt sie -->
+          <!-- Mandelbox: −1,5 Kammern und Türme, 2 bis 3 eine Stadt aus Kästen; nahe −1 und 1 zerfällt sie;
+               ab etwa ±4 wird sie dünn und luftig (große Kästen, wenig dazwischen) -->
           <label data-nur="dimension=3d welt=mandelbox">Skala
-            <input type="range" data-wert="boxSkala" min="-3" max="3" step="0.01" value="-1.5">
+            <input type="range" data-wert="boxSkala" min="-6" max="6" step="0.01" value="-1.5">
             <output></output>
           </label>
           <label data-nur="dimension=3d welt=sierpinski">Drehung (Grad)
@@ -144,6 +156,20 @@
             <input type="range" data-wert="qjForm" min="0" max="1" step="0.001" value="0">
             <output></output>
           </label>
+          <!-- Boden: nur bei Welten, die irgendwo aufhören (die endlosen haben kein Unten) -->
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia"><input type="checkbox" data-wert="boden" checked> Boden</label>
+          <!-- Höhe: 0 = knapp unter dem tiefsten Punkt (von selbst gefunden), in Größen des Fraktals -->
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true">Bodenhöhe
+            <input type="range" data-wert="bodenVersatz" min="-1" max="1" step="0.005" value="0">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true">Boden
+            <select data-wert="bodenArt">
+              <option value="stein" selected>dunkler Stein</option>
+              <option value="einfarbig">einfarbig</option>
+            </select>
+          </label>
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true bodenArt=einfarbig">Bodenfarbe <input type="color" data-wert="bodenFarbe" value="#1c1b1a"></label>
           <label data-nur="dimension=3d welt=mandelbulb">Potenz
             <input type="range" data-wert="potenz" min="2" max="12" step="0.1" value="8">
             <output></output>
@@ -161,6 +187,25 @@
             <input type="range" data-wert="wackeln" min="0" max="3" step="0.05" value="1">
             <output></output>
           </label>
+          <!-- Schärfentiefe wie bei den 3D-Attraktoren: nur eine Entfernung ist scharf. Fokus „Bildmitte“ stellt
+               von selbst scharf (wie ein Autofokus, mit kurzem Nachziehen), „fest“ bleibt auf einer Entfernung -->
+          <label data-nur="dimension=3d"><input type="checkbox" data-wert="schaerfe"> Schärfentiefe</label>
+          <label data-nur="dimension=3d schaerfe=true">Fokus
+            <select data-wert="fokusArt">
+              <option value="mitte" selected>Bildmitte (automatisch)</option>
+              <option value="fest">fest</option>
+            </select>
+          </label>
+          <label data-nur="dimension=3d schaerfe=true fokusArt=fest">Fokus (nah bis fern)
+            <input type="range" data-wert="fokusAbstand" min="0" max="1" step="0.005" value="0.6">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d schaerfe=true">Unschärfe (Blende)
+            <input type="range" data-wert="unschaerfe" min="0.1" max="10" step="0.1" value="2">
+            <output></output>
+          </label>
+          <!-- am Handy: was ein Finger tut (am Rechner: linke Taste schaut, rechte Taste oder ohne Taste die Lampe) -->
+          <button type="button" id="fingerLampe" data-nur="dimension=3d" aria-pressed="false">Finger: Blick</button>
           <button type="button" id="vor" data-nur="dimension=3d">▲ vor</button>
           <button type="button" id="zurueck" data-nur="dimension=3d">▼ zurück</button>
         </div>
@@ -184,6 +229,11 @@
             <input type="range" data-wert="zittern" min="0" max="3" step="0.05" value="1">
             <output></output>
           </label>
+          <!-- Flackern: meist ruhig, ab und zu ein Wackelkontakt (wie eine alte Taschenlampe) -->
+          <label data-nur="licht=lampe,beides">Flackern
+            <input type="range" data-wert="flackern" min="0" max="1" step="0.01" value="0.25">
+            <output></output>
+          </label>
           <label data-nur="licht=lampe,beides">Kegel (Grad)
             <input type="range" data-wert="kegel" min="5" max="60" step="1" value="22">
             <output></output>
@@ -202,12 +252,36 @@
             <input type="range" data-wert="nebel" min="0" max="2" step="0.01" value="0.4">
             <output></output>
           </label>
-          <!-- Staubkörner in der Luft (leuchten, wo Licht ist) und Schwaden im Nebel -->
+          <!-- Staubkörner in der Luft: man sieht sie nur, wo Licht hinfällt, und so hell, wie das Licht dort ist;
+               dazu Schwaden im Nebel -->
           <label>Staub
             <input type="range" data-wert="staub" min="0" max="2" step="0.01" value="0.6">
             <output></output>
           </label>
         </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt das Fraktal; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Jedes Signal kann etwas bewegen, der Balken zeigt, was gerade ankommt. „Form“ ist je Welt der Regler, der sie formt: Potenz beim Mandelbulb, Skala bei der Mandelbox, Drehung beim Sierpinski, c bei der Julia-Menge. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos (statt des Klangs der Höhle), und jedes Bild bekommt die Musik an seiner Zeit.</p>
+        <p class="hinweis" id="musik-meldung"></p>
       </details>
 
       <details class="abschnitt">
@@ -227,8 +301,36 @@
             </select>
           </label>
           <button type="button" id="gross">Groß rechnen (PNG)</button>
+          <!-- Fahrt: erst nur aufnehmen, wo man war (R oder der Knopf), dann Bild für Bild rendern -->
+          <button type="button" id="fahrt" aria-pressed="false">Fahrt aufnehmen</button>
+          <!-- Supersampling gilt beim Rendern (Video und „Groß rechnen“); die Größe kommt aus dem Export-Fenster.
+               Tiefe, Genauigkeit und Schrittweite gelten auch in der Anzeige (so sieht man, was man bekommt) -->
+          <label>Supersampling
+            <select data-wert="renderSS">
+              <option value="1">aus (1 Strahl pro Pixel)</option>
+              <option value="2" selected>2 × 2 Strahlen</option>
+              <option value="3">3 × 3 Strahlen</option>
+            </select>
+          </label>
+          <!-- Tiefe: so viele Schritte darf ein Strahl höchstens machen (mehr = tiefer in Spalten und Höhlen) -->
+          <label>Tiefe (Schritte)
+            <input type="range" data-wert="renderSchritte" min="50" max="3000" step="50" value="600">
+            <output></output>
+          </label>
+          <!-- Genauigkeit: wie nah ein Strahl der Oberfläche kommen muss (klein = feinere Details) -->
+          <label>Genauigkeit (klein = fein)
+            <input type="range" data-wert="renderGenau" min="0.05" max="3" step="0.05" value="0.5">
+            <output></output>
+          </label>
+          <!-- Schrittweite: welcher Anteil des Abstands pro Schritt (1 = ganz). Löcher oder Rauschen in der
+               Oberfläche: kleiner stellen (und die Tiefe höher, es braucht dann mehr Schritte) -->
+          <label>Schrittweite
+            <input type="range" data-wert="schrittweite" min="0.2" max="1" step="0.05" value="0.9">
+            <output></output>
+          </label>
         </div>
-        <p class="hinweis">„Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. „Live aufnehmen“ und durch die Welt gehen: das ist die Kamerafahrt.</p>
+        <p class="hinweis" id="fahrtInfo">Keine Fahrt gemerkt.</p>
+        <p class="hinweis">Die Größe des Videos stellst du im Export-Fenster ein („Größe“: Full HD, 4K …); genau so groß wird gerechnet, mal Supersampling. „Wie es ist“ heißt: so groß wie die Anzeige. „Qualität“ im Fenster gibt dem Video mehr Bitrate, das brauchen feine Fraktale. „Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. Für ein ruckelfreies Video: „Fahrt aufnehmen“ (oder R), fliegen, Stopp, dann „Video rendern“. Jedes Bild wird einzeln gerechnet, mit Lampe, Wackeln, Reglern und dem Klang der Höhle (wenn er an ist). Ohne Fahrt bleibt die Kamera stehen. „Live aufnehmen“ nimmt jetzt den Klang mit, ruckelt aber, wenn der Rechner nicht hinterherkommt.</p>
       </details>
     </div>
   </main>

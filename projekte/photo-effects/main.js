@@ -4,11 +4,11 @@ import { beiGeladen } from "./effekte/rahmen.js"
 import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig, nimmAuf, nimmRaus } from "./kette.js";
 import { baueSammlung } from "/lib/effekte/sammlung-ui.js";
 import { meldeEffekte } from "/lib/export-dialog.js";
-import { male, loescheMaske } from "/lib/effekte/mosh-maske.js";
 import { SAMMLUNG } from "/lib/effekte/sammlung.js";
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
+import { setzeBewegungsVideo, moshVonVorn } from "/lib/effekte/mosh-imitat.js";
 import { verbindeRegler } from "/lib/effekt-regler.js";
 import { setzeFarbverlauf } from "/lib/effekte/farbverlauf.js";
 import { hexZuRgb, skalaAnker } from "/lib/farben.js"; // baut die Regler für VHS und CRT ins HTML, vor allem anderen
@@ -562,7 +562,7 @@ const exportKnoepfe = richteFotoExportEin({
     };
   },
   // CRT als letzter Effekt: dann gibt es gewölbte Ränder, die man abschneiden kann (sonst liegt etwas darüber)
-  zuschnitt: () => (aktiveSchritte().at(-1)?.typ === "crt" ? crtAnteil(zustand.werte.crt.woelbung) : null),
+  zuschnitt: () => (aktiveSchritte().at(-1)?.typ === "crt" && !(zustand.werte.crt.randWeg > 0.5) ? crtAnteil(zustand.werte.crt.woelbung) : null),
   hintergrund: () => zustand.hintergrund,
   durchsichtig: () => zustand.transparent,
   sperre: (gesperrt) => {
@@ -792,41 +792,64 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
   planeAnwenden();
 });
 
-// Datamosh-Imitat: Bereiche malen. Unter den Reglern des Effekts ein Häkchen „Bereich malen“ (dann malt
-// Ziehen auf dem Bild, statt Overlays zu verschieben), Pinselgröße, Radieren und Löschen.
-const malen = { an: false, groesse: 0.05, weg: false, zieht: false };
+// Datamosh-Imitat: Bewegung (P-Frames) aus einem anderen Video. Unter den Reglern des Effekts: Video laden,
+// von–bis in Sekunden, „von vorn“ (Keyframe, dann läuft das Video von „von“ bis „bis“ und bleibt stehen:
+// so sieht man, wie das Bild nach diesen Sekunden P-Frames aussieht), Schleife, und wieder weg.
 {
   const platz = hole("moshbild-regler");
   const zeile = document.createElement("div");
   zeile.className = "steuerung";
   zeile.innerHTML = `
-    <label><input type="checkbox" class="mal-an"> Bereich malen (auf dem Bild ziehen)</label>
-    <label>Pinsel <input type="range" class="mal-groesse" min="0.01" max="0.2" step="0.005" value="0.05"></label>
-    <label><input type="checkbox" class="mal-weg"> radieren</label>
-    <button type="button" class="mal-loeschen">Bereich löschen</button>`;
+    <label class="datei-knopf">Bewegung aus Video <input type="file" class="mosh-video" accept="video/*"></label>
+    <label>von (s) <input type="number" class="mosh-von" min="0" step="0.1" value="0"></label>
+    <label>bis (s) <input type="number" class="mosh-bis" min="0" step="0.1" value="3"></label>
+    <label><input type="checkbox" class="mosh-schleife"> Schleife</label>
+    <button type="button" class="mosh-start" disabled>von vorn</button>
+    <button type="button" class="mosh-weg" disabled>Video weg</button>
+    <span class="hinweis mosh-info"></span>`;
   platz.prepend(zeile);
-  zeile.querySelector(".mal-an").addEventListener("change", (e) => (malen.an = e.target.checked));
-  zeile.querySelector(".mal-groesse").addEventListener("input", (e) => (malen.groesse = Number(e.target.value)));
-  zeile.querySelector(".mal-weg").addEventListener("change", (e) => (malen.weg = e.target.checked));
-  zeile.querySelector(".mal-loeschen").addEventListener("click", () => {
-    loescheMaske();
+  const feld = (k) => zeile.querySelector(k);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  let url = null;
+  const von = () => Number(feld(".mosh-von").value) || 0;
+  const bis = () => Math.max(von() + 0.1, Number(feld(".mosh-bis").value) || 0);
+  function starte() {
+    moshVonVorn(); // Keyframe: das Bild ist wieder sauber, dann kommen nur die P-Frames dieses Videos
+    video.currentTime = von();
+    video.play();
+    planeAnwenden();
+  }
+  video.addEventListener("timeupdate", () => {
+    feld(".mosh-info").textContent = `${video.currentTime.toFixed(1).replace(".", ",")} s`;
+    if (video.currentTime < bis()) return;
+    if (feld(".mosh-schleife").checked) video.currentTime = von(); // weiter moshen, ohne Keyframe
+    else video.pause(); // stehen bleiben: so sieht es nach von–bis aus
+  });
+  feld(".mosh-video").addEventListener("change", (e) => {
+    const datei = e.target.files[0];
+    if (!datei) return;
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(datei);
+    video.src = url;
+    video.addEventListener("loadeddata", () => {
+      setzeBewegungsVideo(video);
+      feld(".mosh-bis").max = feld(".mosh-von").max = video.duration.toFixed(1);
+      feld(".mosh-start").disabled = feld(".mosh-weg").disabled = false;
+      starte();
+    }, { once: true });
+  });
+  feld(".mosh-start").addEventListener("click", starte);
+  feld(".mosh-weg").addEventListener("click", () => {
+    video.pause();
+    setzeBewegungsVideo(null);
+    feld(".mosh-start").disabled = feld(".mosh-weg").disabled = true;
+    feld(".mosh-info").textContent = "";
+    moshVonVorn();
     planeAnwenden();
   });
 }
-function maleBei(e) {
-  const p = punktAusEreignis(e);
-  male(p.x, p.y, malen.groesse, malen.weg);
-  planeAnwenden();
-}
-canvas.addEventListener("pointerdown", (e) => {
-  if (!malen.an) return;
-  malen.zieht = true;
-  canvas.setPointerCapture(e.pointerId);
-  maleBei(e);
-  e.stopImmediatePropagation(); // nicht auch noch ein Overlay greifen
-}, { capture: true });
-canvas.addEventListener("pointermove", (e) => malen.an && malen.zieht && maleBei(e));
-for (const ende of ["pointerup", "pointercancel"]) canvas.addEventListener(ende, () => (malen.zieht = false));
 
 // im Export-Fenster dieselben Häkchen (/lib/export-dialog.js); ein Umstellen dort ist wie ein Klick hier
 const HAEKCHEN = [
