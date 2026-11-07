@@ -134,6 +134,7 @@ function zeigeListe(ziel) {
       weg,
     );
     ziel.append(kasten);
+    window.mitHexFeld?.(farbe); // Textfeld für den Hex-Code davor (script.js)
   });
 }
 

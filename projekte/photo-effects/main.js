@@ -8,7 +8,6 @@ import { SAMMLUNG } from "/lib/effekte/sammlung.js";
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
-import { setzeBewegungsVideo, moshVonVorn } from "/lib/effekte/mosh-imitat.js";
 import { setzeEigeneRechtecke } from "/lib/effekte/blobs.js";
 import { verbindeRegler } from "/lib/effekt-regler.js";
 import { setzeFarbverlauf } from "/lib/effekte/farbverlauf.js";
@@ -793,117 +792,6 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
   planeAnwenden();
 });
 
-// Datamosh-Imitat: Bewegung (P-Frames) aus einem anderen Video. Unter den Reglern des Effekts: Video laden,
-// von–bis in Sekunden. „Ergebnis rechnen“ setzt einen Keyframe und geht das Video von „von“ bis „bis“ Bild
-// für Bild durch (springen statt abspielen, so schnell es geht und ohne ein Bild auszulassen); danach steht
-// das Bild, wie es nach diesen Sekunden P-Frames aussieht. „Abspielen“ zeigt dasselbe in Echtzeit.
-// Mit Video verschwinden die Regler, die dann nichts mehr tun (künstliche Bewegung, Rechteck, Keyframes).
-{
-  const platz = hole("moshbild-regler");
-  const zeile = document.createElement("div");
-  zeile.className = "steuerung";
-  zeile.innerHTML = `
-    <label class="datei-knopf">Bewegung aus Video <input type="file" class="mosh-video" accept="video/*"></label>
-    <label>von (s) <input type="number" class="mosh-von" min="0" step="0.1" value="0"></label>
-    <label>bis (s) <input type="number" class="mosh-bis" min="0" step="0.1" value="3"></label>
-    <button type="button" class="mosh-rechnen" disabled>Ergebnis rechnen</button>
-    <button type="button" class="mosh-abspielen" disabled>abspielen</button>
-    <label><input type="checkbox" class="mosh-schleife"> Schleife</label>
-    <button type="button" class="mosh-weg" disabled>Video weg</button>
-    <span class="hinweis mosh-info"></span>`;
-  platz.prepend(zeile);
-  const feld = (k) => zeile.querySelector(k);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "auto";
-  let url = null;
-  let rechnet = false;
-  const von = () => Number(feld(".mosh-von").value) || 0;
-  const bis = () => Math.min(video.duration || Infinity, Math.max(von() + 0.1, Number(feld(".mosh-bis").value) || 0));
-  const info = (t) => (feld(".mosh-info").textContent = t);
-
-  // Regler, die mit Video nichts tun, verstecken (und Gruppen, in denen dann nichts mehr übrig ist)
-  const OHNE_VIDEO = ["art", "kuenstlich", "flaeche", "muster", "wirbel", "tempo", "keyframe", "bx", "by", "bb", "bh", "bewX", "bewY"];
-  function zeigeRegler(mitVideo) {
-    for (const name of OHNE_VIDEO) {
-      const label = platz.querySelector(`[data-regler="moshbild.${name}"]`)?.closest("label");
-      if (label) label.hidden = mitVideo;
-    }
-    for (const gruppe of platz.querySelectorAll(".regler-gruppe")) {
-      gruppe.hidden = [...gruppe.querySelectorAll("label")].every((l) => l.hidden);
-    }
-  }
-  const knoepfe = (an) => ["rechnen", "abspielen", "weg"].forEach((k) => (feld(`.mosh-${k}`).disabled = !an));
-
-  const springe = (t) =>
-    new Promise((fertig) => {
-      video.addEventListener("seeked", fertig, { once: true });
-      video.currentTime = t;
-    });
-  const zweiBilder = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  async function rechne() {
-    if (rechnet) return;
-    rechnet = true;
-    video.pause();
-    try {
-      await springe(von());
-      moshVonVorn(); // Keyframe: das Bild ist sauber, dann kommen nur noch die P-Frames des Videos
-      planeAnwenden();
-      await zweiBilder();
-      const fps = 30; // so viele Bilder pro Sekunde werden durchgegangen
-      const n = Math.max(1, Math.round((bis() - von()) * fps));
-      for (let i = 1; i <= n; i++) {
-        await springe(von() + i / fps);
-        planeAnwenden(); // ein neues Bild im Video: eine Runde Mosh
-        await zweiBilder();
-        if (i % 5 === 0) info(`rechne … ${Math.round((i / n) * 100)} %`);
-      }
-      info(`fertig: so sieht es nach ${(bis() - von()).toFixed(1).replace(".", ",")} s aus`);
-    } finally {
-      rechnet = false;
-    }
-  }
-  function spiele() {
-    moshVonVorn();
-    video.currentTime = von();
-    video.play();
-  }
-  video.addEventListener("timeupdate", () => {
-    if (rechnet || video.paused) return;
-    info(`${video.currentTime.toFixed(1).replace(".", ",")} s`);
-    if (video.currentTime < bis()) return;
-    if (feld(".mosh-schleife").checked) video.currentTime = von(); // weiter moshen, ohne Keyframe
-    else video.pause(); // stehen bleiben: so sieht es nach von–bis aus
-  });
-  feld(".mosh-video").addEventListener("change", (e) => {
-    const datei = e.target.files[0];
-    if (!datei) return;
-    if (url) URL.revokeObjectURL(url);
-    url = URL.createObjectURL(datei);
-    video.src = url;
-    video.addEventListener("loadeddata", () => {
-      setzeBewegungsVideo(video);
-      feld(".mosh-bis").max = feld(".mosh-von").max = video.duration.toFixed(1);
-      knoepfe(true);
-      zeigeRegler(true);
-      rechne();
-    }, { once: true });
-  });
-  feld(".mosh-rechnen").addEventListener("click", rechne);
-  feld(".mosh-abspielen").addEventListener("click", spiele);
-  feld(".mosh-weg").addEventListener("click", () => {
-    video.pause();
-    setzeBewegungsVideo(null);
-    knoepfe(false);
-    zeigeRegler(false);
-    info("");
-    moshVonVorn();
-    planeAnwenden();
-  });
-}
-
 // Blob-Tracking: eigene Rechtecke. Mit „Rechtecke ziehen“ zieht man auf dem Bild Rahmen auf (statt Overlays
 // zu verschieben); sie zählen wie erkannte Flecken (blobs.js).
 {
@@ -912,6 +800,7 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
   zeile.className = "steuerung";
   zeile.innerHTML = `
     <label><input type="checkbox" class="blob-ziehen"> Rechtecke ziehen (auf dem Bild)</label>
+    <label><input type="checkbox" class="blob-nurEigene"> erkannte weg, nur meine</label>
     <button type="button" class="blob-letztes">letztes weg</button>
     <button type="button" class="blob-alle">alle weg</button>`;
   platz.prepend(zeile);
@@ -923,6 +812,15 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
     planeAnwenden();
   };
   zeile.querySelector(".blob-ziehen").addEventListener("change", (e) => (an = e.target.checked));
+  // „erkannte weg“: der Regler „Flecken sind“ springt auf „nur eigene Rechtecke“ (und zurück, wie er war)
+  const artFeld = platz.querySelector('[data-regler="blobs.art"]');
+  let artVorher = artFeld.value;
+  zeile.querySelector(".blob-nurEigene").addEventListener("change", (e) => {
+    if (e.target.checked) artVorher = artFeld.value;
+    artFeld.value = e.target.checked ? 3 : artVorher === "3" ? 0 : artVorher;
+    artFeld.dispatchEvent(new Event("input", { bubbles: true }));
+    artFeld.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   zeile.querySelector(".blob-letztes").addEventListener("click", () => {
     rechtecke.pop();
     neu();

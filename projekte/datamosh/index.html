@@ -128,6 +128,12 @@
           <button type="button" id="spurRunter">Spur ↓</button>
           <button type="button" id="clipHierher">Clip an die Stelle</button>
         </div>
+        <div class="steuerung">
+          <button type="button" id="bildInsVideo" title="an jedem Schnitt von einem Bild in ein Video das I-Frame des Videos löschen">Bild springt ins Video</button>
+          <label>dann halten
+            <input type="number" id="bildInsVideoHalten" class="kurz" min="0" max="300" step="1" value="0"> Bilder
+          </label>
+        </div>
         <p class="hinweis" id="auswahlInfo">keine Auswahl (ziehen, Umschalt-Klick, oder A und B)</p>
         <div class="steuerung">
           <button type="button" id="auswahlWeg" title="Entf">Löschen</button>
@@ -135,6 +141,7 @@
             <input type="number" id="wiederholMal" class="kurz" min="1" max="50" step="1" value="3"> ×
           </label>
           <button type="button" id="auswahlWiederholen">Wiederholen</button>
+          <label title="jede Kopie fängt mit einem I-Frame an: sauberer Loop statt Bloom"><input type="checkbox" id="wiederholMitI"> mit I-Frame</label>
           <button type="button" id="auswahlUmkehren">Umkehren</button>
           <label>P-Frames von Clip
             <input type="number" id="mischClip" class="kurz" min="1" step="1" value="2">
@@ -194,6 +201,7 @@
             </select>
           </label>
           <label class="datei-knopf">Tondatei <input type="file" id="tonDatei" accept="audio/*,video/*"></label>
+          <label><input type="checkbox" data-wert="tonLive" checked> auch beim Abspielen hören</label>
         </div>
         <p class="hinweis">„Video rendern“ spielt alle Eingriffe noch einmal ab, Bild für Bild. „Folgt den Bildern“: zu jedem Bild sein Stück Originalton, wiederholte Bilder wiederholen ihren Ton. „Läuft durch“: der Ton des Schnitts, ungestört vom Mosh.</p>
       </details>

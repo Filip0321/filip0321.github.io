@@ -74,3 +74,73 @@ export async function baueTon(art, { daten, folge, grund, clips, datei }) {
   puffer.copyToChannel(ziel[1], 1);
   return puffer;
 }
+
+// ---------- Ton beim Abspielen ----------
+// Dieselbe Zuordnung wie beim Rendern (welches Tonstück gehört zu Bild i), aber Bild für Bild, in dem Moment,
+// in dem es gezeigt wird. Jedes Stück ist ein eigener AudioBufferSourceNode, der genau 1/fps Sekunden aus dem
+// Ton seines Clips spielt (start(wann, ab, dauer) liest direkt aus dem ganzen Puffer, kopiert nichts).
+// Damit die Stücke lückenlos aneinanderliegen, hängen die Startzeiten an einem Anker: Bild k klingt zur
+// Zeit t, Bild i also bei t + (i − k)/fps. Stockt die Anzeige und ein Stück käme zu spät, wird der Anker neu
+// gesetzt (kurze Lücke statt einer Verschiebung, die sich aufaddiert).
+export function richteAbspielTonEin() {
+  let ac = null;
+  let anker = null; // { k, t }
+  let datei = null; // die eigene Tondatei, zu der dateiTon gehört
+  let dateiTon = null;
+  const laufend = new Set(); // angesetzte Stücke, damit Anhalten sie abbrechen kann
+
+  return {
+    // im Klick aufrufen: Browser lassen Ton erst nach einer Geste des Nutzers anlaufen (Autoplay-Regel)
+    wecke() {
+      ac ??= new AudioContext();
+      ac.resume();
+      anker = null;
+    },
+    // vor dem Abspielen: die Töne laden (am Clip gemerkt, wie beim Rendern)
+    async lade(art, clips, tonDatei) {
+      if (art === "datei") {
+        if (tonDatei !== datei) {
+          datei = tonDatei;
+          dateiTon = tonDatei ? await ladeTon(tonDatei) : null;
+        }
+      } else if (art !== "aus") await Promise.all(clips.map(tonVon));
+    },
+    spiele(art, { daten, folge, grund, clips }, i) {
+      if (!ac || art === "aus") return;
+      let ton;
+      let sek;
+      if (art === "datei") {
+        ton = dateiTon;
+        sek = i / daten.fps;
+      } else {
+        let clip;
+        let bild;
+        if (art === "bilder") {
+          const p = paketVon(daten, folge[i]);
+          clip = p.clip;
+          bild = p.bild;
+        } else {
+          const g = grund[i];
+          if (!g) return; // länger als der Schnitt: still, wie im Export
+          clip = g.clip;
+          bild = g.k;
+        }
+        ton = clips[clip]?.ton;
+        sek = (clips[clip]?.anfang ?? 0) + bild / daten.fps;
+      }
+      if (!ton || sek >= ton.duration) return;
+      const dauer = 1 / daten.fps;
+      if (!anker || anker.t + (i - anker.k) * dauer < ac.currentTime) anker = { k: i, t: ac.currentTime + 0.03 };
+      const q = new AudioBufferSourceNode(ac, { buffer: ton });
+      q.connect(ac.destination);
+      q.start(anker.t + (i - anker.k) * dauer, sek, dauer);
+      laufend.add(q);
+      q.onended = () => laufend.delete(q);
+    },
+    stopp() {
+      for (const q of laufend) q.stop();
+      laufend.clear();
+      anker = null;
+    },
+  };
+}

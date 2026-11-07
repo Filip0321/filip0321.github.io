@@ -107,7 +107,9 @@ if (abschnitte.length > 0) {
 // Farbfelder: davor ein Textfeld für den Hex-Code (#ff8800), beide halten sich gegenseitig auf Stand.
 // Die Farbauswahl des Browsers ist ungenau, im Textfeld kann man den Wert genau eintippen oder einfügen.
 // Erst wenn ein ganzer Code dasteht (#rrggbb oder kurz #rgb), wird die Farbe übernommen.
-document.querySelectorAll('input[type="color"]').forEach((farbe) => {
+// mitHexFeld ist auch für Farbfelder da, die erst später gebaut werden (z. B. die Lampen in lampen.js):
+// window.mitHexFeld?.(feld), sobald das Feld im Dokument steht
+function mitHexFeld(farbe) {
   const text = document.createElement("input");
   text.type = "text";
   text.className = "hex";
@@ -137,7 +139,9 @@ document.querySelectorAll('input[type="color"]').forEach((farbe) => {
     farbe.dispatchEvent(new Event("input", { bubbles: true })); // wie ein echtes Auswählen: alle, die zuhören, merken es
   });
   text.addEventListener("blur", zeige); // halb getippt verlassen: wieder den gültigen Wert zeigen
-});
+}
+window.mitHexFeld = mitHexFeld;
+document.querySelectorAll('input[type="color"]').forEach(mitHexFeld);
 
 function stelleVideosEin() {
   document.querySelectorAll(".karte video").forEach((video) => {
@@ -150,3 +154,4 @@ function stelleVideosEin() {
 }
 stelleVideosEin();
 wenigBewegung.addEventListener("change", stelleVideosEin);
+

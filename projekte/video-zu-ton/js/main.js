@@ -459,6 +459,17 @@ richteExportEin({
   name: "video-zu-ton",
   anzeige: () => gesamtBild(),
   liveTon: () => klang.liveTon(),
+  // Bild speichern aus der Zeit: zum Bild springen (Video anhalten), neu lesen, das ganze Bild zeichnen
+  bildLaenge: () => (istKamera() || !Number.isFinite(video.duration) ? null : video.duration),
+  bildBei: async (zeit) => {
+    video.pause();
+    await new Promise((fertig) => {
+      video.addEventListener("seeked", fertig, { once: true });
+      video.currentTime = zeit * video.duration;
+    });
+    lese(false);
+    return gesamtBild();
+  },
 });
 
 const videoExport = richteVideoExportEin({

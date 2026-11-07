@@ -892,6 +892,7 @@ setInterval(() => {
 }, 50);
 
 // eigene Lampen: Bedienung (lampen.js), Knopf zum Abstellen
-richteLampenEin(hole("lampenListe"), () => {});
+// (Abstand von der Mitte: bei Welten, die aufhören, bis zweieinhalbmal so weit wie das Fraktal groß ist)
+richteLampenEin(hole("lampenListe"), () => {}, () => (ENDLICH.includes(einstellung.welt) ? groesse() * 2.5 : WELTEN[einstellung.welt].gross ? 3 : 1));
 wechsleWelt(einstellung.welt);
 hole("lampeAbstellen").addEventListener("click", lampeHierAbstellen);

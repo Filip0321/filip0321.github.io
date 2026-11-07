@@ -91,10 +91,12 @@ export function richteFotoExportEin({
   }
 
   bildKnopf.addEventListener("click", async () => {
-    const { einst, zurueck } = await frage({ art: "bild", ueberschrift: "Bild speichern" });
+    // beim Video: welches Bild (das, wo es gerade steht, oder eines aus der Zeit, Bild für Bild)
+    const { einst, zurueck } = await frage({ art: "bild", ueberschrift: "Bild speichern", bildZeit: art() === "video" });
     try {
       if (einst) {
-        const bild = mitRahmen(await rechne(standbild), { ...einst, durchsichtig: durchsichtig() });
+        const t = einst.zeit !== null && einst.zeit !== undefined ? einst.zeit * laenge() : standbild;
+        const bild = mitRahmen(await rechne(t), { ...einst, durchsichtig: durchsichtig() });
         await speichereCanvas(bild, einst.bildTyp, dateiname());
       }
     } catch (fehler) {

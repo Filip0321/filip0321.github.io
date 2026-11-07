@@ -23,6 +23,7 @@ const MAX_SCHLITZE = 4096; // so breit darf ein Schlitzbild höchstens werden (T
 
 const gpu = richteZeitEin(bild);
 let quelle = null; // Videodatei
+let quelleNr = 0; // zählt jede neue Datei: woran der Export erkennt, dass sein Quader veraltet ist
 let ton = null;
 let kameraVideo = null; // <video> mit der Kamera, wenn live
 let lauf = null; // { stopp } solange etwas abspielt
@@ -150,6 +151,7 @@ hole("datei").addEventListener("change", async (event) => {
   zeige("");
   try {
     quelle = await oeffneVideo(datei);
+    quelleNr++;
     for (const name of ["von", "bis"]) felder[name].max = quelle.dauer.toFixed(1);
     setze("von", 0);
     setze("bis", Number(Math.min(quelle.dauer, 10).toFixed(1)));
@@ -423,9 +425,112 @@ richteExportEin({
   ziel: hole("exportKnoepfe"),
   name: () => `zeitquader-${einstellung.ansicht}`,
   anzeige: () => bild, // preserveDrawingBuffer: das letzte Bild steht noch im Canvas
+  // „Bild speichern“ → „aus der Zeit wählen“: so lang wie das Video, das „Video rendern“ machen würde
+  bildLaenge: () => {
+    if (kameraVideo) return null; // live gibt es kein gerendertes Video
+    if (einstellung.ansicht === "quader") return quaderBereit ? einstellung.fahrt : null;
+    if (!quelle) return null;
+    const { von, bis } = bereich();
+    return bis - von;
+  },
+  bildBei: (zeit) => bildAusDerZeit(zeit),
 });
 
 const dialog = erstelleExportDialog({ zeichneVorschau: (einst) => mitRahmen(bild, einst) });
+
+// Rendern und „Bild aus der Zeit“ rechnen auf derselben Export-Fläche: ein Canvas mit eigener Grafikkarten-
+// Instanz (gpu.js), einmal angelegt. Browser erlauben nur wenige WebGL-Kontexte gleichzeitig, darum nicht
+// bei jedem Klick einen neuen. Wer die Fläche will, bricht die Rechnung ab, die gerade darauf läuft, und
+// wartet, bis sie wirklich aufgehört hat; sonst würden zwei Rechnungen in denselben Ringpuffer schreiben.
+let exportFlaeche = null; // { leinwand, ziel }
+let exportLauf = null; // { stopp, fertig, gibFrei } der Rechnung, die die Fläche gerade hat
+let quaderImExport = null; // mit welchen Einstellungen der Quader in der Export-Fläche gefüllt ist (oder null)
+
+async function nimmExportFlaeche() {
+  const vorher = exportLauf;
+  let fertig;
+  const meins = { stopp: false, fertig: new Promise((f) => (fertig = f)) };
+  meins.gibFrei = () => {
+    fertig();
+    if (exportLauf === meins) exportLauf = null;
+  };
+  exportLauf = meins; // ab jetzt ist das hier die neueste Anfrage
+  if (vorher) {
+    vorher.stopp = true;
+    await vorher.fertig;
+  }
+  if (!exportFlaeche) {
+    const leinwand = document.createElement("canvas");
+    exportFlaeche = { leinwand, ziel: richteZeitEin(leinwand) };
+  }
+  return meins;
+}
+
+// Bild i von n der Kamerafahrt (hängt nur von i ab, nicht von den Bildern davor)
+function fahrtBild(ziel, breite, i, n) {
+  const t = i / Math.max(1, n - 1);
+  const h = Math.round((breite * 9) / 16 / 2) * 2;
+  const L = einstellung.laenge;
+  if (einstellung.fahrtArt === "schnitt") {
+    // die Kamera steht, wie sie gerade steht; der Schnitt fährt einmal durch den Block
+    zeichneQuader(ziel, breite, h, aktuelleKamera, { schnitt: einstellung.schnitt === "aus" ? "x" : einstellung.schnitt, schnittLage: t });
+  } else if (einstellung.fahrtArt === "durchflug") {
+    // vom ältesten Bild zum neuesten mitten durch den Block, den Blick nach vorn in die Zeit
+    const pos = [0, 0, -L / 2 - 0.8 + t * (L + 1.6)];
+    zeichneQuader(ziel, breite, h, (sv) => flug({ pos, gier: 0, nick: 0 }, sv));
+  } else {
+    // Kamerafahrt: einmal rundherum
+    zeichneQuader(ziel, breite, h, (sv) => kamera({ ...blickWinkel, drehung: blickWinkel.drehung + (2 * Math.PI * i) / n }, sv));
+  }
+}
+
+// Was ins Video kommt, Bild für Bild auf die Export-Fläche gezeichnet. nachBild(i, n) läuft nach jedem fertigen
+// Bild (i zählt ab 0, n = wie viele es werden). ab: erstes Bild, das gebraucht wird. Überspringen kann nur der
+// Quader, weil jedes Bild der Fahrt bloß von der Kamera abhängt; Schlitz und Zeitversatz bauen auf allen
+// Bildern davor auf und fangen immer vorn an.
+async function rechneExport(meins, nachBild, ab = 0) {
+  const { ziel } = exportFlaeche;
+  const { von, bis } = bereich();
+  const breiteExport = Number(einstellung.exportBreite);
+
+  if (einstellung.ansicht === "quader") {
+    // den Quader nur neu füllen, wenn sich etwas geändert hat, was in ihm steckt
+    const schluessel = JSON.stringify([quelleNr, von, bis, einstellung.quaderBreite, einstellung.quaderBilder]);
+    if (quaderImExport !== schluessel) {
+      quaderImExport = null;
+      await baueQuader(ziel, arbeitsGroesse(Number(einstellung.quaderBreite)), von, bis, meins);
+      if (meins.stopp) return;
+      quaderImExport = schluessel;
+    }
+    const n = Math.round(einstellung.fahrt * 30);
+    for (let i = ab; i < n && !meins.stopp; i++) {
+      fahrtBild(ziel, breiteExport, i, n);
+      await nachBild(i, n);
+    }
+    return;
+  }
+
+  quaderImExport = null; // Schlitz und Zeitversatz belegen den Ringpuffer neu, der Quader ist dann weg
+  const g = arbeitsGroesse(breiteExport);
+  if (einstellung.ansicht === "schlitz") {
+    // das Schlitzbild wächst Bild für Bild
+    await baueSchlitz(ziel, g, von, bis, meins, async (i, anzahl) => {
+      ziel.zeigeSchlitz(...schlitzMasse());
+      await nachBild(i, anzahl);
+    });
+  } else {
+    const fps = Math.round(quelle.fps);
+    const n = Math.round((bis - von) * quelle.fps);
+    ziel.stelleGroesse(g.breite, g.hoehe, tiefeFuer());
+    let i = 0;
+    for await (const b of quelle.bilder(g, von, bis)) {
+      if (meins.stopp) break;
+      ziel.lege(b.canvas);
+      naechstesBild(ziel, i, i / fps);
+      await nachBild(i++, n);
+    }
+  }
+}
 
 hole("videoRendern").addEventListener("click", async () => {
   if (!quelle && einstellung.ansicht !== "quader") return zeige("Video rendern geht mit einer Videodatei. Mit der Kamera nimm „Live aufnehmen“.");
@@ -433,70 +538,22 @@ hole("videoRendern").addEventListener("click", async () => {
   halteAn();
   const einst = await dialog.oeffne({ art: "video", ueberschrift: "Video rendern", zeit: false });
   if (!einst) return;
-  const meins = { stopp: false };
-  lauf = meins;
+  const meins = await nimmExportFlaeche();
+  lauf = meins; // der Stopp-Weg der Seite (halteAn) hält auch das Rendern an
   let aufnahme = null;
   try {
-    const leinwand = document.createElement("canvas");
-    const ziel = richteZeitEin(leinwand);
     const rahmen = document.createElement("canvas");
-    const mitR = () => mitRahmen(leinwand, einst, rahmen);
-    const { von, bis } = bereich();
-    const breiteExport = Number(einstellung.exportBreite);
-    let bildNr = 0;
+    const mitR = () => mitRahmen(exportFlaeche.leinwand, einst, rahmen);
+    const { von } = bereich();
     const fps = einstellung.ansicht === "quader" ? 30 : Math.round(quelle.fps);
     const mitTon = einstellung.ansicht !== "quader" && einstellung.mitTon && ton;
-    const neu = async () => {
+    await rechneExport(meins, async (i, n) => {
       aufnahme ??= await neueAufnahme(mitR(), fps, undefined, mitTon ? { kanaele: ton.numberOfChannels, rate: ton.sampleRate } : null, einst.videoTyp);
-    };
-    const schreibe = async () => {
-      await neu();
-      const t = bildNr / fps;
+      const t = i / fps;
       const stueck = mitTon && schneideTon(ton, Math.round((von + t) * ton.sampleRate), Math.round((von + t + 1 / fps) * ton.sampleRate));
       await Promise.all([aufnahme.bild(mitR(), t, 1 / fps), stueck && aufnahme.ton(stueck)]);
-      bildNr++;
-    };
-
-    if (einstellung.ansicht === "quader") {
-      // Kamerafahrt: einmal rundherum
-      const g = arbeitsGroesse(Number(einstellung.quaderBreite));
-      await baueQuader(ziel, g, von, bis, meins);
-      const n = Math.round(einstellung.fahrt * fps);
-      const h = Math.round((breiteExport * 9) / 16 / 2) * 2;
-      const L = einstellung.laenge;
-      for (let i = 0; i < n && !meins.stopp; i++) {
-        const t = i / Math.max(1, n - 1);
-        if (einstellung.fahrtArt === "schnitt") {
-          // die Kamera steht, wie sie gerade steht; der Schnitt fährt einmal durch den Block
-          zeichneQuader(ziel, breiteExport, h, aktuelleKamera, { schnitt: einstellung.schnitt === "aus" ? "x" : einstellung.schnitt, schnittLage: t });
-        } else if (einstellung.fahrtArt === "durchflug") {
-          // vom ältesten Bild zum neuesten mitten durch den Block, den Blick nach vorn in die Zeit
-          const pos = [0, 0, -L / 2 - 0.8 + t * (L + 1.6)];
-          zeichneQuader(ziel, breiteExport, h, (sv) => flug({ pos, gier: 0, nick: 0 }, sv));
-        } else {
-          zeichneQuader(ziel, breiteExport, h, (sv) => kamera({ ...blickWinkel, drehung: blickWinkel.drehung + (2 * Math.PI * i) / n }, sv));
-        }
-        await schreibe();
-        if (i % 10 === 0) zeigeFortschritt(`Kamerafahrt … ${Math.round((i / n) * 100)} %`);
-      }
-    } else if (einstellung.ansicht === "schlitz") {
-      // das Schlitzbild wächst Bild für Bild
-      const g = arbeitsGroesse(breiteExport);
-      await baueSchlitz(ziel, g, von, bis, meins, async () => {
-        ziel.zeigeSchlitz(...schlitzMasse(ziel));
-        await schreibe();
-      });
-    } else {
-      const g = arbeitsGroesse(breiteExport);
-      ziel.stelleGroesse(g.breite, g.hoehe, tiefeFuer());
-      for await (const b of quelle.bilder(g, von, bis)) {
-        if (meins.stopp) break;
-        ziel.lege(b.canvas);
-        naechstesBild(ziel, bildNr, bildNr / fps);
-        await schreibe();
-        if (bildNr % 10 === 0) zeigeFortschritt(`Video … ${(bildNr / fps).toFixed(1)} s`);
-      }
-    }
+      if (i % 10 === 0) zeigeFortschritt(einstellung.ansicht === "quader" ? `Kamerafahrt … ${Math.round((i / n) * 100)} %` : `Video … ${t.toFixed(1)} s`);
+    });
     zeigeFortschritt("Speichern …");
     if (aufnahme) ladeHerunter(await aufnahme.fertig(), `zeitquader-${einstellung.ansicht}-${zeitstempel()}.${aufnahme.endung}`);
   } catch (fehler) {
@@ -504,10 +561,37 @@ hole("videoRendern").addEventListener("click", async () => {
     await aufnahme?.abbrechen();
     zeige(`Video ging nicht: ${fehler.message}`);
   } finally {
+    meins.gibFrei();
     if (lauf === meins) lauf = null;
     zeigeFortschritt(null);
   }
 });
+
+// Bild aus der Zeit (zeit 0 bis 1): rechnet wie beim Rendern bis zu dem Bild, das dort im Video stünde, und
+// gibt die Export-Fläche zurück (das Fenster kopiert sie gleich mit mitRahmen). Beim Schieben im Fenster
+// kommen viele Anfragen schnell hintereinander; jede neue bricht die vorige ab, nur die letzte rechnet zu Ende.
+async function bildAusDerZeit(zeit) {
+  const meins = await nimmExportFlaeche();
+  try {
+    if (meins.stopp) return exportFlaeche.leinwand; // schon wieder überholt, das Fenster wirft es weg
+    const wunsch = (n) => Math.max(0, Math.min(n - 1, Math.round(zeit * (n - 1))));
+    const ab = einstellung.ansicht === "quader" ? wunsch(Math.round(einstellung.fahrt * 30)) : 0;
+    // am Wunschbild angekommen: dieselbe Bremse wie beim Abbrechen, die Schleifen in rechneExport halten
+    // vor dem nächsten Bild an, und auf der Fläche steht genau das gewünschte
+    await rechneExport(
+      meins,
+      (i, n) => {
+        if (i >= wunsch(n)) meins.stopp = true;
+        else if (i % 15 === 0) zeigeFortschritt(`Bild suchen … ${Math.round((i / wunsch(n)) * 100)} %`);
+      },
+      ab,
+    );
+    return exportFlaeche.leinwand;
+  } finally {
+    zeigeFortschritt(null);
+    meins.gibFrei();
+  }
+}
 
 // Größe, in der das (wachsende) Schlitzbild ins Video kommt: das ganze Schlitzbild, höchstens 3840 breit
 function schlitzMasse() {
@@ -521,3 +605,4 @@ function schlitzMasse() {
 }
 
 zeigeArt();
+
