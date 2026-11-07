@@ -19,9 +19,9 @@ import { richteExportEin, neueAufnahme, ladeHerunter, zeitstempel, warte, schnei
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 import { oeffneClip } from "./quellen.js";
 import { bereite } from "./kodieren.js";
-import { lege, baueGrund } from "./schnitt.js";
+import { lege, baueGrund, schnittName } from "./schnitt.js";
 import { baueFolge, quelleBei, paketVon, pFramesAb } from "./folge.js";
-import { baueTon } from "./ton.js";
+import { baueTon, richteAbspielTonEin } from "./ton.js";
 import { richteDekoderEin } from "./dekoder.js";
 import { richteZeitleisteEin } from "./zeitleiste.js";
 import { helligkeit } from "/lib/yuv.js";
@@ -40,6 +40,11 @@ let fluechtig = []; // live ohne Merken: gilt nur bis „Von vorn“, kommt nich
 let folge = [];
 let herkunft = []; // pro Bild der Folge: woher es kommt (folge.js), für Zeitleiste und Ton
 let grund = []; // die Grundfolge aus dem Schnitt (schnitt.js)
+// Vorschaubilder des gemoshten Ergebnisses: Bild i der Folge, so wie es beim Abspielen oder Rendern aus dem
+// Dekoder kam. Die Quelle (daten.vorschau) zeigt nur, was ein Paket ursprünglich war; was der Mosh daraus
+// macht, sieht man erst, wenn es einmal dekodiert wurde. Darum wird hier mitgeschrieben.
+let gemosht = new Map();
+const MAX_GEMOSHT = 8000; // je Bildchen etwa 9 KB: höchstens rund 70 MB
 const iWeg = new Set(); // Schnitte, an denen das I-Frame gelöscht ist (schnitt.js: schnittName)
 const iBleibt = new Set(); // Schnitte, an denen es bleibt, auch wenn „an Schnitten moshen“ an ist
 let n = 0; // Bild der Folge, das als nächstes kommt
@@ -83,6 +88,26 @@ function zeigeFortschritt(text) {
 // an Schnitten moshen: 0 = aus, 1 bis 120 Bilder lang, ganz rechts (121) = nie heilen
 const schnittMosh = () => (einstellung.schnitte > 120 ? Infinity : einstellung.schnitte);
 
+// eine neue Folge übernehmen. Jedes dekodierte Bild baut auf allen davor auf: ändert sich die Folge ab Bild d,
+// stimmen alle gemoshten Vorschaubilder ab d nicht mehr (davor bleiben sie gültig).
+function setzeFolge(neu) {
+  let d = 0;
+  while (d < folge.length && d < neu.folge.length && folge[d] === neu.folge[d]) d++;
+  for (const i of gemosht.keys()) if (i >= d) gemosht.delete(i);
+  ({ folge, herkunft } = neu);
+}
+
+// Bild i ist gerade dekodiert worden (in quelle): klein mitschreiben
+function merkeVorschau(i, quelle) {
+  const muster = daten.vorschau[0];
+  if (!muster || (gemosht.size >= MAX_GEMOSHT && !gemosht.has(i))) return;
+  const c = gemosht.get(i) ?? document.createElement("canvas");
+  c.width = muster.width;
+  c.height = muster.height;
+  c.getContext("2d").drawImage(quelle, 0, 0, c.width, c.height);
+  gemosht.set(i, c);
+}
+
 // gibt { folge, herkunft } zurück
 function baue(mitFluechtigen = true) {
   const alle = mitFluechtigen ? [...ereignisse, ...fluechtig] : ereignisse;
@@ -101,10 +126,10 @@ function neueFolge(ordnen = true) {
   if (!daten) return;
   if (ordnen) lege(clips);
   grund = baueGrund(clips, daten.anfaenge);
-  ({ folge, herkunft } = baue());
+  setzeFolge(baue());
   zeigeEreignisse();
   zeigeStelle();
-  zeitleiste.zeige({ folge, herkunft, daten, clips, grund });
+  zeitleiste.zeige({ folge, herkunft, daten, clips, grund, gemosht });
 }
 
 function zeigeStelle() {
@@ -243,6 +268,8 @@ async function einmalVorbereiten() {
       if (neu.quellHelligkeit.some((h) => h >= 2)) daten = neu;
     }
     daten.ids = clips.map((c) => c.id);
+    gemosht = new Map(); // neu kodiert: andere Pakete, die alten Bildchen gelten nicht mehr
+    folge = [];
     if (alt) ordneUm(alt);
     bild.width = daten.breite;
     bild.height = daten.hoehe;
@@ -326,8 +353,12 @@ async function pruefeSchwarz() {
   zeige("Das dekodierte Bild bleibt schwarz. Bitte das Protokoll (unten) kopieren und schicken.");
 }
 
+// Ton beim Abspielen (ton.js): dieselbe Zuordnung Bild → Tonstück wie beim Rendern
+const abspielTon = richteAbspielTonEin();
+
 function spiele() {
   if (!daten || laeuft) return;
+  if (einstellung.tonLive) abspielTon.wecke(); // noch im Klick: sonst bleibt der Browser stumm
   schleife = spieleSchleife();
 }
 
@@ -341,11 +372,17 @@ async function spieleSchleife() {
   if (n >= folge.length) {
     n = 0;
     fluechtig = []; // von vorn: die flüchtigen Eingriffe sind vorbei
-    ({ folge, herkunft } = baue());
+    setzeFolge(baue());
     dekoder.neu();
   }
   laeuft = true;
   abspielen.textContent = "Anhalten";
+  if (einstellung.tonLive) {
+    // die Töne der Clips einmal laden (beim ersten Mal dauert das kurz, danach sind sie am Clip gemerkt)
+    zeigeFortschritt("Ton laden …");
+    await abspielTon.lade(einstellung.tonArt, clips, hole("tonDatei").files[0]).catch((fehler) => protokoll(`Ton beim Abspielen: ${fehler.message}`));
+    zeigeFortschritt(null);
+  }
   const dauer = 1000 / daten.fps;
   while (vorrat.length < VORRAT + 1) vorrat.push(document.createElement("canvas"));
   for (const c of vorrat) {
@@ -373,7 +410,7 @@ async function spieleSchleife() {
         if (haelt) {
           // H gedrückt: das Halten wird jedes Bild länger, die Folge neu gebaut
           haelt.dauer++;
-          ({ folge, herkunft } = baue());
+          setzeFolge(baue());
         }
         bilder[n] = dekoder.schicke(paketVon(daten, folge[n]), vorrat[n % vorrat.length]);
         n++;
@@ -385,6 +422,8 @@ async function spieleSchleife() {
         if (!(await dekoder.warteAuf(bilder[gezeigt]))) break; // false: der Dekoder wurde neu gestartet (Anhalten)
         bilder[gezeigt] = null;
         zeichne(ctx, vorrat[gezeigt % vorrat.length]);
+        merkeVorschau(gezeigt, vorrat[gezeigt % vorrat.length]);
+        if (einstellung.tonLive) abspielTon.spiele(einstellung.tonArt, { daten, folge, grund, clips }, gezeigt);
         gezeigt++;
         zeitleiste?.markiere(gezeigt - 1);
         if (gezeigt % 5 === 0) zeigeStelle();
@@ -398,6 +437,7 @@ async function spieleSchleife() {
     dekoder.neu();
     n = 0;
   } finally {
+    abspielTon.stopp();
     laeuft = false;
     haelt = null;
     abspielen.textContent = "Abspielen";
@@ -425,7 +465,7 @@ hole("vonVorn").addEventListener("click", async () => {
   await halte();
   fluechtig = [];
   if (daten) {
-    ({ folge, herkunft } = baue());
+    setzeFolge(baue());
     await zeigeBild(0);
     zeitleiste.markiere(0);
   }
@@ -522,6 +562,7 @@ function zeigeEreignisse() {
         ({
           löschen: `Bild ${e.bei}: ${e.weg} Bilder gelöscht`,
           wiederholen: `Bild ${e.bei}: ${e.liste.length} Bilder eingesetzt (wiederholt)`,
+          "wiederholen mit I-Frame": `Bild ${e.bei}: ${e.liste.length} Bilder eingesetzt (wiederholt, jede Kopie mit I-Frame)`,
           umkehren: `Bild ${e.bei}: ${e.weg} Bilder rückwärts`,
           mischen: `Bild ${e.bei}: ${e.weg} Bilder durch P-Frames von Clip ${e.vonClip + 1} ersetzt`,
         })[e.wie] ?? `Bild ${e.bei}: ${e.weg} Bilder ersetzt durch ${e.liste.length}`,
@@ -643,9 +684,15 @@ hole("auswahlWiederholen").addEventListener("click", () => {
   const [von, bis] = a;
   const mal = Math.max(1, Math.round(Number(hole("wiederholMal").value)));
   const stueck = folge.slice(von, bis + 1);
-  const liste = [];
-  for (let k = 0; k <= mal; k++) liste.push(...stueck); // das Original und mal Kopien
-  ersetzeAuswahl("wiederholen", liste);
+  // mit I-Frame: jede Kopie fängt mit dem Keyframe ihres ersten Bildes an (schluessel, Nummer + N), also
+  // sauber, wie ein Loop im Schnittprogramm: das Bild springt zurück und die Bewegung läuft noch einmal.
+  // Ohne: nur die Pakete noch einmal, jede Kopie schiebt das schon verschobene Bild weiter (Bloom).
+  const N = daten.pakete.length;
+  const mitI = hole("wiederholMitI").checked;
+  const kopie = mitI ? [stueck[0] < N ? stueck[0] + N : stueck[0], ...stueck.slice(1)] : stueck;
+  const liste = [...stueck]; // das Original
+  for (let k = 0; k < mal; k++) liste.push(...kopie); // und mal Kopien
+  ersetzeAuswahl(mitI ? "wiederholen mit I-Frame" : "wiederholen", liste);
 });
 
 // Umkehren: dieselben Pakete rückwärts. Jeder P-Frame verschiebt dann von der falschen Seite aus; die Bewegung
@@ -663,6 +710,36 @@ hole("auswahlMischen").addEventListener("click", () => {
   const clip = Math.min(Math.max(1, Math.round(Number(hole("mischClip").value))), clips.length) - 1;
   const ab = Math.max(0, Math.round(Number(hole("mischAb").value)));
   ersetzeAuswahl("mischen", pFramesAb(daten, clip, ab, a[1] - a[0] + 1), { vonClip: clip });
+});
+
+// Voreinstellung „Bild springt ins Video“: an jedem Schnitt von einem Standbild in ein Video das I-Frame des
+// Videos weg (und es heilt nicht von selbst). Dann malt das Video mit seinen P-Frames auf dem Bild weiter:
+// so sähe es aus, wenn man in Avidemux die I-Frames am Anfang des Videos löscht. Mit „dann halten“ wird
+// gleich danach das erste P-Frame so oft wiederholt (Bloom), bevor das Video weiterläuft.
+hole("bildInsVideo").addEventListener("click", () => {
+  if (!daten) return zeige("Erst vorbereiten.");
+  const namen = [];
+  for (let k = 1; k < grund.length; k++) {
+    const g = grund[k];
+    if (g.schnitt && clips[grund[k - 1].clip].art === "bild" && clips[g.clip].art === "video") {
+      const name = schnittName(g);
+      iWeg.add(name);
+      iBleibt.delete(name);
+      namen.push(name);
+    }
+  }
+  if (!namen.length) return zeige("Kein Schnitt von einem Bild in ein Video. Leg ein Bild vor ein Video (Bild öffnen, Video dahinter) und drück noch einmal.");
+  neueFolge();
+  const dauer = Math.max(0, Math.round(Number(hole("bildInsVideoHalten").value)));
+  if (dauer) {
+    // das Bild direkt nach dem gelöschten I-Frame trägt die Markierung (folge.js: iWeg); dahinter halten
+    for (const name of namen) {
+      const i = herkunft.findIndex((h) => h.schnitt === name);
+      if (i >= 0 && !ereignisse.some((e) => e.art === "halten" && e.bei === i + 1)) ereignisse.push({ art: "halten", bei: i + 1, dauer });
+    }
+    neueFolge();
+  }
+  zeige(`${namen.length} Schnitt${namen.length > 1 ? "e" : ""} vom Bild ins Video ohne I-Frame${dauer ? `, danach ${dauer} Bilder gehalten` : ""}. Zurück: dieselben Stellen markieren und „I-Frame löschen / zurück“.`);
 });
 
 // I-Frames in der Auswahl löschen oder zurückholen. Am Schnitt: der Schnitt merkt es sich (iWeg / iBleibt).
@@ -757,6 +834,15 @@ richteExportEin({
   ziel: hole("exportKnoepfe"),
   name: "datamosh",
   anzeige: () => bild,
+  // Bild speichern aus der Zeit: ein Bild der Folge (der Dekoder geht dafür der Reihe nach dorthin)
+  bildLaenge: () => (daten ? folge.length / daten.fps : null),
+  bildBei: async (zeit) => {
+    const i = Math.round(zeit * (folge.length - 1));
+    await halte();
+    await zeigeBild(i);
+    zeitleiste.markiere(i);
+    return bild;
+  },
 });
 
 const dialog = erstelleExportDialog({ zeichneVorschau: (einst) => mitRahmen(bild, einst) });
@@ -807,6 +893,7 @@ hole("videoRendern").addEventListener("click", async () => {
       if (!(await dekoder.warteAuf(bilder[i]))) throw new Error("Der Dekoder wurde mittendrin neu gestartet");
       bilder[i] = null;
       zeichne(lctx, ring[i % ring.length]);
+      if (!fluechtig.length) merkeVorschau(i, ring[i % ring.length]); // sonst ist es eine andere Folge als die gezeigte
     };
     await holeBild(0);
     protokoll("Rendern: erstes Bild da, Aufnahme starten");
@@ -859,6 +946,9 @@ window.datamosh = {
   },
   get daten() {
     return daten;
+  },
+  get gemosht() {
+    return gemosht;
   },
   clips,
   ereignisse: () => ereignisse,

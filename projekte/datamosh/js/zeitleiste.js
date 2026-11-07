@@ -5,7 +5,8 @@
 //             Die oberste Spur gewinnt. Verdeckte Teile sind blass.
 //   Ergebnis  die Bilder, wie sie in den Dekoder gehen (Zeit des Videos). Durch Halten und Wiederholen
 //             wird das Ergebnis länger als der Schnitt, darum hat jeder Teil sein eigenes Lineal.
-//       Bilder  kleine Vorschau der Quelle (was das Paket ursprünglich zeigte, nicht das gemoshte Bild)
+//       Bilder  kleine Vorschau des gemoshten Ergebnisses, sobald das Bild einmal abgespielt oder gerendert
+//               wurde; vorher blass die Quelle (was das Paket ursprünglich zeigte)
 //       I       Keyframes: rot am Schnitt oder Clipanfang, orange geheilt; ein roter Rahmen ohne Füllung
 //               ist ein gelöschter I-Frame (dort moshen die P-Frames auf dem alten Bild weiter)
 //       P       P-Frames in der Farbe ihres Clips; violett: wiederholt, gehalten oder eingesetzt
@@ -31,7 +32,7 @@ export function richteZeitleisteEin(rahmen, { beiStelle, beiAuswahl, beiClip, be
   const canvas = rahmen.querySelector("canvas");
   const breiteEl = rahmen.querySelector(".zl-breite");
   const ctx = canvas.getContext("2d");
-  let s = { folge: [], herkunft: [], daten: null, clips: [], grund: [] };
+  let s = { folge: [], herkunft: [], daten: null, clips: [], grund: [], gemosht: new Map() };
   let px = 6; // Pixel pro Bild
   let auswahl = null; // [von, bis], Bilder des Ergebnisses, beide enthalten
   let position = -1;
@@ -155,8 +156,12 @@ export function richteZeitleisteEin(rahmen, { beiStelle, beiAuswahl, beiClip, be
     const schritt = Math.max(1, Math.ceil(bildBreite / px));
     for (let i = von - (von % schritt); i < bis; i += schritt) {
       const e = folge[i];
-      const bild = e !== undefined && daten.vorschau[e >= N ? e - N : e];
-      if (bild) ctx.drawImage(bild, xVon(i), yB, Math.min(bildBreite, schritt * px), BILDER);
+      const gm = s.gemosht?.get(i);
+      const bild = gm ?? (e !== undefined && daten.vorschau[e >= N ? e - N : e]);
+      if (!bild) continue;
+      ctx.globalAlpha = gm ? 1 : 0.35; // noch nicht dekodiert: blass, das ist nur die Quelle
+      ctx.drawImage(bild, xVon(i), yB, Math.min(bildBreite, schritt * px), BILDER);
+      ctx.globalAlpha = 1;
     }
     // bei sehr kleinem Zoom: ein Bild pro Pixel genügt
     const jedes = Math.max(1, Math.floor(1 / px));
