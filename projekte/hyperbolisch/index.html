@@ -77,15 +77,18 @@
           <label data-nur="stil=fenster">Fensterrahmen <input type="range" data-wert="rahmen" min="0.02" max="0.8" step="0.01" value="0.25"><output></output></label>
           <label>Kugel in jeder Zelle <input type="range" data-wert="kugel" min="0" max="0.6" step="0.01" value="0.12"><output></output></label>
           <label><input type="checkbox" data-wert="augen"> Kugeln sind Augen (sie sehen dich an)</label>
+          <label>erst ab Entfernung <input type="range" data-wert="kugelAb" min="0" max="8" step="0.1" value="0"><output></output></label>
+          <label><input type="checkbox" data-wert="umriss"> nur Umrisse im Nebel</label>
           <label data-nur="augen=true">Iris <input type="color" data-wert="irisFarbe" value="#6b8f3a"></label>
           <label>Wucherungen <input type="range" data-wert="wucher" min="0" max="0.3" step="0.005" value="0"><output></output></label>
           <label>Wucherungen fein <input type="range" data-wert="wucherGroesse" min="0.5" max="12" step="0.1" value="4"><output></output></label>
         </div>
         <div class="steuerung">
-          <button type="button" data-setze='{"stil": "beides", "dicke": 0.06, "kugel": 0, "augen": false, "wucher": 0.05, "wucherGroesse": 6, "farbeA": "#d8cfb8", "farbeB": "#a89878", "nebelFarbe": "#0c0a08", "nebel": 0.45, "lampenArt": "taschenlampe"}'>Knochen</button>
-          <button type="button" data-setze='{"stil": "balken", "dicke": 0.1, "kugel": 0.08, "augen": false, "wucher": 0.12, "wucherGroesse": 3, "farbeA": "#7a2a2e", "farbeB": "#a85a5a", "nebelFarbe": "#120406", "nebel": 0.5, "kugelLicht": 1.2}'>Fleisch</button>
-          <button type="button" data-setze='{"stil": "fenster", "dicke": 0.04, "rahmen": 0.3, "kugel": 0.15, "augen": true, "wucher": 0, "farbeA": "#3d4a44", "farbeB": "#2a3330", "nebelFarbe": "#050806", "nebel": 0.4, "kugelLicht": 0.6, "lampenArt": "taschenlampe"}'>Augen</button>
-          <button type="button" data-setze='{"stil": "fenster", "dicke": 0.05, "rahmen": 0.45, "kugel": 0.1, "augen": false, "wucher": 0.02, "wucherGroesse": 10, "farbeA": "#9c9384", "farbeB": "#6f685e", "nebelFarbe": "#0a0b10", "nebel": 0.3, "kugelLicht": 1.6, "lampenArt": "stirn"}'>Kathedrale</button>
+          <button type="button" data-setze='{"kugelAb": 0, "umriss": false, "stil": "beides", "dicke": 0.06, "kugel": 0, "augen": false, "wucher": 0.05, "wucherGroesse": 6, "farbeA": "#d8cfb8", "farbeB": "#a89878", "nebelFarbe": "#0c0a08", "nebel": 0.45, "lampenArt": "taschenlampe"}'>Knochen</button>
+          <button type="button" data-setze='{"kugelAb": 0, "umriss": false, "stil": "balken", "dicke": 0.1, "kugel": 0.08, "augen": false, "wucher": 0.12, "wucherGroesse": 3, "farbeA": "#7a2a2e", "farbeB": "#a85a5a", "nebelFarbe": "#120406", "nebel": 0.5, "kugelLicht": 1.2}'>Fleisch</button>
+          <button type="button" data-setze='{"kugelAb": 0, "umriss": false, "stil": "fenster", "dicke": 0.04, "rahmen": 0.3, "kugel": 0.15, "augen": true, "wucher": 0, "farbeA": "#3d4a44", "farbeB": "#2a3330", "nebelFarbe": "#050806", "nebel": 0.4, "kugelLicht": 0.6, "lampenArt": "taschenlampe"}'>Augen</button>
+          <button type="button" data-setze='{"stil": "balken", "dicke": 0.03, "kugel": 0.2, "kugelAb": 2.5, "umriss": true, "augen": true, "irisFarbe": "#ff3b1f", "wucher": 0.02, "farbeA": "#2b2e2c", "farbeB": "#1d201f", "nebelFarbe": "#5f6662", "nebel": 0.55, "kugelLicht": 1.2, "lampenArt": "taschenlampe", "flackern": true}'>Im Nebel</button>
+          <button type="button" data-setze='{"kugelAb": 0, "umriss": false, "stil": "fenster", "dicke": 0.05, "rahmen": 0.45, "kugel": 0.1, "augen": false, "wucher": 0.02, "wucherGroesse": 10, "farbeA": "#9c9384", "farbeB": "#6f685e", "nebelFarbe": "#0a0b10", "nebel": 0.3, "kugelLicht": 1.6, "lampenArt": "stirn"}'>Kathedrale</button>
         </div>
       </details>
 

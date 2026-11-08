@@ -97,7 +97,7 @@ function zeige(v) {
   zeichneSchnitte();
   melde("");
 }
-hole("datei").addEventListener("change", async (event) => {
+for (const id of ["datei", "ordner"]) hole(id).addEventListener("change", async (event) => {
   if (!event.target.files.length) return;
   melde("lädt …");
   try {
@@ -212,7 +212,8 @@ function schleife(jetzt) {
   if (!exportLaeuft) {
     schritt(dt);
     // nur neu rechnen, wenn sich etwas geändert hat (große Volumen kosten viel)
-    if (neuZeichnen || stapel.clientWidth * Math.min(devicePixelRatio || 1, 2) * e.bildAufloesung !== canvas.width) {
+    // (gerundet vergleichen wie in zeichne(), sonst ist es nie gleich und es würde jedes Bild neu gerechnet)
+    if (neuZeichnen || Math.max(16, Math.round(stapel.clientWidth * Math.min(devicePixelRatio || 1, 2) * e.bildAufloesung)) !== canvas.width) {
       zeichne();
       neuZeichnen = false;
     }

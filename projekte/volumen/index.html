@@ -46,7 +46,8 @@
       <details class="abschnitt" open>
         <summary>Daten</summary>
         <div class="steuerung">
-          <label class="datei-knopf">Datei öffnen <input type="file" id="datei" multiple accept=".nrrd,.nhdr,.raw,.gz"></label>
+          <label class="datei-knopf">Datei öffnen <input type="file" id="datei" multiple accept=".nrrd,.nhdr,.raw,.gz,.dcm"></label>
+          <label class="datei-knopf">DICOM-Ordner öffnen <input type="file" id="ordner" webkitdirectory multiple></label>
           <button type="button" id="test">Testkörper (Kopf)</button>
           <button type="button" id="bulb">Mandelbulb</button>
           <label>Auflösung
@@ -62,7 +63,7 @@
           <label>y <input type="number" id="abstandY" min="0.01" step="0.01" value="1"></label>
           <label>z <input type="number" id="abstandZ" min="0.01" step="0.01" value="1"></label>
         </div>
-        <p class="hinweis">Geht: .nrrd (roh oder gzip), .nhdr zusammen mit seiner Datendatei (beide auswählen), .raw mit Größe und Typ im Namen wie bei Open SciVis (name_512x512x240_int16.raw). Die Daten bleiben auf deinem Gerät, nichts wird hochgeladen.</p>
+        <p class="hinweis">Geht: DICOM (ein Ordner mit einer Datei pro Schicht, ungepackt), .nrrd (roh oder gzip), .nhdr zusammen mit seiner Datendatei (beide auswählen), .raw mit Größe und Typ im Namen wie bei Open SciVis (name_512x512x240_int16.raw). Die Daten bleiben auf deinem Gerät, nichts wird hochgeladen.</p>
       </details>
 
       <details class="abschnitt" open>
