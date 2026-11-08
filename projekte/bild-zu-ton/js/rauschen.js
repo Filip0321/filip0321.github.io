@@ -125,7 +125,8 @@ async function phasenVon(puffer, fenster, { pRe, pIm }, pause) {
 }
 
 // durchgaenge: wie oft Griffin-Lim die Phase nachbessert (0 = reines Zufallsrauschen)
-export async function erzeugeRauschen(raster, spalten, zeilen, { dauer, tief, hoch, dynamik, durchgaenge = 0, beiFortschritt }) {
+// normieren: wie bei erzeugeTon (false für die Farb-Stimmen, die erst zusammen normiert werden)
+export async function erzeugeRauschen(raster, spalten, zeilen, { dauer, tief, hoch, dynamik, durchgaenge = 0, normieren = true, beiFortschritt }) {
   hoch = Math.min(hoch, RATE / 2 - 1); // Nyquist, wie in erzeugeTon
   const anzahl = Math.round(dauer * RATE);
   const laenge = anzahl + 2 * RAND;
@@ -153,6 +154,7 @@ export async function erzeugeRauschen(raster, spalten, zeilen, { dauer, tief, ho
   const puffer = await setzeZusammen(betrag, phase, fenster, laenge, pausenUhr((a) => beiFortschritt?.((schritte - 1 + a) / schritte)));
 
   const ton = puffer.slice(RAND, RAND + anzahl); // nur die Mitte: dort liegen überall 4 Fenster
-  normiere(ton);
+  if (normieren) normiere(ton);
   return ton;
 }
+

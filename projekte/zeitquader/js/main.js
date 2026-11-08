@@ -548,7 +548,7 @@ hole("videoRendern").addEventListener("click", async () => {
     const fps = einstellung.ansicht === "quader" ? 30 : Math.round(quelle.fps);
     const mitTon = einstellung.ansicht !== "quader" && einstellung.mitTon && ton;
     await rechneExport(meins, async (i, n) => {
-      aufnahme ??= await neueAufnahme(mitR(), fps, undefined, mitTon ? { kanaele: ton.numberOfChannels, rate: ton.sampleRate } : null, einst.videoTyp);
+      aufnahme ??= await neueAufnahme(mitR(), fps, undefined, mitTon ? { kanaele: ton.numberOfChannels, rate: ton.sampleRate } : null, einst.videoTyp, einst.videoQualitaet);
       const t = i / fps;
       const stueck = mitTon && schneideTon(ton, Math.round((von + t) * ton.sampleRate), Math.round((von + t + 1 / fps) * ton.sampleRate));
       await Promise.all([aufnahme.bild(mitR(), t, 1 / fps), stueck && aufnahme.ton(stueck)]);

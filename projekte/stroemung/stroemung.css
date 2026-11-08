@@ -1,0 +1,22 @@
+/*
+Strömung: nur was es nirgends sonst auf der Website gibt
+*/
+/* Format: --format ist Breite durch Höhe (setzt js/main.js); nie höher als 80 % des Fensters */
+.stroemung-feld {
+  --format: 1;
+  position: relative;
+  aspect-ratio: var(--format);
+  width: min(100%, calc(80vh * var(--format)));
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #000;
+  touch-action: none; /* ziehen rührt, nicht Scrollen */
+  cursor: crosshair;
+}
+
+.stroemung-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

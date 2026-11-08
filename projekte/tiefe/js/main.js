@@ -377,7 +377,7 @@ hole("videoRendern").addEventListener("click", async () => {
         hinein: (sv) => flug({ pos: [0, 0, blickWinkel.abstand * (1 - 0.5 * (0.5 - 0.5 * Math.cos(t * Math.PI)))], gier: Math.PI, nick: 0 }, sv),
       }[einstellung.fahrt];
       ziel.zeigeWolke(wolkeEinstellung(k(b / h).vp), b, h);
-      aufnahme ??= await neueAufnahme(mitRahmen(leinwand, einst, rahmen), fps, undefined, null, einst.videoTyp);
+      aufnahme ??= await neueAufnahme(mitRahmen(leinwand, einst, rahmen), fps, undefined, null, einst.videoTyp, einst.videoQualitaet);
       await aufnahme.bild(mitRahmen(leinwand, einst, rahmen), i / fps, 1 / fps);
       if (i % 10 === 0) {
         zeigeFortschritt(`Kamerafahrt … ${Math.round(t * 100)} %`);
@@ -399,3 +399,4 @@ hole("videoRendern").addEventListener("click", async () => {
 if (!gpu.mitFloat) zeige("Achtung: Dein Browser kann nicht in Float-Texturen zeichnen, das Block Matching geht hier nicht.");
 neueSkala();
 zeigeArt();
+

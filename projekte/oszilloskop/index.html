@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oszilloskop-Musik - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="oszilloskop.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Oszilloskop-Musik</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>ton</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen os-spalte">
+      <div class="os-felder">
+        <figure>
+          <canvas id="zeichnung" width="600" height="600" aria-label="Zeichenfläche: ziehen zeichnet einen Strich, Alt und ziehen dreht"></canvas>
+          <figcaption>Zeichnung (ziehen zeichnet, Alt + ziehen oder zwei Finger drehen)</figcaption>
+        </figure>
+        <figure>
+          <div class="os-schirm">
+            <canvas id="schirm" width="800" height="800" aria-label="Nachgemachtes Oszilloskop im XY-Modus"></canvas>
+            <canvas id="raster" aria-hidden="true"></canvas>
+          </div>
+          <figcaption>Oszilloskop (XY: links = x, rechts = y)</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <button type="button" id="starten" aria-pressed="false">Ton an</button>
+          <label>Tonhöhe
+            <input type="range" id="note" min="24" max="96" step="0.01" value="45">
+            <output id="noteAnzeige"></output>
+          </label>
+          <label>Lautstärke
+            <input type="range" id="laut" min="0" max="1" step="0.01" value="0.3">
+            <output data-fuer="laut"></output>
+          </label>
+          <label>Gleiten (s)
+            <input type="range" id="gleit" min="0" max="1" step="0.01" value="0.05">
+            <output data-fuer="gleit"></output>
+          </label>
+        </div>
+        <p class="hinweis">Tastatur wie in Ableton (A W S E D …, Y und X für die Oktave). Leise anfangen.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Form</summary>
+        <div class="steuerung">
+          <label>Form
+            <select id="form">
+              <optgroup label="flach">
+                <option value="kreis">Kreis (reiner Sinus)</option>
+                <option value="quadrat">Quadrat</option>
+                <option value="dreieck">Dreieck</option>
+                <option value="stern" selected>Stern</option>
+                <option value="herz">Herz</option>
+                <option value="spirale">Spirale</option>
+                <option value="lissajous">Lissajous</option>
+              </optgroup>
+              <optgroup label="3D">
+                <option value="wuerfel">Würfel</option>
+                <option value="tetraeder">Tetraeder</option>
+                <option value="oktaeder">Oktaeder</option>
+                <option value="ikosaeder">Ikosaeder</option>
+                <option value="kugel">Kugel (Breiten- und Längenkreise)</option>
+                <option value="knoten">Torusknoten (eine Linie)</option>
+              </optgroup>
+            </select>
+          </label>
+          <label>a
+            <input type="range" id="la" min="1" max="9" step="1" value="3">
+            <output data-fuer="la"></output>
+          </label>
+          <label>b
+            <input type="range" id="lb" min="1" max="9" step="1" value="2">
+            <output data-fuer="lb"></output>
+          </label>
+          <label>Phase (°)
+            <input type="range" id="lphase" min="0" max="180" step="1" value="90">
+            <output data-fuer="lphase"></output>
+          </label>
+          <button type="button" id="einsetzen">einsetzen</button>
+          <button type="button" id="zurueck">letzten Strich weg</button>
+          <button type="button" id="loeschen">alles löschen</button>
+          <button type="button" id="geradeStellen">gerade stellen</button>
+        </div>
+        <div class="steuerung">
+          <label class="datei-knopf">Bild, SVG oder OBJ öffnen <input type="file" id="datei" accept="image/*,.svg,.obj"></label>
+          <label>Text <input type="text" id="text" value="Filip" size="12"></label>
+          <button type="button" id="textEinsetzen">Text einsetzen</button>
+        </div>
+        <!-- nur bei einem geöffneten Bild: wie die Umrisse gefunden werden -->
+        <div class="steuerung" id="bildTeil" hidden>
+          <label>Schwelle
+            <input type="range" id="schwelle" min="0.05" max="0.95" step="0.01" value="0.5">
+            <output data-fuer="schwelle"></output>
+          </label>
+          <label>Feinheit
+            <input type="range" id="bildDetail" min="40" max="400" step="10" value="160">
+            <output data-fuer="bildDetail"></output>
+          </label>
+          <label><input type="checkbox" id="bildUmkehren"> hell und dunkel tauschen</label>
+        </div>
+        <p class="hinweis" id="anzahl"></p>
+        <p class="hinweis">Gestrichelt: Sprünge zwischen Strichen, auf dem Schirm blass. Je mehr Striche, desto blasser. OBJ aus Blender: Exportieren → Wavefront.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Bewegung</summary>
+        <div class="steuerung">
+          <label>Drehen um x (pro s)
+            <input type="range" id="drehX" min="-2" max="2" step="0.01" value="0">
+            <output data-fuer="drehX"></output>
+          </label>
+          <label>Drehen um y (pro s)
+            <input type="range" id="drehY" min="-2" max="2" step="0.01" value="0">
+            <output data-fuer="drehY"></output>
+          </label>
+          <label>Drehen in der Ebene (pro s)
+            <input type="range" id="drehZ" min="-2" max="2" step="0.01" value="0">
+            <output data-fuer="drehZ"></output>
+          </label>
+          <label>Perspektive (Abstand, 0 = aus)
+            <input type="range" id="abstand" min="0" max="8" step="0.1" value="3">
+            <output data-fuer="abstand"></output>
+          </label>
+          <label>Atmen
+            <input type="range" id="atmen" min="0" max="0.6" step="0.01" value="0">
+            <output data-fuer="atmen"></output>
+          </label>
+          <label>Atmen (pro s)
+            <input type="range" id="atmenF" min="0" max="8" step="0.05" value="0.5">
+            <output data-fuer="atmenF"></output>
+          </label>
+          <label>Zeit für Sprünge
+            <input type="range" id="sprung" min="0.01" max="1" step="0.01" value="0.05">
+            <output data-fuer="sprung"></output>
+          </label>
+        </div>
+        <p class="hinweis">Auch eine flache Zeichnung dreht sich um x und y wie ein Blatt im Raum. Gedreht weiterzeichnen: der neue Strich liegt in der Ebene, die gerade nach vorn zeigt.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Schirm</summary>
+        <div class="steuerung">
+          <label>Nachleuchten (weniger = länger)
+            <input type="range" id="nachleuchten" min="0.02" max="1" step="0.01" value="0.25">
+            <output data-fuer="nachleuchten"></output>
+          </label>
+          <label>Helligkeit
+            <input type="range" id="helligkeit" min="0.2" max="5" step="0.1" value="1">
+            <output data-fuer="helligkeit"></output>
+          </label>
+          <label>Verstärkung (wie Volt pro Kästchen)
+            <input type="range" id="verstaerkung" min="0.5" max="10" step="0.1" value="3">
+            <output data-fuer="verstaerkung"></output>
+          </label>
+          <label class="datei-knopf">Tondatei ansehen <input type="file" id="tondatei" accept="audio/*"></label>
+        </div>
+        <p class="hinweis">Echtes Oszilloskop: Spitze auf Kanal 1, Ring auf Kanal 2, XY, beide Kanäle gleich empfindlich, DC.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung">
+          <label>Länge
+            <select id="dauer">
+              <option value="5">5 s</option>
+              <option value="10" selected>10 s</option>
+              <option value="30">30 s</option>
+              <option value="60">60 s</option>
+            </select>
+          </label>
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="wavSpeichern">WAV speichern</button>
+          <button type="button" id="videoRendern">Video rendern</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- eigene Felder fürs Export-Fenster: /lib/export-dialog.js verschiebt sie beim Start dorthin -->
+    <div id="exportFelder" hidden>
+      <h3 class="gruppe">Schirm</h3>
+      <div class="steuerung">
+        <label><input type="checkbox" id="exportRaster" checked> Raster (Kästchen) im Video</label>
+      </div>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script> <!-- Video kodieren (Export) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

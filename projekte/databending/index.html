@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Databending - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="databending.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Databending</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+        <li>video</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen db-spalte">
+      <!-- das Bild und darüber die Markierung (welche Zeilen gerade gewählt sind) -->
+      <div class="db-feld" id="feld">
+        <canvas id="bild"></canvas>
+        <canvas id="markierung" aria-hidden="true"></canvas>
+      </div>
+      <!-- dieselben Bytes als Welle: jede Spalte zeigt das Kleinste und Größte der Samples darin -->
+      <canvas id="welle" class="db-welle" aria-label="Die Bytes des Bildes als Wellenform. Ziehen markiert einen Bereich."></canvas>
+      <p class="hinweis" id="stelle">&nbsp;</p>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="meldung" id="fortschritt" hidden></p> <!-- beim Rechnen -->
+
+      <details class="abschnitt" open>
+        <summary>Bild</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Bild, Video oder Lied öffnen <input type="file" id="datei" accept="image/*,video/*,audio/*"></label>
+          <label>Rechengröße
+            <select id="groesse">
+              <option value="800">800 breit</option>
+              <option value="1200" selected>1200 breit</option>
+              <option value="1920">1920 breit (langsamer)</option>
+            </select>
+          </label>
+        </div>
+        <p class="hinweis">Jedes Pixel sind drei Bytes (Rot, Grün, Blau), Zeile für Zeile hintereinander. Genau das ist der Ton.</p>
+      </details>
+
+      <!-- nur bei Videos: an welchem Bild man die Bereiche einstellt, und das Speichern -->
+      <details class="abschnitt" id="videoTeil" hidden open>
+        <summary>Video</summary>
+        <div class="steuerung">
+          <label>Bild bei
+            <input type="range" id="videoZeit" min="0" max="1" step="0.01" value="0">
+            <output id="videoZeitAnzeige">0 s</output>
+          </label>
+          <label>LFO wandert (pro Sekunde)
+            <input type="range" id="lfoLauf" min="0" max="4" step="0.05" value="0">
+            <output id="lfoLaufAnzeige">0</output>
+          </label>
+        </div>
+        <p class="hinweis">Jedes Bild des Videos geht durch dieselben Bereiche (Video rendern unter Export). Phaser und Flanger bewegen sich mit „LFO wandert“ von Bild zu Bild.</p>
+      </details>
+
+      <!-- nur bei Liedern: wie lang eine Zeile ist -->
+      <details class="abschnitt" id="liedTeil" hidden open>
+        <summary>Lied als Bild</summary>
+        <div class="steuerung">
+          <label>Eine Zeile ist
+            <select id="liedZeile">
+              <option value="bild">so lang, dass es etwa 16:9 wird</option>
+              <option value="sechzehntel">eine Sechzehntel</option>
+              <option value="achtel">eine Achtel</option>
+              <option value="schlag">ein Schlag</option>
+              <option value="takt">ein Takt (4 Schläge)</option>
+            </select>
+          </label>
+          <label>Tempo (BPM) <input type="number" id="liedBpm" min="20" max="300" step="0.01" value="120"></label>
+        </div>
+        <p class="hinweis" id="liedInfo"></p>
+        <p class="hinweis">Stimmt das Tempo, stehen die Schläge als senkrechte Spalten untereinander. Kippen sie schräg, ist das Tempo ein wenig daneben.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Anhören</summary>
+        <div class="steuerung">
+          <label>Abtastrate
+            <select id="rate">
+              <option value="8000">8 kHz (tief, langsam)</option>
+              <option value="22050">22 kHz</option>
+              <option value="44100" selected>44,1 kHz (wie Audacity)</option>
+            </select>
+          </label>
+          <button type="button" id="abspielen">Abspielen</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Bereiche</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" id="einrasten" checked> an Zeilen einrasten</label>
+          <button type="button" id="ganzWaehlen">alles wählen</button>
+          <button type="button" id="zoomAuswahl">Welle: Auswahl groß</button>
+          <button type="button" id="zoomGanz">Welle: ganz</button>
+        </div>
+        <div class="steuerung">
+          <label>Effekt
+            <select id="neueArt"></select>
+          </label>
+          <button type="button" id="bereichDazu">auf die Auswahl</button>
+        </div>
+        <p class="hinweis" id="auswahlInfo">Ziehen in der Welle oder senkrecht im Bild markiert einen Bereich.</p>
+        <ol class="db-bereiche" id="bereiche" aria-label="Bereiche mit ihren Effekten, in der Reihenfolge, in der sie rechnen"></ol>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Malen</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" id="malen"> im Bild malen statt Zeilen wählen</label>
+          <label>Pinsel
+            <select id="pinselArt">
+              <option value="farbe">Farbe (ein Pfeifen)</option>
+              <option value="rauschen">Rauschen</option>
+              <option value="stille">Stille (Grau)</option>
+            </select>
+          </label>
+          <label>Farbe <input type="color" id="pinselFarbe" value="#ff3366"></label>
+          <label>Größe (px)
+            <input type="range" id="pinselGroesse" min="1" max="120" step="1" value="12">
+          </label>
+          <button type="button" id="malenVerwerfen">Gemaltes verwerfen</button>
+        </div>
+        <p class="hinweis">Gemalt wird vor den Bereichen, ihre Effekte wirken also auch auf das Gemalte.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung">
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="tonSpeichern">WAV speichern</button>
+          <button type="button" id="videoSpeichern" hidden>Video rendern</button> <!-- nur bei Videos -->
+        </div>
+        <p class="hinweis">Als PNG gespeichert und wieder geöffnet, klingt ein Bild genauso (auf 8 Bit gerundet). So kann man es zwischendurch woanders bearbeiten.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script> <!-- Video dekodieren und kodieren -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

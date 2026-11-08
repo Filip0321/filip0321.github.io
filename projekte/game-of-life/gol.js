@@ -1,5 +1,6 @@
 import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
 import { richteExportEin } from "/lib/export.js";
+import { richteGolTonEin } from "./gol-ton.js"; // das Feld als Sequencer (Abschnitt Ton)
 
 // Konstanten - Spielfeld (das Modell, immer gleich)
 const INTERVALL = 100;   // ms zwischen den Generationen
@@ -207,7 +208,12 @@ function zeichne() {
       ctx.fillRect(links, oben, rechts - links - luecke, unten - oben - luecke);
     }
   }
+  ton.zeichneKopf(ctx, zelle); // der Lesekopf, wenn der Ton an ist (gol-ton.js)
 }
+
+// der Ton liest das Feld so, wie es gerade ist (die Arrays tauschen bei jedem Schritt, darum jedes Mal neu holen)
+// zeichne als zweites: auch wenn das Spiel pausiert, läuft der Kopf weiter und muss neu gezeichnet werden
+const ton = richteGolTonEin(() => ({ gitter, SPALTEN, ZEILEN, regeln: [nachbar1, nachbar2, nachbar3] }), () => zeichne());
 
 
 // Buttons zum kontrollieren der Simulation
@@ -452,6 +458,7 @@ const render = {
     renderGeneration = 0;
   },
   bild(i, dt) {
+    ton.exportZeit(i * dt); // der Lesekopf steht beim Video da, wo er zu dieser Zeit wäre
     // so viele Generationen, wie bis zu diesem Bild in Echtzeit vergangen wären
     const soll = Math.floor((i * dt * 1000) / INTERVALL);
     while (renderGeneration < soll) {
@@ -461,6 +468,7 @@ const render = {
     zeichne();
   },
   ende() {
+    ton.exportEnde();
     setzeLaeuft(warLaeuft);
     warLaeuft = false;
   },
@@ -473,6 +481,7 @@ const render = {
   vorschau(i, n, dt) {
     const soll = Math.floor((i * dt * 1000) / INTERVALL);
     for (let g = 0; g < soll; g++) schritt();
+    ton.exportZeit(i * dt);
     zeichne();
   },
 };
@@ -485,4 +494,6 @@ richteExportEin({
   endbild,
   render,
   zuschnitt: crtZuschnitt,
+  tonFuer: (sekunden) => ton.rendere(sekunden), // mit „Ton an“ klingt das Video wie das Feld
 });
+

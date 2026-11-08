@@ -178,6 +178,11 @@
       <details class="abschnitt">
         <summary>Export</summary>
         <div class="steuerung">
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="videoRendern">Video rendern</button>
+        </div>
+        <!-- die eigenen Einstellungen zum Export: main.js schiebt sie ins Export-Fenster, wie bei den anderen Projekten -->
+        <div class="steuerung" id="exportFelder" hidden>
           <!-- so groß wird gerechnet (höchstens so groß wie das Video); das Export-Fenster skaliert danach -->
           <label>Rechengröße
             <select data-wert="exportBreite">
@@ -186,11 +191,9 @@
               <option value="3840">3840 breit (4K)</option>
             </select>
           </label>
-          <label><input type="checkbox" data-wert="mitTon" checked> Ton des Videos ins Video</label>
-          <button type="button" id="bildSpeichern">Bild speichern</button>
-          <button type="button" id="videoRendern">Video rendern</button>
+          <label class="nur-video"><input type="checkbox" data-wert="mitTon" checked> Ton des Videos ins Video</label>
+          <p class="hinweis">Gerechnet wird noch einmal in voller Größe. Bei 4K passen weniger Bilder in den Grafikspeicher (dann kommt ein Hinweis).</p>
         </div>
-        <p class="hinweis">Gerechnet wird noch einmal in voller Größe. Bei 4K passen weniger Bilder in den Grafikspeicher (dann kommt ein Hinweis).</p>
       </details>
     </div>
 
@@ -212,3 +215,4 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+

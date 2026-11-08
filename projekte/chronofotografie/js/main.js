@@ -260,6 +260,7 @@ async function vorschauBei(zeit) {
   const ziel = Math.round(zeit * bilderImBereich(e));
   const schluessel = JSON.stringify(e);
   if (!zeitVorschau || ziel < zeitVorschau.n || zeitVorschau.schluessel !== schluessel) {
+    zeitVorschau?.iter.return(); // die alte Rechnung abbrechen (gibt ihre Videobilder frei)
     const g = quelle.groesse(640);
     const inst = await neueExportInstanz(g, e);
     zeitVorschau = { leinwand: inst.leinwand, iter: videoSchritte(inst.chrono, quelle, maske, g, inst.e, einsaetze), n: 0, schluessel };
@@ -272,7 +273,9 @@ async function vorschauBei(zeit) {
   }
   return zeitVorschau.leinwand;
 }
+// Rechengröße und Ton stehen im Export-Fenster (felder), wie bei den anderen Projekten
 const dialog = erstelleExportDialog({
+  felder: hole("exportFelder"),
   zeichneVorschau: async (einst, zeit) => (zeit !== null && quelle ? mitRahmen(await vorschauBei(zeit), einst) : mitRahmen(bild, einst)),
 });
 
@@ -297,7 +300,8 @@ hole("bildSpeichern").addEventListener("click", async () => {
   const imVideo = einstellung.modus !== "standbild";
   const sekunden = (auswahl().bis - auswahl().von);
   const einst = await dialog.oeffne({ art: "bild", ueberschrift: "Bild speichern (volle Größe)", bildZeit: imVideo, laenge: sekunden });
-  zeitVorschau = null; // die kleine Vorschau wird nicht mehr gebraucht
+  zeitVorschau?.iter.return(); // die kleine Vorschau wird nicht mehr gebraucht: Dekoder sauber schließen
+  zeitVorschau = null;
   if (!einst) return;
   beschaeftigt = true;
   try {
@@ -324,7 +328,12 @@ hole("bildSpeichern").addEventListener("click", async () => {
 hole("videoRendern").addEventListener("click", async () => {
   if (!quelle || beschaeftigt) return;
   halteAn();
-  const einst = await dialog.oeffne({ art: "video", ueberschrift: "Video rendern", zeit: false });
+  // im Video-Modus mit Schieber durch die Zeit (die Vorschau baut sich auf wie beim Abspielen); der Bereich
+  // selbst kommt aus „von“ und „bis“ des Projekts
+  const imVideo = einstellung.modus !== "standbild";
+  const einst = await dialog.oeffne({ art: "video", ueberschrift: "Video rendern", zeit: imVideo, bereich: false, laenge: auswahl().bis - auswahl().von });
+  zeitVorschau?.iter.return();
+  zeitVorschau = null;
   if (!einst) return;
   beschaeftigt = true;
   let aufnahme = null;
@@ -336,7 +345,7 @@ hole("videoRendern").addEventListener("click", async () => {
     const rahmen = document.createElement("canvas");
     const bildMitRahmen = () => mitRahmen(leinwand, einst, rahmen);
     chrono.mische({ ...e, fenster: 0, mitAktuell: false }); // ein erstes Bild für die Größe
-    aufnahme = await neueAufnahme(bildMitRahmen(), fps, undefined, mitTon ? { kanaele: ton.numberOfChannels, rate: ton.sampleRate } : null, einst.videoTyp);
+    aufnahme = await neueAufnahme(bildMitRahmen(), fps, undefined, mitTon ? { kanaele: ton.numberOfChannels, rate: ton.sampleRate } : null, einst.videoTyp, einst.videoQualitaet);
     const bilderGesamt = Math.round((e.bis - e.von) * quelle.fps);
     let i = 0;
     for await (const { n } of videoSchritte(chrono, quelle, maske, g, e, einsaetze)) {

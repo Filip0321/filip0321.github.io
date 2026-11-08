@@ -217,6 +217,24 @@
         </div>
       </details>
 
+      <!-- nur beim Video: der Ton durch /lib/ton-kaputt.js, beim Hören und beim Video speichern -->
+      <details class="abschnitt nur-video" id="tonAbschnitt" hidden>
+        <summary>Ton kaputt</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" id="tonHoeren"> hören</label>
+          <label>Knistern <input type="range" id="kaputt-knistern" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Rauschen <input type="range" id="kaputt-rauschen" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Leiern <input type="range" id="kaputt-leiern" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Bits <input type="range" id="kaputt-bits" min="2" max="16" step="1" value="16"><output></output></label>
+          <label>Abtastrate geteilt durch <input type="range" id="kaputt-teiler" min="1" max="32" step="1" value="1"><output></output></label>
+          <label>Aussetzer <input type="range" id="kaputt-aussetzer" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Verzerren <input type="range" id="kaputt-verzerren" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Höhen <input type="range" id="kaputt-hoehen" min="0" max="1" step="0.01" value="1"><output></output></label>
+          <button type="button" id="kaputtZurueck">alles heil</button>
+        </div>
+        <p class="hinweis">Platte, Band, Billig-Sampler: Knistern und Rauschen kommen dazu, Bits und Abtastrate machen grob, Aussetzer setzen aus oder springen. Gilt auch beim Video speichern.</p>
+      </details>
+
       <details class="abschnitt" open>
         <summary>Export</summary>
         <div class="steuerung nur-video" hidden>
@@ -238,3 +256,4 @@
   <script type="module" src="main.js"></script>
 </body>
 </html>
+

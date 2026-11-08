@@ -1,12 +1,14 @@
 import { gl, glCanvas, rendere } from "../../lib/webgl.js";
 import { zustand } from "./zustand.js";
 import { beiGeladen } from "./effekte/rahmen.js"
-import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig, nimmAuf, nimmRaus } from "./kette.js";
+import { EFFEKTE, kette, aktiveSchritte, wendeEffekteAn, tausche, istZeitabhaengig, nimmAuf, nimmRaus, registriere } from "./kette.js";
+import { kopien } from "/lib/effekte/instanzen.js";
 import { baueSammlung } from "/lib/effekte/sammlung-ui.js";
 import { meldeEffekte } from "/lib/export-dialog.js";
 import { SAMMLUNG } from "/lib/effekte/sammlung.js";
 import { richteFotoExportEin } from "./export.js";
 import { berechneRahmen, zeichneQuelle } from "./quelle.js";
+import { erstelleKaputt, istAus, KAPUTT_AUS } from "/lib/ton-kaputt.js";
 import { crtAnteil } from "/lib/effekte/crt.js";
 import { setzeEigeneRechtecke } from "/lib/effekte/blobs.js";
 import { verbindeRegler } from "/lib/effekt-regler.js";
@@ -204,6 +206,7 @@ function ladeVideo(datei) {
 
       video = neuesVideo;
       zeigeModus("video");
+      verbindeTon(video); // „hören“ gilt auch für das neue Video
       video.play();
       starteVideoSchleife(video);
       exportKnoepfe.aktualisiere();
@@ -294,8 +297,52 @@ function zeigeKette() {
     }
     
     li.append(hoch, runter);
+    // eigene Effekte eines Overlays: als Unterpunkte darunter, mit eigener Reihenfolge
+    if (schritt.kette?.length) li.append(unterliste(schritt));
+    // Effekte der Sammlung lassen sich kopieren: noch einmal, mit eigenen Werten und eigenem Gedächtnis
+    if (effekt.sammlung) {
+      const kopie = document.createElement("button");
+      kopie.textContent = "⧉";
+      kopie.setAttribute("aria-label", `${name} kopieren`);
+      kopie.addEventListener("click", () => sammlung.kopiere(schritt.typ));
+      li.append(kopie);
+    }
     ketteListe.appendChild(li);
   });
+}
+
+// die Effekte nur eines Overlays (schritt.kette): ↑ ↓ innerhalb, × entfernt die Kopie ganz
+function unterliste(schritt) {
+  const ol = document.createElement("ol");
+  ol.className = "kette unter";
+  ol.setAttribute("aria-label", `Effekte nur für ${schritt.name}`);
+  schritt.kette.forEach((s, i) => {
+    const li = document.createElement("li");
+    const effekt = EFFEKTE[s];
+    if (!effekt?.an()) li.classList.add("aus");
+    const knopf = (text, label, aus, beiKlick) => {
+      const k = document.createElement("button");
+      k.textContent = text;
+      k.setAttribute("aria-label", label);
+      k.disabled = aus;
+      k.addEventListener("click", beiKlick);
+      return k;
+    };
+    const tauschen = (j) => {
+      [schritt.kette[i], schritt.kette[j]] = [schritt.kette[j], schritt.kette[i]];
+      zeigeKette();
+      planeAnwenden();
+    };
+    const name = effekt?.name ?? s;
+    li.append(
+      name,
+      knopf("↑", `${name} nach oben`, i === 0, () => tauschen(i - 1)),
+      knopf("↓", `${name} nach unten`, i === schritt.kette.length - 1, () => tauschen(i + 1)),
+      knopf("×", `${name} entfernen`, false, () => sammlung.entferne(s)),
+    );
+    ol.append(li);
+  });
+  return ol;
 }
 
 function verschiebe(i, richtung) {
@@ -405,7 +452,8 @@ function zeichneVideobild() {
 
   // wenn alle effekte gpu sind kann man einfach über diese rendere() aufrufen
   // sonst muss man schleife mit wendeSchrittAn()
-  if (schritte.every((schritt) => EFFEKTE[schritt.typ].gpu)) {
+  // (ein Effekt mit Bereich muss mit dem Bild davor gemischt werden: dann auch die Schleife)
+  if (schritte.every((schritt) => EFFEKTE[schritt.typ].gpu && !(EFFEKTE[schritt.typ].bereich?.() > 0.5))) {
     for (const schritt of schritte) {
       const effekt = EFFEKTE[schritt.typ];
       rendere(effekt.programm, canvas, w, h, effekt.einstellungen(zeit));
@@ -430,7 +478,10 @@ function zeichneVideobild() {
 }
 
 // bewegt sich etwas auf dem Foto (Overlay-Videos, oder ein lebendiger Effekt wie Korn und Feedback)?
-const lebt = () => kette.some((schritt) => schritt.folge) || aktiveSchritte().some((schritt) => EFFEKTE[schritt.typ].lebendig);
+// (auch ein lebendiger Effekt, der nur in einem Overlay wirkt)
+const lebt = () =>
+  kette.some((schritt) => schritt.folge || (schritt.kette ?? []).some((s) => EFFEKTE[s]?.an() && EFFEKTE[s].lebendig)) ||
+  aktiveSchritte().some((schritt) => EFFEKTE[schritt.typ].lebendig);
 
 function overlayVideoSchleife() {
   requestAnimationFrame(overlayVideoSchleife);
@@ -527,6 +578,55 @@ function bildRechner() {
   };
 }
 
+// ---------- Ton kaputt (/lib/ton-kaputt.js) ----------
+// Vorhören: das Video ist sonst stumm (es soll ohne Klick abspielen dürfen). Mit „hören“ geht sein Ton durch
+// Web Audio und dieselbe Rechnung wie beim Export. ScriptProcessorNode ist alt, aber er kann die Funktion direkt
+// aufrufen (ein AudioWorklet müsste sie als eigene Datei laden); fürs Vorhören reicht das
+const KAPUTT = Object.keys(KAPUTT_AUS);
+const kaputtWerte = () => Object.fromEntries(KAPUTT.map((name) => [name, Number(hole(`kaputt-${name}`).value)]));
+for (const name of KAPUTT) {
+  const feld = hole(`kaputt-${name}`);
+  const zeigeWert = () => (feld.nextElementSibling.textContent = feld.value);
+  feld.addEventListener("input", zeigeWert);
+  zeigeWert();
+}
+hole("kaputtZurueck").addEventListener("click", () => {
+  for (const name of KAPUTT) {
+    hole(`kaputt-${name}`).value = KAPUTT_AUS[name];
+    hole(`kaputt-${name}`).dispatchEvent(new Event("input"));
+  }
+});
+let tonKontext = null;
+const tonQuellen = new WeakMap(); // pro <video> nur einmal createMediaElementSource
+function verbindeTon(v) {
+  if (!hole("tonHoeren").checked || !v) return;
+  tonKontext ??= new AudioContext();
+  tonKontext.resume();
+  if (!tonQuellen.has(v)) {
+    const quelle = tonKontext.createMediaElementSource(v);
+    const kaputt = erstelleKaputt(tonKontext.sampleRate, 2);
+    const knoten = tonKontext.createScriptProcessor(2048, 2, 2);
+    knoten.onaudioprocess = (event) => {
+      const ein = event.inputBuffer;
+      const aus = event.outputBuffer;
+      const kanaele = [0, 1].map((k) => {
+        const daten = aus.getChannelData(k);
+        daten.set(ein.getChannelData(Math.min(k, ein.numberOfChannels - 1)));
+        return daten;
+      });
+      const w = kaputtWerte();
+      if (!istAus(w)) kaputt(kanaele, w);
+    };
+    quelle.connect(knoten).connect(tonKontext.destination);
+    tonQuellen.set(v, true);
+  }
+  v.muted = false;
+}
+hole("tonHoeren").addEventListener("change", () => {
+  if (hole("tonHoeren").checked) verbindeTon(video);
+  else if (video) video.muted = true;
+});
+
 const exportKnoepfe = richteFotoExportEin({
   ziel: hole("export"),
   art: () => (video ? "video" : quelle ? "bild" : null),
@@ -564,6 +664,7 @@ const exportKnoepfe = richteFotoExportEin({
   // CRT als letzter Effekt: dann gibt es gewölbte Ränder, die man abschneiden kann (sonst liegt etwas darüber)
   zuschnitt: () => (aktiveSchritte().at(-1)?.typ === "crt" && !(zustand.werte.crt.randWeg > 0.5) ? crtAnteil(zustand.werte.crt.woelbung) : null),
   hintergrund: () => zustand.hintergrund,
+  tonWerte: kaputtWerte, // Ton kaputt beim Video speichern
   durchsichtig: () => zustand.transparent,
   sperre: (gesperrt) => {
     for (const element of [dateiFeld, dateiLeerFeld, overlayFeld, abspielKnopf]) element.disabled = gesperrt;
@@ -725,6 +826,7 @@ overlayTitelFeld.addEventListener("input", () => {
 });
 
 overlayEntfernenKnopf.addEventListener("click", () => {
+  for (const s of [...(ausgewaehlt.kette ?? [])]) sammlung.entferne(s); // seine eigenen Effekte gehen mit
   gibOverlayFrei(ausgewaehlt);
   kette.splice(kette.indexOf(ausgewaehlt), 1);   // genau diesen Zettel aus der Kette nehmen
   ausgewaehlt = null;
@@ -785,12 +887,83 @@ overlayFarbeFeld.addEventListener("input", () => {
 // auf Änderungen im HTML reagieren
 
 // die Sammlung (Film, Druck, Verzerrung, Licht, Linien): Häkchen nimmt den Effekt in die Kette auf
-baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
-  if (an) nimmAuf(typ);
-  else nimmRaus(typ);
-  zeigeKette();
-  planeAnwenden();
-});
+// Kopien (/lib/effekte/instanzen.js): „+ Kopie“ in der Sammlung oder ⧉ in der Reihenfolge. Eine Kopie bekommt
+// einen Eintrag in EFFEKTE, ihre Regler werden verbunden, das Häkchen nimmt sie wie jeden Effekt auf.
+// Effekte nur für ein Overlay sind ebenfalls Kopien; sie gehören dann diesem Overlay (overlayVon) und kommen
+// in seine eigene Kette statt in die große. Ihr Häkchen schaltet sie dort an und aus.
+const overlayVon = new Map(); // Schlüssel der Kopie -> Overlay-Schritt
+let fuerOverlay = null; // solange eine Kopie für ein Overlay entsteht: dieses Overlay
+const vorbildVon = new Map(); // Kopie -> wovon: sie kommt in der Reihenfolge direkt dahinter
+const sammlung = baueSammlung(
+  hole("sammlung"),
+  zustand.werte,
+  (typ, an) => {
+    if (!overlayVon.has(typ)) {
+      if (an) nimmAuf(typ, vorbildVon.get(typ));
+      else nimmRaus(typ);
+      vorbildVon.delete(typ);
+    }
+    zeigeKette();
+    planeAnwenden();
+  },
+  {
+    beiKopie(schluessel, wurzel, vorbild) {
+      registriere(schluessel);
+      verbindeRegler(zustand.werte, planeAnwenden, wurzel);
+      vorbildVon.set(schluessel, vorbild);
+      if (fuerOverlay) {
+        overlayVon.set(schluessel, fuerOverlay);
+        (fuerOverlay.kette ??= []).push(schluessel);
+        // im Namen sagen, wem sie gehört
+        const label = hole(`${schluessel}-an`).parentElement;
+        label.lastChild.textContent += ` · nur ${fuerOverlay.name}`;
+      }
+    },
+    // Übersicht mit Bildern: das geladene Foto (oder das laufende Video) ohne Effekte
+    vorschauQuelle() {
+      if (video) return video;
+      if (!quelle) return null;
+      const c = document.createElement("canvas");
+      c.width = quelle.width;
+      c.height = quelle.height;
+      c.getContext("2d").putImageData(quelle, 0, 0);
+      return c;
+    },
+    beiEntfernen(schluessel) {
+      const o = overlayVon.get(schluessel);
+      if (o) o.kette.splice(o.kette.indexOf(schluessel), 1);
+      overlayVon.delete(schluessel);
+      delete EFFEKTE[schluessel];
+      zeigeKette();
+      planeAnwenden();
+    },
+  },
+);
+
+// im Overlay-Abschnitt: einen Effekt nur für das ausgewählte Overlay
+{
+  const zeile = document.createElement("div");
+  zeile.className = "steuerung";
+  const wahl = document.createElement("select");
+  wahl.setAttribute("aria-label", "Effekt");
+  for (const def of SAMMLUNG) wahl.append(new Option(def.name, def.id));
+  const dazu = document.createElement("button");
+  dazu.type = "button";
+  dazu.textContent = "nur auf dieses Overlay";
+  dazu.addEventListener("click", () => {
+    if (!ausgewaehlt) return;
+    fuerOverlay = ausgewaehlt;
+    try {
+      sammlung.kopiere(wahl.value);
+    } finally {
+      fuerOverlay = null;
+    }
+  });
+  const text = document.createElement("label");
+  text.append("Effekt ", wahl);
+  zeile.append(text, dazu);
+  overlayEntfernenKnopf.closest(".steuerung").after(zeile);
+}
 
 // Blob-Tracking: eigene Rechtecke. Mit „Rechtecke ziehen“ zieht man auf dem Bild Rahmen auf (statt Overlays
 // zu verschieben); sie zählen wie erkannte Flecken (blobs.js).
@@ -856,19 +1029,42 @@ baueSammlung(hole("sammlung"), zustand.werte, (typ, an) => {
 }
 
 // im Export-Fenster dieselben Häkchen (/lib/export-dialog.js); ein Umstellen dort ist wie ein Klick hier
-const HAEKCHEN = [
+// (eine Funktion, weil Kopien dazukommen und wieder gehen)
+const HAEKCHEN = () => [
   ["dither-an", "Dithering"],
   ["farbverlauf-an", "Farbverlauf"],
   ["vhs-an", "VHS"],
   ...SAMMLUNG.map((def) => [`${def.id}-an`, def.name]),
+  ...kopien.map((s) => [`${s}-an`, EFFEKTE[s]?.name ?? s]),
   ["rahmen-an", "Fenster ums Bild"],
   ["crt-an", "CRT"],
 ];
 meldeEffekte({
-  liste: () => HAEKCHEN.map(([id, name]) => ({ id, name, an: hole(id).checked })),
+  // die eingeschalteten in der Reihenfolge der Kette, die anderen nach den Gruppen der Sammlung
+  liste() {
+    const typVon = { "dither-an": "pixel", "rahmen-an": "rahmen" }; // Häkchen, die anders heißen als ihr Schritt
+    const alle = HAEKCHEN().map(([id, name]) => ({ id, name, an: hole(id).checked, typ: typVon[id] ?? id.slice(0, -3) }));
+    const stelle = (e) => kette.findIndex((schritt) => schritt.typ === e.typ);
+    const an = alle.filter((e) => e.an).sort((a, b) => stelle(a) - stelle(b));
+    const aus = alle.filter((e) => !e.an).map((e) => ({ ...e, gruppe: SAMMLUNG.find((d) => d.id === e.typ.split("~")[0])?.gruppe ?? "Bild" }));
+    return [...an, ...aus];
+  },
   setze(id, an) {
     hole(id).checked = an;
     hole(id).dispatchEvent(new Event("change"));
+  },
+  // ↑ ↓ im Export-Fenster. In der Kette stehen auch Overlays, die das Fenster nicht zeigt: so lange weiter
+  // tauschen, bis der Schritt an einem sichtbaren Nachbarn vorbei ist (sonst passierte scheinbar nichts)
+  verschiebe(id, richtung) {
+    const typVon = (hid) => ({ "dither-an": "pixel", "rahmen-an": "rahmen" })[hid] ?? hid.slice(0, -3);
+    const sichtbar = (schritt) => HAEKCHEN().some(([hid]) => typVon(hid) === schritt.typ && hole(hid).checked);
+    let i = kette.findIndex((schritt) => schritt.typ === typVon(id));
+    while (i >= 0 && tausche(i, i + richtung)) {
+      i += richtung;
+      if (sichtbar(kette[i - richtung])) break;
+    }
+    zeigeKette();
+    planeAnwenden();
   },
 });
 

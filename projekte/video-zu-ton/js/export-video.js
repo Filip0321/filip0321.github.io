@@ -16,7 +16,7 @@ import { video, springe, geoeffneteDatei } from "./quelle.js";
 import { rendere } from "./klang.js";
 
 // s: was main.js mitgibt:
-//   lese(neu)        das aktuelle Bild des Videos verarbeiten und lesen -> { werte (pro Strich), noten }
+//   lese(neu)        das aktuelle Bild des Videos verarbeiten und lesen -> { werte (pro Strich), noten, flecken }
 //   vergiss()        Auslösen von vorn (kein „voriges Bild“)
 //   zeichne(werte)   das Feld mit diesen Helligkeiten zeichnen -> Canvas (Video und Strich zusammen)
 //   klangDaten()     { striche, einstellung, originalton } wie gerade eingestellt
@@ -44,14 +44,16 @@ export function richteVideoExportEin(s) {
     const daten = s.klangDaten();
     const werte = daten.striche.map((st) => new Float32Array(bilder * st.freq.length));
     const noten = []; // { bild, strich, freq, staerke }
+    const flecken = []; // pro Bild die Flecken-Stimmen
     s.vergiss(); // Auslösen fängt neu an (sonst zählt das letzte Live-Bild als „vorher“)
     for (let i = 0; i < bilder; i++) {
       await springe((erstes + i) / FPS);
       // beim ersten Bild gibt es kein voriges: zweimal dasselbe, dann ist die Bewegung 0
       if (i === 0) s.lese(true);
-      const { werte: w, noten: neu } = s.lese(i > 0);
+      const { werte: w, noten: neu, flecken: f } = s.lese(i > 0);
       w.forEach((zeile, j) => werte[j].set(zeile, i * zeile.length));
       for (const n of neu) noten.push({ ...n, bild: i });
+      flecken.push(f ?? []);
       if (i % 10 === 0) {
         s.fortschritt(`Lesen … ${Math.round((i / bilder) * 100)} %`);
         await warte();
@@ -64,7 +66,7 @@ export function richteVideoExportEin(s) {
     const ton = await rendere({
       striche: daten.striche,
       einstellung: daten.einstellung,
-      zeitplan: { fps: FPS, bilder, werte, noten },
+      zeitplan: { fps: FPS, bilder, werte, noten, flecken },
       sekunden: bilder / FPS,
       originalTon: stueck,
       originalton: daten.originalton,
@@ -111,7 +113,7 @@ export function richteVideoExportEin(s) {
       const bildMitRahmen = (quelle) => mitRahmen(quelle, einst, rahmen);
       let aufnahme = null;
       try {
-        aufnahme = await neueAufnahme(bildMitRahmen(s.zeichne(null)), FPS, undefined, { kanaele: 2, rate: ton.sampleRate }, einst.videoTyp);
+        aufnahme = await neueAufnahme(bildMitRahmen(s.zeichne(null)), FPS, undefined, { kanaele: 2, rate: ton.sampleRate }, einst.videoTyp, einst.videoQualitaet);
         for (let i = 0; i < bilder; i++) {
           await springe((erstes + i) / FPS);
           const w = werte.map((alle) => {
@@ -137,3 +139,4 @@ export function richteVideoExportEin(s) {
 
   return { wav, videoRendern };
 }
+

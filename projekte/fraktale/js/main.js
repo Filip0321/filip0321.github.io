@@ -114,11 +114,36 @@ const musik = richteAudioreaktivEin({
     wackeln: "Kamera wackelt",
     vorwaerts: "Kamera fliegt vor",
     farbe: "Farbe wandert (2D)",
+    reinzoomen: "Fahrt: hinein (2D Zoom, 3D Flug)",
+    drehen: "Fahrt: drehen (3D)",
   },
   start: { bass: "form", mitte: "licht", schlag: "zoom" },
   beiStart: () => {},
 });
 let musikFarbe = 0; // wie weit die Musik die Farben schon geschoben hat (2D)
+
+// Kamerafahrt im Takt: „Fahrt: hinein“ und „Fahrt: drehen“ zählen sich auf, statt zurückzufedern wie „Zoom“.
+// Mit dem Signal „Takt (Datei)“ (ein Stoß auf jedem Schlag, der in 0,15 s abklingt) macht die Kamera so auf
+// jedem Schlag einen Schritt und steht dazwischen fast still: das Integral eines Stoßes ist etwa 0,15 mal
+// die Stärke. Bei Stärke 1 heißt das in 2D pro Schlag etwa ein Viertel näher (e^−0,3 ≈ 0,74), in 3D eine
+// Drehung um gut 17°. Mit Bass statt Takt fährt sie stattdessen weich mit der Musik.
+function fahreMitMusik(dt) {
+  const hinein = musik.wirkung.reinzoomen;
+  const dreh = musik.wirkung.drehen;
+  if (!hinein && !dreh) return;
+  if (einstellung.dimension !== "3d") {
+    ansicht2.massstab *= Math.exp(-2 * hinein * dt);
+    return;
+  }
+  // 3D: kam und sicht gleich weiter (beim Rendern ohne Fahrt wird sicht nicht aus kam neu gerechnet)
+  const lokal = einstellung.tempo * Math.max(0.002, Math.min(1, abstand(kam.pos) * 2)); // wie beim Fliegen
+  const v = vorn(kam.gier, kam.nick);
+  const schritt = v.map((x) => x * hinein * lokal * dt * 2);
+  for (const k of new Set([kam, sicht])) { // am Anfang ist sicht dasselbe Objekt wie kam
+    k.gier += dreh * dt * 2;
+    k.pos = k.pos.map((x, i) => x + schritt[i]);
+  }
+}
 let stand = 0; // zählt Änderungen an den Reglern (für die Fahrt: Einstellungen nur neu merken, wenn sich etwas tat)
 
 const { einstellung, setze } = richteReglerEin({
@@ -164,7 +189,7 @@ stelleFormat();
 // Mit Boden zählt auch der: man fliegt an ihm langsamer und kommt nicht hindurch.
 function abstand(p) {
   const b = boden();
-  return b ? Math.min(abstandFraktal(p), Math.max(0, p[1] - b.hoehe)) : abstandFraktal(p);
+  return b ? Math.min(abstandFraktal(p), Math.max(0, punkt(p, b.normale) - b.hoehe)) : abstandFraktal(p);
 }
 
 function abstandFraktal(p) {
@@ -258,37 +283,59 @@ function groesse() {
   }
   return { mandelbulb: 1.25, sierpinski: 1.8, qjulia: 1.6 }[w] ?? 1;
 }
+// Kippen: die Ebene muss nicht waagerecht liegen. Ihre Normale (die Richtung „weg vom Boden“) ist (0, 1, 0), erst
+// um die x-Achse gedreht (nach vorn/hinten, Winkel a), dann um die z-Achse (zur Seite, Winkel b):
+//   n = (−cos a · sin b, cos a · cos b, sin a)
+// Dazu zwei Richtungen in der Ebene (die x- und z-Achse, genauso gedreht), für das Muster des Steins:
+//   u = (cos b, sin b, 0),  v = (sin a · sin b, −sin a · cos b, cos a)
+// Der Abstand zur Ebene ist dann n · p − h (statt p.y − h). Der Boden wird weiter knapp unter das Fraktal gelegt,
+// nur „unter“ heißt jetzt: in Richtung −n.
+const punkt = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function bodenLage() {
+  const a = (einstellung.bodenKippVorn * Math.PI) / 180;
+  const b = (einstellung.bodenKippSeite * Math.PI) / 180;
+  return {
+    normale: [-Math.cos(a) * Math.sin(b), Math.cos(a) * Math.cos(b), Math.sin(a)],
+    u: [Math.cos(b), Math.sin(b), 0],
+    v: [Math.sin(a) * Math.sin(b), -Math.sin(a) * Math.cos(b), Math.cos(a)],
+  };
+}
 let bodenMerk = { schluessel: "", wert: null };
 function boden() {
   if (!einstellung.boden || einstellung.dimension !== "3d" || !ENDLICH.includes(einstellung.welt)) return null;
-  // nur neu suchen, wenn sich die Form geändert hat
-  const schluessel = [einstellung.welt, einstellung.potenz, einstellung.boxSkala, einstellung.drehung, einstellung.qjForm].join();
-  if (bodenMerk.schluessel !== schluessel) bodenMerk = { schluessel, wert: { hoehe: sucheBoden(), groesse: groesse() } };
+  // nur neu suchen, wenn sich die Form oder die Neigung geändert hat
+  const schluessel = [einstellung.welt, einstellung.potenz, einstellung.boxSkala, einstellung.drehung, einstellung.qjForm, einstellung.bodenKippVorn, einstellung.bodenKippSeite].join();
+  if (bodenMerk.schluessel !== schluessel) {
+    const lage = bodenLage();
+    bodenMerk = { schluessel, wert: { hoehe: sucheBoden(lage), groesse: groesse(), ...lage } };
+  }
   // Höhe verstellbar: der Regler verschiebt den gefundenen Boden, in Größen des Fraktals (−1 bis 1)
-  const { hoehe, groesse: g } = bodenMerk.wert;
-  return { hoehe: hoehe + einstellung.bodenVersatz * g, groesse: g };
+  const w = bodenMerk.wert;
+  return { ...w, hoehe: w.hoehe + einstellung.bodenVersatz * w.groesse };
 }
-function sucheBoden() {
+// die Säulen stehen jetzt in der gekippten Ebene (aufgespannt von u und v) und laufen in Richtung n
+function sucheBoden({ normale: n, u, v }) {
   const g = groesse();
-  let tiefste = { y: Infinity, x: 0, z: 0 };
-  const saeule = (x, z) => {
-    let y = -g * 1.6;
-    for (let s = 0; s < 400 && y < g * 1.6; s++) {
-      const d = abstandFraktal([x, y, z]);
+  let tiefste = { h: Infinity, a: 0, b: 0 };
+  const saeule = (a, b) => {
+    let s = -g * 1.6;
+    for (let k = 0; k < 400 && s < g * 1.6; k++) {
+      const p = [0, 1, 2].map((i) => a * u[i] + b * v[i] + s * n[i]);
+      const d = abstandFraktal(p);
       if (d < g * 0.002) {
-        if (y < tiefste.y) tiefste = { y, x, z };
+        if (s < tiefste.h) tiefste = { h: s, a, b };
         return;
       }
-      y += Math.max(d, g * 0.002);
+      s += Math.max(d, g * 0.002);
     }
   };
   const N = 17;
   for (let i = 0; i < N; i++) for (let k = 0; k < N; k++) saeule(-g + (2 * g * i) / (N - 1), -g + (2 * g * k) / (N - 1));
   // feiner um die tiefste Säule (dort kann eine Spitze zwischen den Säulen liegen)
   const zelle = (2 * g) / (N - 1);
-  const { x: mx, z: mz } = tiefste;
-  for (let i = -4; i <= 4; i++) for (let k = -4; k <= 4; k++) saeule(mx + (i * zelle) / 4, mz + (k * zelle) / 4);
-  return Number.isFinite(tiefste.y) ? tiefste.y - g * 0.01 : -g;
+  const { a: ma, b: mb } = tiefste;
+  for (let i = -4; i <= 4; i++) for (let k = -4; k <= 4; k++) saeule(ma + (i * zelle) / 4, mb + (k * zelle) / 4);
+  return Number.isFinite(tiefste.h) ? tiefste.h - g * 0.01 : -g;
 }
 
 // Taschenlampe flackern: meist ruhig (nur ein leichtes Schwanken, wie eine schwache Batterie), ab und zu
@@ -508,7 +555,11 @@ function bewege(dt, zeit) {
   // Musik: „vorwärts“ schiebt die Kamera mit dem Signal nach vorn (wie ein Herzschlag beim Fliegen)
   if (musik.wirkung.vorwaerts) for (let k = 0; k < 3; k++) kam.pos[k] += v[k] * musik.wirkung.vorwaerts * lokal * dt * 2;
   const b = boden();
-  if (b) kam.pos[1] = Math.max(kam.pos[1], b.hoehe + b.groesse * 0.01); // nicht durch den Boden
+  if (b) {
+    // nicht durch den Boden: liegt die Kamera unter der (gekippten) Ebene, entlang der Normale zurückschieben
+    const zuTief = b.hoehe + b.groesse * 0.01 - punkt(kam.pos, b.normale);
+    if (zuTief > 0) kam.pos = kam.pos.map((x, i) => x + zuTief * b.normale[i]);
+  }
   const bewegt = r[0] || r[1] || r[2] ? 1 : 0;
   geht += (bewegt - geht) * Math.min(1, dt * 3);
   rennt += ((sprint ? bewegt : 0) - rennt) * Math.min(1, dt * 3);
@@ -557,10 +608,21 @@ function takt(jetzt) {
   vorher = jetzt;
   musik.schritt(dt); // Musik hören, bevor bewegt und gezeichnet wird
   musikFarbe = (musikFarbe + 0.5 * musik.wirkung.farbe * dt) % 1;
+  fahreMitMusik(dt);
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  if (abspielen) {
+    // Fahrt ansehen: statt Maus und Tasten bestimmt die Aufnahme, wo die Kamera ist
+    abspielen.start ??= jetzt;
+    const t = (jetzt - abspielen.start) / 1000;
+    const zeit = zeigeProbe(Math.min(t, fahrt.dauer));
+    if (einstellung.schaerfe) stelleFokus(dt);
+    zeichne(Math.round(bild.clientWidth * dpr * einstellung.aufloesung), Math.round(bild.clientHeight * dpr * einstellung.aufloesung), zeit * 1000, false);
+    if (t > fahrt.dauer) stoppeAbspielen();
+    return;
+  }
   if (einstellung.dimension === "3d") lampeRichtung = bewege(dt, jetzt / 1000);
   if (einstellung.schaerfe) stelleFokus(dt);
   if (aufnahme) merkeProbe(jetzt);
-  const dpr = Math.min(devicePixelRatio || 1, 2);
   zeichne(Math.round(bild.clientWidth * dpr * einstellung.aufloesung), Math.round(bild.clientHeight * dpr * einstellung.aufloesung), jetzt, false);
 }
 
@@ -615,6 +677,9 @@ function zeichne(b, h, jetzt, fein) {
     const bo = boden();
     gl.uniform1i(ort.mitBoden, bo ? 1 : 0);
     gl.uniform1f(ort.bodenHoehe, bo?.hoehe ?? 0);
+    gl.uniform3fv(ort.bodenNormale, bo?.normale ?? [0, 1, 0]);
+    gl.uniform3fv(ort.bodenU, bo?.u ?? [1, 0, 0]);
+    gl.uniform3fv(ort.bodenV, bo?.v ?? [0, 0, 1]);
     gl.uniform1f(ort.bodenGroesse, bo?.groesse ?? 1);
     // Schärfentiefe: erst ins Zwischenbild (mit Abstand in Alpha), danach der zweite Durchgang (unten)
     tiefenschaerfe = einstellung.schaerfe && kommaZiel ? zwischenbild(b, h) : null;
@@ -677,7 +742,7 @@ const name = () => `fraktal-${einstellung.dimension === "2d" ? einstellung.art :
 // Bild für Bild nach, 30 Bilder pro Sekunde, so langsam wie nötig und so groß wie eingestellt. Zwischen
 // zwei gemerkten Proben wird gemischt (linear; die Größe in 2D logarithmisch, weil Zoomen ein Faktor ist).
 // Der Klang wird aus denselben Proben neu gerechnet (rendereKlang in klang.js).
-let fahrt = null; // { proben, dauer } der letzten Aufnahme
+let fahrt = null; // { roh, proben, dauer } der letzten Aufnahme (proben: geglättet, roh: wie aufgenommen)
 let aufnahme = null; // { start, proben, e, stand } solange aufgenommen wird
 const fahrtKnopf = hole("fahrt");
 
@@ -717,10 +782,89 @@ function schalteFahrt() {
   fahrtKnopf.setAttribute("aria-pressed", "false");
   fahrtKnopf.textContent = "Fahrt aufnehmen";
   if (proben.length < 2) return;
-  fahrt = { proben, dauer: proben.at(-1).t };
-  hole("fahrtInfo").textContent = `Fahrt: ${fahrt.dauer.toFixed(1).replace(".", ",")} s gemerkt. Jetzt „Video rendern“.`;
+  fahrt = { roh: proben, proben: glaette(proben, Number(glaettenRegler.value)), dauer: proben.at(-1).t };
+  hole("fahrtInfo").textContent = `Fahrt: ${fahrt.dauer.toFixed(1).replace(".", ",")} s gemerkt. Jetzt „Video rendern“ (oder erst „Fahrt ansehen“).`;
 }
 fahrtKnopf.addEventListener("click", schalteFahrt);
+
+// ---------- Fahrt glätten ----------
+// Mit der Maus ruckt der Weg: jede kleine Zuckung der Hand ist drin. Geglättet wird nach der Aufnahme, die rohen
+// Proben bleiben (den Regler kann man also jederzeit zurückdrehen). Jede Probe wird zum gewichteten Mittel ihrer
+// Nachbarn in der Zeit, Gewicht nach einer Glocke (Gauß): w = exp(−(Δt)² / (2σ²)), σ = der Regler in Sekunden.
+// Bis 3σ weit, darüber ist w unter 1 %. Nach der Zeit gewichtet, nicht nach der Nummer der Probe: die Bildrate
+// schwankt beim Aufnehmen, so zählt eine langsame Stelle nicht weniger.
+// Nicht das einfache Mittel, sondern eine Gerade durch die Nachbarn (gewichtete kleinste Quadrate), und davon der
+// Wert hier. Warum: Am Anfang und Ende fehlen Nachbarn auf einer Seite. Ein Mittel zöge dort zur Mitte hin, bei
+// einer gleichmäßigen Drehung war der Start in node um 0,6 rad verschoben (σ = 1,5 s). Eine Gerade trifft eine
+// gleichmäßige Bewegung genau, auch am Rand; nur das Zittern darum herum wird herausgemittelt.
+//   S0 = Σw, S1 = Σw·d, S2 = Σw·d², T0 = Σw·v, T1 = Σw·v·d (d = Zeitabstand)  →  v̂ = (S2·T0 − S1·T1) / (S0·S2 − S1²)
+// Geglättet: Ort und Winkel der Kamera, Lampe, Mitte und Maßstab in 2D (im Logarithmus, Zoom ist ein Faktor),
+// Abstand (für den Klang). Nicht: die Regler (die springen wirklich) und die Zeit.
+// Für Gaussian Splats später dasselbe: Kamerawege aus der Hand brauchen das genauso.
+const glaettenRegler = hole("fahrtGlaetten");
+function glaette(roh, sigma) {
+  if (!(sigma > 0)) return roh;
+  const n = roh.length;
+  // ein Zahlenvektor je Probe, alles, was gemittelt wird
+  const vektor = (p) => [...p.pos, p.gier, p.nick, ...p.ort, ...p.richtung, ...p.mitte, Math.log(p.massstab), p.abstand];
+  const v = roh.map(vektor);
+  const laenge = v[0].length;
+  const aus = new Array(n);
+  let von = 0;
+  for (let i = 0; i < n; i++) {
+    const t = roh[i].t;
+    while (roh[von].t < t - 3 * sigma) von++;
+    const T0 = new Float64Array(laenge);
+    const T1 = new Float64Array(laenge);
+    let S0 = 0, S1 = 0, S2 = 0;
+    for (let j = von; j < n && roh[j].t <= t + 3 * sigma; j++) {
+      const d = roh[j].t - t;
+      const w = Math.exp(-(d * d) / (2 * sigma * sigma));
+      S0 += w;
+      S1 += w * d;
+      S2 += w * d * d;
+      for (let k = 0; k < laenge; k++) {
+        T0[k] += w * v[j][k];
+        T1[k] += w * v[j][k] * d;
+      }
+    }
+    const det = S0 * S2 - S1 * S1;
+    // nur eine Probe in Reichweite (det = 0): das einfache Mittel
+    const m = Array.from(T0, (x, k) => (det > 1e-12 ? (S2 * x - S1 * T1[k]) / det : x / S0));
+    const richtung = m.slice(8, 11);
+    const r = Math.hypot(...richtung) || 1;
+    aus[i] = {
+      ...roh[i],
+      pos: m.slice(0, 3),
+      gier: m[3],
+      nick: m[4],
+      ort: m.slice(5, 8),
+      richtung: richtung.map((x) => x / r), // gemittelte Richtungen sind kürzer als 1
+      mitte: m.slice(11, 13),
+      massstab: Math.exp(m[13]),
+      abstand: m[14],
+    };
+  }
+  return aus;
+}
+glaettenRegler.addEventListener("input", () => {
+  glaettenRegler.nextElementSibling.textContent = glaettenRegler.value;
+  if (fahrt) fahrt.proben = glaette(fahrt.roh, Number(glaettenRegler.value));
+});
+
+// Fahrt ansehen: die (geglättete) Fahrt in der Anzeige abspielen, in echter Zeit; danach zurück, wo man war
+let abspielen = null; // { start, zurueck }
+hole("fahrtAnsehen").addEventListener("click", () => {
+  if (!fahrt || aufnahme) return;
+  if (abspielen) return stoppeAbspielen();
+  abspielen = { start: null, zurueck: schnappe() };
+  hole("fahrtAnsehen").textContent = "Ansehen stoppen";
+});
+function stoppeAbspielen() {
+  abspielen.zurueck();
+  abspielen = null;
+  hole("fahrtAnsehen").textContent = "Fahrt ansehen";
+}
 
 const mische = (a, b, f) => a + (b - a) * f;
 const FARB_REGLER = ["skala", "farbe1", "farbe2", "farbe3", "umgedreht"];
@@ -820,6 +964,7 @@ richteExportEin({
     bild: (i, dt) => {
       musik.exportBild(i); // was die Musik bei diesem Bild macht
       musikFarbe = (musikFarbe + 0.5 * musik.wirkung.farbe * dt) % 1;
+      if (!fahrt) fahreMitMusik(dt); // mit aufgenommener Fahrt bestimmt die den Weg
       zeigeVideoBild(i * dt);
     },
     vorschau: (i, n, dt) => {

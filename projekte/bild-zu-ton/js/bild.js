@@ -11,6 +11,7 @@ export let dateiName = "bild";
 export let originalBild = null; // wird vom Kreislauf ersetzt (setzeOriginal)
 export let fotoBild = null; // das Bild aus der Datei, bleibt bis zum nächsten Öffnen
 export let rastertBild = null;
+export let farbRaster = null; // { r, g, b }: dieselbe Anordnung wie rastertBild, je Farbe (für „Farbe hörbar“)
 
 export async function ladeBild(datei) {
   const bild = await createImageBitmap(datei); // wirft bei Nicht-Bildern -> catch in main.js
@@ -20,8 +21,11 @@ export async function ladeBild(datei) {
   dateiName = datei.name.replace(/\.[^.]+$/, "");
 }
 
-export function rastere(spalten, zeilen, invertieren) {
+// kanten: nur die Umrisse (Sobel), nur beim Foto selbst: im Kreislauf wären es sonst jede Runde die Kanten der
+// Kanten (aus einer Linie werden zwei, dann vier ...)
+export function rastere(spalten, zeilen, invertieren, { kanten = false } = {}) {
   rastertBild = new Float32Array(spalten * zeilen);
+  farbRaster = { r: new Float32Array(spalten * zeilen), g: new Float32Array(spalten * zeilen), b: new Float32Array(spalten * zeilen) };
 
   const canvas = document.createElement("canvas");
   canvas.width = spalten;
@@ -40,15 +44,49 @@ export function rastere(spalten, zeilen, invertieren) {
       // umdrehen nur weil die unteren Zeilen im Canvas y-Werte nah an zeilen - 1 haben,
       // aber für die Frequenzen diese Zeile nah 0 (tief) sein sollen
       rastertBild[x * zeilen + zeile] = invertieren ? 1 - luminanz : luminanz;
+      const i = x * zeilen + zeile;
+      for (const [k, kanal] of [[0, "r"], [1, "g"], [2, "b"]]) {
+        const v = data[p + k] / 255;
+        farbRaster[kanal][i] = invertieren ? 1 - v : v;
+      }
     }
+  }
+  if (kanten && originalBild === fotoBild) {
+    for (const r of [rastertBild, farbRaster.r, farbRaster.g, farbRaster.b]) r.set(sobel(r, spalten, zeilen));
   }
   return rastertBild;
 }
 
-// alles außerhalb von ab bis bis auf 0 (still); ändert das Raster direkt
-export function schneide(raster, ab, bis) {
+// Kanten (Sobel): wie stark sich die Helligkeit an jedem Punkt ändert, waagerecht (gx) und senkrecht (gy).
+// Gehört wird das so: eine senkrechte Kante ist ein Moment, in dem viele Frequenzen gleichzeitig einsetzen (ein
+// Klick, ein Schlag), eine waagerechte Kante ein Ton, der so lange klingt, wie sie lang ist. Flächen werden still.
+// (/lib/kanten.js macht dasselbe auf der Grafikkarte; das Raster hier ist klein, da reicht die CPU)
+// Auf das Stärkste normiert (eine Kante aus Schwarz und Weiß ist sonst bis zu 4 · √2 hoch)
+function sobel(raster, spalten, zeilen) {
+  const wert = (x, y) => raster[Math.max(0, Math.min(spalten - 1, x)) * zeilen + Math.max(0, Math.min(zeilen - 1, y))];
+  const aus = new Float32Array(raster.length);
+  let max = 0;
+  for (let x = 0; x < spalten; x++) {
+    for (let y = 0; y < zeilen; y++) {
+      const gx = wert(x + 1, y - 1) + 2 * wert(x + 1, y) + wert(x + 1, y + 1) - wert(x - 1, y - 1) - 2 * wert(x - 1, y) - wert(x - 1, y + 1);
+      const gy = wert(x - 1, y + 1) + 2 * wert(x, y + 1) + wert(x + 1, y + 1) - wert(x - 1, y - 1) - 2 * wert(x, y - 1) - wert(x + 1, y - 1);
+      const g = Math.hypot(gx, gy);
+      aus[x * zeilen + y] = g;
+      if (g > max) max = g;
+    }
+  }
+  if (max > 0) for (let i = 0; i < aus.length; i++) aus[i] /= max;
+  return aus;
+}
+
+// alles außerhalb von ab bis bis auf 0 (still); ändert das Raster direkt.
+// farben: die Farb-Raster gleich mit (still ist dann in jeder Farbe still)
+export function schneide(raster, ab, bis, farben = null) {
   for (let i = 0; i < raster.length; i++) {
-    if (raster[i] < ab || raster[i] > bis) raster[i] = 0;
+    if (raster[i] < ab || raster[i] > bis) {
+      raster[i] = 0;
+      if (farben) farben.r[i] = farben.g[i] = farben.b[i] = 0;
+    }
   }
 }
 
@@ -118,3 +156,4 @@ export function rasterAlsBild(raster, spalten, zeilen, umkehren) {
   ctx.putImageData(bildDaten, 0, 0);
   return createImageBitmap(canvas); 
 }
+

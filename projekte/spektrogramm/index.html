@@ -93,8 +93,12 @@
               <option value="spektrum">Spektrum</option>
               <option value="wasserfall">Wasserfall</option>
               <option value="aufnahme">Ganze Aufnahme</option>
+              <option value="mitschrift">Mitschrift</option>
             </select>
           </label>
+          <!-- beim Hören schreibt das Live-Bild in ein eigenes Gesamtbild mit (js/mitschrift.js) -->
+          <label><input type="checkbox" id="mitschreiben"> mitschreiben</label>
+          <button type="button" id="mitschriftLeeren">Mitschrift leeren</button>
           <label>Farben
             <select id="farbskala">
               <option value="glut">Glut</option>
@@ -137,6 +141,7 @@
             <output id="fftAnzeige"></output>
           </label>
         </div>
+        <p class="hinweis">Mitschreiben: beim Hören entsteht ein eigenes Gesamtbild mit den Einstellungen des Moments (Farben, Glättung, FFT). Spulen überschreibt, jeder Durchgang malt anders.</p>
       </details>
 
       <details class="abschnitt" open>
@@ -201,6 +206,12 @@
       <details class="abschnitt">
         <summary>Export</summary>
         <div class="steuerung">
+          <label>Bild aus
+            <select id="exportQuelle">
+              <option value="gesamt">der ganzen Aufnahme</option>
+              <option value="mitschrift">der Mitschrift</option>
+            </select>
+          </label>
           <label><input type="checkbox" id="mitAchsen" checked> mit Achsen</label>
           <label><input type="checkbox" id="mitEinsaetzen"> mit Einsätzen</label>
           <label><input type="checkbox" id="mitTakt"> mit Taktraster</label>
@@ -244,3 +255,4 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+

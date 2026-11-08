@@ -41,6 +41,14 @@ function raste(f, leiter, grundton) {
 }
 
 // eigene: Map(zeile -> Hz), gilt vor dem Verschieben (so wandert eine festgelegte Zeile im Akkord mit)
+// für Flecken: eine Höhe im Bild (0 unten, 1 oben) -> Hz, genau wie eine Zeile an dieser Stelle (mit Tonleiter)
+export function hoeheZuFrequenz(anteil, { tief, hoch, tonleiter = "aus", grundton = 0 }) {
+  const leiter = TONLEITERN[tonleiter];
+  let wert = tief * (hoch / tief) ** Math.max(0, Math.min(1, anteil));
+  if (leiter) wert = raste(wert, leiter, grundton);
+  return Math.min(wert, 23000);
+}
+
 export function zeilenFrequenzen({ zeilen, tief, hoch, tonleiter = "aus", grundton = 0, halbtoene = 0, eigene = new Map() }) {
   const leiter = TONLEITERN[tonleiter];
   const faktor = 2 ** (halbtoene / 12);
@@ -100,3 +108,4 @@ export function akkord(f, tonleiter = "aus", grundton = 0) {
   }
   return [f, zuHz(toene[2]) * (f / zuHz(m)), zuHz(toene[4]) * (f / zuHz(m))]; // Verstimmung von f mitnehmen
 }
+

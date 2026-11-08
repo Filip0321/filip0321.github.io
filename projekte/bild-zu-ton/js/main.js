@@ -1,8 +1,8 @@
 import { ladeBild, rastere, zeigeRaster, zeigeOriginal, 
          originalBild, rastertBild, dateiName, schneide,
-         setzeOriginal, rasterAlsBild, fotoBild } from "./bild.js";
+         setzeOriginal, rasterAlsBild, fotoBild, farbRaster } from "./bild.js";
 import { waehleFarbskala } from "/lib/farben.js";
-import { erzeugeTon, alsAudioBuffer, zeileZuFrequenz, rueckwaerts } from "/lib/ton.js";
+import { erzeugeTon, alsAudioBuffer, zeileZuFrequenz, rueckwaerts, mono, normiere } from "/lib/ton.js";
 import { zuWav, ladeHerunter, zeitstempel } from "/lib/export.js";
 import { passeGroesseAn, setzeSkala } from "./kopf.js";
 import { erstelleExportDialog } from "/lib/export-dialog.js";
@@ -56,6 +56,8 @@ const durchgaengeRegler = hole("durchgaenge");
 const durchgaengeAnzeige = hole("durchgaengeAnzeige");
 const anschlagLabel = hole("anschlagLabel"); // nur bei Tönen
 const anschlagFeld = hole("anschlag");
+const vorbearbeitung = hole("vorbearbeitung"); // "keine" oder "kanten"
+const farbeWahl = hole("farbe"); // "aus", "stimmen" oder "stereo"
 // Felder im Export-Fenster (stehen im HTML in #exportFelder)
 const exportInhalt = hole("exportInhalt");
 const exportAblauf = hole("exportAblauf");
@@ -100,8 +102,8 @@ function aktualisiere() {
   zeigeTonRegler();
   zeigeSchwelle();
   if (!originalBild) return; // noch kein Bild geladen
-  rastere(spalten(), zeilen(), invertieren.checked);
-  schneide(rastertBild, ab(), bis());
+  rastere(spalten(), zeilen(), invertieren.checked, { kanten: vorbearbeitung.value === "kanten" });
+  schneide(rastertBild, ab(), bis(), farbRaster);
   zeige();
 }
 
@@ -130,7 +132,7 @@ function sperre(an) {
 // Ton -> neues Bild: misst mit denselben Werten, mit denen der Ton erzeugt wurde
 async function zurueck() {
   const { spalten: sp, zeilen: ze, tief, hoch, dynamik } = letzterTon;
-  const raster = await analysiere(puffer.getChannelData(0), sp, ze, {
+  const raster = await analysiere(mono(puffer), sp, ze, { // Stereo (Farbe): beide Seiten gemittelt
     tief,
     hoch,
     dynamik,
@@ -164,6 +166,7 @@ zurueckKnopf.addEventListener("click", async () => {
 spaltenRegler.addEventListener("input", aktualisiere);
 zeilenRegler.addEventListener("input", aktualisiere);
 invertieren.addEventListener("change", aktualisiere);
+vorbearbeitung.addEventListener("change", aktualisiere);
 anzeige.addEventListener("change", zeige); // nur zeigen, das Raster bleibt gleich
 farbskala.addEventListener("change", () => {
   waehleFarbskala(farbskala.value);
@@ -231,8 +234,46 @@ durchgaengeRegler.addEventListener("input", () => {
 durchgaengeAnzeige.textContent = durchgaengeRegler.value;
 
 // eine Stelle für beide Arten: Ton erzeugen, Runden und die Stufen-Töne im Video merken davon nichts
-function synthese(raster, sp, ze, werte) {
-  return werte.art === "rauschen" ? erzeugeRauschen(raster, sp, ze, werte) : erzeugeTon(raster, sp, ze, werte);
+// farben: { r, g, b } wie das Raster; mit werte.farbe wird Farbe hörbar:
+//   stimmen  drei Stimmen übereinander: Rot klingt als Grundton, Grün eine Quinte höher (mal 1,5), Blau eine
+//            Oktave höher (mal 2). Ein graues Pixel ist dann ein Dreiklang aus Grundton, Quinte und Oktave (wie
+//            ein Orgelregister), ein rotes nur der Grundton, ein blaues klingt hell und dünn
+//   stereo   Rot links, Blau rechts, Grün in der Mitte (auf beiden Seiten mit 0,71, das ist gleich laut wie eine
+//            Seite allein). Ein Sonnenuntergang wandert so von links nach rechts
+// Jede Stimme wird erst ohne Normieren gerechnet und dann alle zusammen auf 0,9: sonst klänge ein bisschen Blau so
+// laut wie viel Rot
+async function synthese(raster, sp, ze, werte, farben = null) {
+  const eine = (r, extra) => (werte.art === "rauschen" ? erzeugeRauschen(r, sp, ze, { ...werte, ...extra }) : erzeugeTon(r, sp, ze, { ...werte, ...extra }));
+  if (!farben || !werte.farbe || werte.farbe === "aus") return eine(raster, {});
+  const teil = (k) => (a) => werte.beiFortschritt?.((k + a) / 3); // drei Durchgänge, ein Balken
+  if (werte.farbe === "stimmen") {
+    // beim Rauschen gibt es kein faktor: dort rutscht der ganze Bereich (auf der log-Achse dasselbe)
+    const hoeher = (f) => (werte.art === "rauschen" ? { tief: werte.tief * f, hoch: Math.min(23999, werte.hoch * f) } : { faktor: f });
+    const stimmen = [];
+    for (const [k, kanal, f] of [[0, "r", 1], [1, "g", 1.5], [2, "b", 2]]) {
+      stimmen.push(await eine(farben[kanal], { ...hoeher(f), normieren: false, beiFortschritt: teil(k) }));
+    }
+    const ton = stimmen[0];
+    for (let i = 0; i < ton.length; i++) ton[i] += stimmen[1][i] + stimmen[2][i];
+    normiere(ton);
+    return ton;
+  }
+  const r = await eine(farben.r, { normieren: false, beiFortschritt: teil(0) });
+  const g = await eine(farben.g, { normieren: false, beiFortschritt: teil(1) });
+  const b = await eine(farben.b, { normieren: false, beiFortschritt: teil(2) });
+  const links = new Float32Array(r.length);
+  const rechts = new Float32Array(r.length);
+  let max = 0;
+  for (let i = 0; i < r.length; i++) {
+    links[i] = r[i] + 0.71 * g[i];
+    rechts[i] = b[i] + 0.71 * g[i];
+    max = Math.max(max, Math.abs(links[i]), Math.abs(rechts[i]));
+  }
+  if (max > 0) for (let i = 0; i < r.length; i++) {
+    links[i] *= 0.9 / max;
+    rechts[i] *= 0.9 / max;
+  }
+  return [links, rechts];
 }
 
 // Raster -> Ton, mit den Werten der Regler; merkt sich alles fürs Zurück, Video und WAV
@@ -247,6 +288,7 @@ async function erzeuge() {
   const art = syntheseArt;
   const durchgaenge = Number(durchgaengeRegler.value);
   const anschlag = anschlagFeld.checked;
+  const farbe = farbeWahl.value;
   zeigeMeldung("Rechne ... 0 %");
   const ton = await synthese(rastertBild, anzahlSpalten, anzahlZeilen, {
     dauer,
@@ -256,10 +298,11 @@ async function erzeuge() {
     art,
     durchgaenge,
     anschlag,
+    farbe,
     beiFortschritt: (anteil) => zeigeMeldung(`Rechne ... ${Math.round(anteil * 100)} %`),
-  });
+  }, farbRaster);
   puffer = alsAudioBuffer(ton); // fürs Video (schneidet pro Bild ein Stück heraus) und fürs Zurück
-  letzterTon = { spalten: anzahlSpalten, zeilen: anzahlZeilen, tief, hoch, dynamik, dauer, art, durchgaenge, anschlag };
+  letzterTon = { spalten: anzahlSpalten, zeilen: anzahlZeilen, tief, hoch, dynamik, dauer, art, durchgaenge, anschlag, farbe };
   // puffer selbst bleibt immer vorwärts, weil "Ton zurück ins Bild" ihn so braucht
   // (rückwärts käme ein gespiegeltes Bild heraus); die umgedrehte Fassung baut wiedergabe.js
   wiedergabe.lade({ puffer });
@@ -290,7 +333,8 @@ erzeugenKnopf.addEventListener("click", async () => {
 function merkeStufe() {
   const raster = rastertBild.slice(); // Kopie: rastertBild wird in der nächsten Runde überschrieben
   // negativ: die Stufe zeigt das Foto umgedreht (wichtig für "Farben des Originals" im Export)
-  stufen.push({ raster, spalten: spalten(), zeilen: zeilen(), negativ: invertieren.checked !== originalNegativ });
+  const farben = { r: farbRaster.r.slice(), g: farbRaster.g.slice(), b: farbRaster.b.slice() }; // fürs Video (Ton der Stufe)
+  stufen.push({ raster, farben, spalten: spalten(), zeilen: zeilen(), negativ: invertieren.checked !== originalNegativ });
 }
 
 // gleiche Werte? Dann ist der Ton, der gerade erzeugt wurde, wirklich der Ton dieser Stufe
@@ -303,11 +347,11 @@ function gleichesRaster(a, b) {
 // Ton einer Stufe fürs Video: aus den Runden übernommen oder jetzt erzeugt (die letzte hat noch keinen)
 async function tonFuerStufe(stufe, i) {
   if (stufe.ton) return stufe.ton;
-  const { tief, hoch, dynamik, dauer, art, durchgaenge, anschlag } = letzterTon; // dieselben Werte wie in den Runden
+  const { tief, hoch, dynamik, dauer, art, durchgaenge, anschlag, farbe } = letzterTon; // dieselben Werte wie in den Runden
   const ton = await synthese(stufe.raster, stufe.spalten, stufe.zeilen, {
-    dauer, tief, hoch, dynamik, art, durchgaenge, anschlag,
+    dauer, tief, hoch, dynamik, art, durchgaenge, anschlag, farbe,
     beiFortschritt: (anteil) => zeigeMeldung(`Ton für Stufe ${i} ... ${Math.round(anteil * 100)} %`),
-  });
+  }, stufe.farben);
   stufe.ton = alsAudioBuffer(ton);
   return stufe.ton;
 }
@@ -506,6 +550,7 @@ async function exportiere(art, inhalt) {
       von: einst.von, // Bereich aus dem Export-Fenster
       bis: einst.bis,
       typ: einst.videoTyp, // mp4 oder webm
+      qualitaet: einst.videoQualitaet, // Faktor auf die Bitrate
       beiFortschritt: (anteil) => (videoSpeichern.textContent = `Video ... ${Math.round(anteil * 100)} %`),
     });
     // nur H.264 + AAC läuft überall (Handy, WhatsApp, Instagram)
@@ -554,3 +599,4 @@ zeigeTonRegler();
 
 const beobachter = new ResizeObserver(passeGroesseAn);
 beobachter.observe(stapel);
+

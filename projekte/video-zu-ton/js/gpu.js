@@ -86,7 +86,8 @@ export function richteGpuEin(canvas) {
   }
 
   const video = baueFlaeche(1, 1, { puffer: false });
-  let drehung = 0; // in Vierteln im Uhrzeigersinn
+  let drehung = 0; // in Vierteln im Uhrzeigersinn (die erkannte und die von Hand zusammen)
+  let feld = null; // Größe nach dem Drehen, von main.js; ohne: aus videoWidth und videoHeight
   let videoGroesse = { breite: 1, hoehe: 1 };
   let hell = [null, null]; // Helligkeit jetzt und vorher, wechseln sich ab (Ping-Pong)
   let jetzt = 0;
@@ -109,9 +110,9 @@ export function richteGpuEin(canvas) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // Video hat y = 0 oben, wir wollen unten (tief = unten)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, quelle);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    // gedreht um 90° oder 270°: Breite und Höhe tauschen
+    // gedreht um 90° oder 270°: Breite und Höhe tauschen (außer main.js weiß die Größe genauer, siehe feld)
     const quer = drehung % 2 === 1;
-    videoGroesse = { breite: quer ? quelle.videoHeight : quelle.videoWidth, hoehe: quer ? quelle.videoWidth : quelle.videoHeight };
+    videoGroesse = feld ?? { breite: quer ? quelle.videoHeight : quelle.videoWidth, hoehe: quer ? quelle.videoWidth : quelle.videoHeight };
     passeArbeitAn(videoGroesse.breite, videoGroesse.hoehe);
   }
 
@@ -245,5 +246,34 @@ export function richteGpuEin(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  return { ladeBild, vorbereite, lies, zeichne, setzeDrehung: (d) => (drehung = d) };
+  // was der Strich sieht (bearbeitet: schon gedreht, Helligkeit in Rot) als { width, height, data } wie ImageData,
+  // oben links zuerst: für die Flecken (blobs.js). Klein (Arbeitsgröße), das Zurücklesen kostet sonst zu viel
+  let zurueck = new Uint8Array(0);
+  function leseBearbeitet() {
+    if (!bearbeitet) return null;
+    const { breite, hoehe } = arbeit;
+    if (zurueck.length !== breite * hoehe * 4) zurueck = new Uint8Array(breite * hoehe * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bearbeitet.fb);
+    gl.readPixels(0, 0, breite, hoehe, gl.RGBA, gl.UNSIGNED_BYTE, zurueck);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // WebGL liest von unten nach oben, ImageData geht von oben: Zeilen umdrehen, Rot in alle drei Kanäle
+    const data = new Uint8ClampedArray(breite * hoehe * 4);
+    for (let y = 0; y < hoehe; y++) {
+      for (let x = 0; x < breite; x++) {
+        const v = zurueck[((hoehe - 1 - y) * breite + x) * 4];
+        const p = (y * breite + x) * 4;
+        data[p] = data[p + 1] = data[p + 2] = v;
+        data[p + 3] = 255;
+      }
+    }
+    return { width: breite, height: hoehe, data };
+  }
+
+  // d: Drehung für die Shader; groesse: { breite, hoehe } des gedrehten Bildes oder null
+  function setzeDrehung(d, groesse = null) {
+    drehung = d;
+    feld = groesse;
+  }
+  return { ladeBild, vorbereite, lies, zeichne, setzeDrehung, leseBearbeitet };
 }
+

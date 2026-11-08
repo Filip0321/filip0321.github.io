@@ -23,7 +23,8 @@ export function overlayMasse(schritt, w) {
   };
 }
 
-export function zeichneOverlay(bild, schritt) {
+// eigeneKette(bild: ImageData) => ImageData: die Effekte nur dieses Overlays (kette.js), oder null
+export function zeichneOverlay(bild, schritt, eigeneKette = null) {
   const w = bild.width;
   const h = bild.height;
   const m = overlayMasse(schritt, w);
@@ -36,6 +37,7 @@ export function zeichneOverlay(bild, schritt) {
     quelle = schritt.grafik;
   }
   if (!quelle) return bild; // leeres Overlay ohne Fenster: nichts zu sehen
+  if (eigeneKette) quelle = mitEigenerKette(quelle, m, eigeneKette);
 
   overlayCanvas.width = w;
   overlayCanvas.height = h;
@@ -58,6 +60,22 @@ export function zeichneOverlay(bild, schritt) {
   return overlayCtx.getImageData(0, 0, w, h);
 }
 
+
+// Effekte nur für dieses Overlay: der Inhalt (mit Fenster, falls es eins hat) in der Größe, in der er aufs Bild
+// kommt, durch seine eigene Kette, dann erst aufs Bild. So wirkt z. B. ein Feedback nur im Overlay, und das Bild
+// darunter bleibt, wie es ist. (Größer als 2048 wird nicht gerechnet, das kostet nur Zeit.)
+const inhaltCanvas = document.createElement("canvas");
+const inhaltCtx = inhaltCanvas.getContext("2d", { willReadFrequently: true });
+function mitEigenerKette(quelle, m, eigeneKette) {
+  const f = Math.min(1, 2048 / Math.max(m.gesamtB, m.gesamtH));
+  const b = Math.max(1, Math.round(m.gesamtB * f));
+  const h = Math.max(1, Math.round(m.gesamtH * f));
+  inhaltCanvas.width = b;
+  inhaltCanvas.height = h;
+  inhaltCtx.drawImage(quelle, 0, 0, b, h);
+  inhaltCtx.putImageData(eigeneKette(inhaltCtx.getImageData(0, 0, b, h)), 0, 0);
+  return inhaltCanvas;
+}
 
 // Bilder eines Videos zu bestimmten Zeiten, für den Export
 // dekodiert fortlaufend; neu gesucht wird nur, wenn die Zeit zurückspringt

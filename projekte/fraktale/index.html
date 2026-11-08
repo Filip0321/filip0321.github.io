@@ -163,6 +163,15 @@
             <input type="range" data-wert="bodenVersatz" min="-1" max="1" step="0.005" value="0">
             <output></output>
           </label>
+          <!-- Kippen: die Ebene drehen, der Boden bleibt dabei knapp unter dem Fraktal (in Richtung der Neigung) -->
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true">Boden kippen, vorn/hinten (°)
+            <input type="range" data-wert="bodenKippVorn" min="-80" max="80" step="1" value="0">
+            <output></output>
+          </label>
+          <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true">Boden kippen, zur Seite (°)
+            <input type="range" data-wert="bodenKippSeite" min="-80" max="80" step="1" value="0">
+            <output></output>
+          </label>
           <label data-nur="dimension=3d welt=mandelbulb,mandelbox,sierpinski,qjulia boden=true">Boden
             <select data-wert="bodenArt">
               <option value="stein" selected>dunkler Stein</option>
@@ -307,6 +316,12 @@
           <button type="button" id="gross">Groß rechnen (PNG)</button>
           <!-- Fahrt: erst nur aufnehmen, wo man war (R oder der Knopf), dann Bild für Bild rendern -->
           <button type="button" id="fahrt" aria-pressed="false">Fahrt aufnehmen</button>
+          <!-- Glätten: Gauß über die Zeit, σ in Sekunden (js/main.js glaette); die rohe Aufnahme bleibt -->
+          <label>Fahrt glätten (s)
+            <input type="range" id="fahrtGlaetten" min="0" max="3" step="0.05" value="0.5">
+            <output>0.5</output>
+          </label>
+          <button type="button" id="fahrtAnsehen">Fahrt ansehen</button>
           <!-- Supersampling gilt beim Rendern (Video und „Groß rechnen“); die Größe kommt aus dem Export-Fenster.
                Tiefe, Genauigkeit und Schrittweite gelten auch in der Anzeige (so sieht man, was man bekommt) -->
           <label>Supersampling
@@ -334,7 +349,7 @@
           </label>
         </div>
         <p class="hinweis" id="fahrtInfo">Keine Fahrt gemerkt.</p>
-        <p class="hinweis">Die Größe des Videos stellst du im Export-Fenster ein („Größe“: Full HD, 4K …); genau so groß wird gerechnet, mal Supersampling. „Wie es ist“ heißt: so groß wie die Anzeige. „Qualität“ im Fenster gibt dem Video mehr Bitrate, das brauchen feine Fraktale. „Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. Für ein ruckelfreies Video: „Fahrt aufnehmen“ (oder R), fliegen, Stopp, dann „Video rendern“. Jedes Bild wird einzeln gerechnet, mit Lampe, Wackeln, Reglern und dem Klang der Höhle (wenn er an ist). Ohne Fahrt bleibt die Kamera stehen. „Live aufnehmen“ nimmt jetzt den Klang mit, ruckelt aber, wenn der Rechner nicht hinterherkommt.</p>
+        <p class="hinweis">Die Größe des Videos stellst du im Export-Fenster ein („Größe“: Full HD, 4K …); genau so groß wird gerechnet, mal Supersampling. „Wie es ist“ heißt: so groß wie die Anzeige. „Qualität“ im Fenster gibt dem Video mehr Bitrate, das brauchen feine Fraktale. „Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. Für ein ruckelfreies Video: „Fahrt aufnehmen“ (oder R), fliegen, Stopp, dann „Video rendern“. „Fahrt glätten“ nimmt das Zucken der Maus heraus (mehr Sekunden = ruhiger, aber Kurven werden weiter); mit „Fahrt ansehen“ prüfst du es vorher. Jedes Bild wird einzeln gerechnet, mit Lampe, Wackeln, Reglern und dem Klang der Höhle (wenn er an ist). Ohne Fahrt bleibt die Kamera stehen. „Live aufnehmen“ nimmt jetzt den Klang mit, ruckelt aber, wenn der Rechner nicht hinterherkommt.</p>
       </details>
     </div>
   </main>

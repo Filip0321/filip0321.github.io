@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chladni-Figuren - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="chladni.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Chladni-Figuren</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel chladni-feld" id="stapel">
+        <canvas id="feld" width="1024" height="1024" aria-label="Sand auf einer schwingenden Platte"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="chladni-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="streuen">Sand neu streuen</button>
+          <label>Frequenz
+            <select data-wert="frequenzArt">
+              <option value="regler">vom Regler</option>
+              <option value="wandert">wandert durch einen Bereich</option>
+              <option value="musik">folgt der Musik</option>
+            </select>
+          </label>
+          <label data-nur="frequenzArt=regler">Frequenz (Hz) <input type="range" data-wert="frequenz" min="30" max="3000" step="1" value="350"><output></output></label>
+          <label data-nur="frequenzArt=regler">Resonanzen <select data-wert="resonanz"></select></label>
+          <label data-nur="frequenzArt=wandert">von (Hz) <input type="range" data-wert="von" min="30" max="3000" step="1" value="100"><output></output></label>
+          <label data-nur="frequenzArt=wandert">bis (Hz) <input type="range" data-wert="bis" min="30" max="3000" step="1" value="1500"><output></output></label>
+          <label data-nur="frequenzArt=wandert">Dauer (s) <input type="range" data-wert="dauer" min="5" max="240" step="1" value="60"><output></output></label>
+          <label><input type="checkbox" data-wert="tonHoeren"> Ton hören</label>
+          <label>Lautstärke <input type="range" data-wert="lautstaerke" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+        </div>
+        <p class="hinweis">Die Platte schwingt nur bei bestimmten Frequenzen (Resonanzen) stark. Dort springt der Sand von den bewegten Stellen weg und sammelt sich auf den Linien, die still bleiben.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Platte</summary>
+        <div class="steuerung">
+          <label>Rand
+            <select data-wert="rand">
+              <option value="frei">frei (wie bei Chladni, Näherung)</option>
+              <option value="gestuetzt">aufgelegt (exakt)</option>
+            </select>
+          </label>
+          <label>Grundton (Hz) <input type="range" data-wert="grundton" min="10" max="200" step="1" value="40"><output></output></label>
+          <label>Dämpfung <input type="range" data-wert="daempfung" min="0.002" max="0.08" step="0.001" value="0.015"><output></output></label>
+          <label>angeregt bei x <input type="range" data-wert="anregungX" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+          <label>y <input type="range" data-wert="anregungY" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+          <button type="button" data-setze='{"anregungX": 0.5, "anregungY": 0.5}'>Mitte</button>
+          <button type="button" data-setze='{"anregungX": 0.37, "anregungY": 0.21}'>schief</button>
+          <button type="button" data-setze='{"anregungX": 0.0, "anregungY": 0.5}'>Rand (geht nur frei)</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Sand</summary>
+        <div class="steuerung">
+          <label>Körner <input type="range" data-wert="anzahl" min="5000" max="150000" step="1000" value="50000"><output></output></label>
+          <label>Sprung <input type="range" data-wert="sprung" min="0" max="1" step="0.01" value="0.3"><output></output></label>
+          <label>Sog zu den Linien <input type="range" data-wert="sog" min="0" max="3" step="0.05" value="0.5"><output></output></label>
+          <label>über den Rand
+            <select data-wert="randArt">
+              <option value="halten">bleibt am Rand</option>
+              <option value="fallen">fällt herunter, wird nachgestreut</option>
+            </select>
+          </label>
+          <label>Korngröße <input type="range" data-wert="korn" min="1" max="6" step="0.1" value="2.2"><output></output></label>
+          <label>Sand <input type="color" data-wert="sandFarbe" value="#f2e6c9"></label>
+          <label>Deckkraft <input type="range" data-wert="sandDeckkraft" min="0.05" max="1" step="0.01" value="0.7"><output></output></label>
+          <label>Platte <input type="color" data-wert="plattenFarbe" value="#141414"></label>
+          <label>Schwingung zeigen <input type="range" data-wert="schwingungZeigen" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Farbe der Schwingung <input type="color" data-wert="schwingungFarbe" value="#3a5bd9"></label>
+          <label>Bildgröße
+            <select data-wert="bildgroesse">
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt die Platte; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Mit Frequenz „folgt der Musik“ regt der lauteste Ton (über 100 Hz) die Platte an. Dazu kann jedes Signal die Frequenz anheben oder den Sand springen lassen. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

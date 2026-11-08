@@ -1,0 +1,34 @@
+/*
+Image Quilting: nur was es nirgends sonst auf der Website gibt
+*/
+/* Format: --format ist Breite durch Höhe (setzt js/main.js); nie höher als 80 % des Fensters */
+.quilt-feld {
+  --format: 1;
+  position: relative;
+  aspect-ratio: var(--format);
+  width: min(100%, calc(80vh * var(--format)));
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #000;
+  touch-action: none; /* Rechteck ziehen, nicht die Seite scrollen */
+}
+
+.quilt-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* das gezogene Rechteck: nur eine Linie über dem Bild, kommt nicht mit in den Export */
+.quilt-rechteck {
+  position: absolute;
+  border: 2px dashed #fff;
+  outline: 1px solid #000;
+  pointer-events: none;
+}
+
+.quilt-status {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}

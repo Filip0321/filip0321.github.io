@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hyperbolischer Raum - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="hyperbolisch.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Hyperbolischer Raum</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>shader</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel raum-feld" id="stapel">
+        <canvas id="feld" aria-label="Hyperbolischer Raum: ziehen schaut sich um, W A S D geht"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Raum</summary>
+        <div class="steuerung">
+          <label>Wabe
+            <select data-wert="wabe">
+              <option value="5,3,4" selected>Dodekaeder, 4 um jede Kante</option>
+              <option value="4,3,5">Würfel, 5 um jede Kante</option>
+              <option value="5,3,5">Dodekaeder, 5 um jede Kante</option>
+              <option value="4,3,4">Würfel, 4 um jede Kante (flach, zum Vergleich)</option>
+            </select>
+          </label>
+          <button type="button" id="zurMitte">zurück zum Anfang</button>
+          <label><input type="checkbox" data-wert="vonSelbst"> von selbst gehen</label>
+          <label>Tempo <input type="range" data-wert="tempo" min="0" max="2" step="0.01" value="0.25"><output></output></label>
+          <label data-nur="vonSelbst=true">drehen <input type="range" data-wert="drehen" min="-0.5" max="0.5" step="0.01" value="0.08"><output></output></label>
+          <label>Blickwinkel (°) <input type="range" data-wert="blickwinkel" min="40" max="140" step="1" value="90"><output></output></label>
+        </div>
+        <p class="hinweis">Gehen: W A S D oder Pfeiltasten, Q und E hoch und runter. Ziehen schaut sich um. Im flachen Raum passen genau vier Würfel um eine Kante; dass hier fünf passen (oder vier Dodekaeder, deren Winkel flach 117° wären), geht nur, weil der Raum gekrümmt ist.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Bauweise</summary>
+        <div class="steuerung">
+          <label>Stil
+            <select data-wert="stil">
+              <option value="balken">Balken an den Kanten</option>
+              <option value="fenster">Wände mit Fenstern</option>
+              <option value="ecken">Kugeln an den Ecken</option>
+              <option value="beides">Balken und Ecken</option>
+            </select>
+          </label>
+          <label>Dicke <input type="range" data-wert="dicke" min="0.01" max="0.4" step="0.005" value="0.08"><output></output></label>
+          <label data-nur="stil=fenster">Fensterrahmen <input type="range" data-wert="rahmen" min="0.02" max="0.8" step="0.01" value="0.25"><output></output></label>
+          <label>Kugel in jeder Zelle <input type="range" data-wert="kugel" min="0" max="0.6" step="0.01" value="0.12"><output></output></label>
+          <label><input type="checkbox" data-wert="augen"> Kugeln sind Augen (sie sehen dich an)</label>
+          <label data-nur="augen=true">Iris <input type="color" data-wert="irisFarbe" value="#6b8f3a"></label>
+          <label>Wucherungen <input type="range" data-wert="wucher" min="0" max="0.3" step="0.005" value="0"><output></output></label>
+          <label>Wucherungen fein <input type="range" data-wert="wucherGroesse" min="0.5" max="12" step="0.1" value="4"><output></output></label>
+        </div>
+        <div class="steuerung">
+          <button type="button" data-setze='{"stil": "beides", "dicke": 0.06, "kugel": 0, "augen": false, "wucher": 0.05, "wucherGroesse": 6, "farbeA": "#d8cfb8", "farbeB": "#a89878", "nebelFarbe": "#0c0a08", "nebel": 0.45, "lampenArt": "taschenlampe"}'>Knochen</button>
+          <button type="button" data-setze='{"stil": "balken", "dicke": 0.1, "kugel": 0.08, "augen": false, "wucher": 0.12, "wucherGroesse": 3, "farbeA": "#7a2a2e", "farbeB": "#a85a5a", "nebelFarbe": "#120406", "nebel": 0.5, "kugelLicht": 1.2}'>Fleisch</button>
+          <button type="button" data-setze='{"stil": "fenster", "dicke": 0.04, "rahmen": 0.3, "kugel": 0.15, "augen": true, "wucher": 0, "farbeA": "#3d4a44", "farbeB": "#2a3330", "nebelFarbe": "#050806", "nebel": 0.4, "kugelLicht": 0.6, "lampenArt": "taschenlampe"}'>Augen</button>
+          <button type="button" data-setze='{"stil": "fenster", "dicke": 0.05, "rahmen": 0.45, "kugel": 0.1, "augen": false, "wucher": 0.02, "wucherGroesse": 10, "farbeA": "#9c9384", "farbeB": "#6f685e", "nebelFarbe": "#0a0b10", "nebel": 0.3, "kugelLicht": 1.6, "lampenArt": "stirn"}'>Kathedrale</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Licht und Farbe</summary>
+        <div class="steuerung">
+          <label>Zellen A <input type="color" data-wert="farbeA" value="#b8a98a"></label>
+          <label>Zellen B <input type="color" data-wert="farbeB" value="#4f6b5a"></label>
+          <label>Nebel <input type="color" data-wert="nebelFarbe" value="#0a0d0c"></label>
+          <label>Nebel dicht <input type="range" data-wert="nebel" min="0" max="2" step="0.01" value="0.35"><output></output></label>
+          <label>Licht
+            <select data-wert="lampenArt">
+              <option value="stirn">Stirnlampe (gleichmäßig)</option>
+              <option value="taschenlampe">Taschenlampe (Kegel)</option>
+              <option value="aus">keins (nur die Kugeln)</option>
+            </select>
+          </label>
+          <label>Lampe <input type="range" data-wert="lampe" min="0" max="6" step="0.05" value="2"><output></output></label>
+          <label data-nur="lampenArt=taschenlampe">Kegel (°) <input type="range" data-wert="kegel" min="8" max="60" step="1" value="24"><output></output></label>
+          <label><input type="checkbox" data-wert="flackern"> flackert</label>
+          <label>Kugeln leuchten <input type="range" data-wert="kugelLicht" min="0" max="3" step="0.05" value="0.9"><output></output></label>
+          <label>Sichtweite <input type="range" data-wert="weite" min="2" max="14" step="0.5" value="8"><output></output></label>
+          <label>Auflösung <input type="range" data-wert="aufloesung" min="0.25" max="1" step="0.05" value="0.75"><output></output></label>
+          <label>Format
+            <select data-wert="format">
+              <option value="quer">16 : 9</option>
+              <option value="quadrat">1 : 1</option>
+              <option value="hoch">9 : 16</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt den Raum; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Bass lässt die Balken pulsieren, ein Schlag lässt die Kugeln glühen; dazu Tempo und Nebel. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>
