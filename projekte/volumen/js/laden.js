@@ -1,3 +1,5 @@
+import { ladeDicom } from "./dicom.js";
+
 // Volumen laden: Dateien lesen (NRRD, RAW) oder selbst eines rechnen (Testkörper, Mandelbulb).
 // Ergebnis immer: { b, h, t (Breite, Höhe, Tiefe in Voxeln), werte (Zahlen-Array, x läuft am schnellsten),
 //                   abstand: [sx, sy, sz] (Voxelgröße), name, ct (true: Werte sind Hounsfield-Einheiten) }
@@ -84,9 +86,14 @@ function fertig(b, h, t, z, abstand, name) {
   return { b, h, t, werte, abstand, name, ct, min, max };
 }
 
-// files: die gewählten Dateien (eine oder zwei)
+// files: die gewählten Dateien (eine oder zwei, oder ein ganzer DICOM-Ordner)
 export async function ladeDateien(files) {
   const liste = [...files];
+  // DICOM: Endung .dcm, oder viele Dateien ohne bekannte Endung (Scanner benennen Schichten oft nur mit Nummern)
+  const bekannt = /\.(nrrd|nhdr|raw|gz)$/i;
+  if (liste.some((f) => /\.dcm$/i.test(f.name)) || (liste.length > 2 && !liste.some((f) => bekannt.test(f.name)))) {
+    return ladeDicom(liste);
+  }
   const nach = (endung) => liste.find((f) => f.name.toLowerCase().endsWith(endung));
   const nhdr = nach(".nhdr");
   const nrrd = nach(".nrrd");

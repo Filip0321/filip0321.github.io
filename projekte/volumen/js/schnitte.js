@@ -58,16 +58,15 @@ export function richteSchnitteEin(canvasse, beiKlick) {
       const ctx = a.c.getContext("2d");
       ctx.putImageData(bild, 0, 0);
       // Fadenkreuz: wo die anderen beiden Schnitte liegen
-      ctx.strokeStyle = "rgba(255, 80, 60, 0.8)";
-      ctx.lineWidth = Math.max(1, bw / 300);
+      // Linien als Rechtecke: Voxel sind oft nicht quadratisch (die Leinwand wird dann ungleich gestreckt), die
+      // Dicke wird darum in jeder Richtung für sich auf die gestreckte Größe umgerechnet
+      ctx.fillStyle = "rgba(255, 80, 60, 0.8)";
+      const dickeH = Math.max(1, bw / 300);
+      const dickeV = Math.max(0.3, (bw / 300) * (vol.abstand[a.h] / vol.abstand[a.v]));
       const x = s[a.h] * bw;
       const y = a.v === 2 ? (1 - s[a.v]) * bh : s[a.v] * bh;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, bh);
-      ctx.moveTo(0, y);
-      ctx.lineTo(bw, y);
-      ctx.stroke();
+      ctx.fillRect(x - dickeH / 2, 0, dickeH, bh);
+      ctx.fillRect(0, y - dickeV / 2, bw, dickeV);
     }
   }
   return { setze: (v) => (vol = v), zeichne };

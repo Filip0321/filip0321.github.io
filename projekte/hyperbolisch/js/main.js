@@ -151,6 +151,8 @@ function zeichne() {
   gl.uniform1f(o.dicke, e.dicke * mass * (1 + 0.6 * (w.dicke ?? 0)));
   gl.uniform1f(o.rahmen, e.rahmen * mass);
   gl.uniform1f(o.kugel, e.kugel * mass);
+  gl.uniform1f(o.kugelAb, e.kugelAb * mass);
+  gl.uniform1i(o.umriss, e.umriss ? 1 : 0);
   gl.uniform3fv(o.farbeA, hexZuRgb(e.farbeA).map((x) => (x / 255) ** 2.2));
   gl.uniform3fv(o.farbeB, hexZuRgb(e.farbeB).map((x) => (x / 255) ** 2.2));
   gl.uniform3fv(o.nebelFarbe, hexZuRgb(e.nebelFarbe).map((x) => (x / 255) ** 2.2));

@@ -38,6 +38,9 @@ uniform int stil;             // 0 Balken, 1 Wände mit Fenstern, 2 Ecken, 3 Bal
 uniform float dicke;          // Balken, Wand
 uniform float rahmen;         // Breite des Fensterrahmens
 uniform float kugel;          // Kugel in der Mitte jeder Zelle (Radius, 0 = keine)
+uniform float kugelAb;        // die Kugeln gibt es erst ab dieser Entfernung (näher schrumpfen sie weg)
+uniform int umriss;           // 1: die Kugeln sind nur dunkle Umrisse im Nebel (die Augen glühen)
+float strahlT = 0.0;          // wie weit der Strahl schon ist (setzt main, liest szene)
 uniform vec3 farbeA;          // die zwei Zellfarben
 uniform vec3 farbeB;
 uniform vec3 nebelFarbe;
@@ -135,9 +138,13 @@ float szene(vec4 p, out vec4 normale, out float was) {
   // Wucherungen: die Oberfläche quillt nach außen (die Abstandsfunktion wird kleiner, je mehr Rauschen)
   if (wucher > 0.0) s -= wucher * wuchern(p);
   was = 0.0;
-  if (kugel > 0.0) {
+  // die Kugel schrumpft weg, wenn man ihr näher als „kugelAb“ kommt: sie sind nur in der Ferne da.
+  // (Eine Abstandsfunktion, die von der Strecke des Strahls abhängt, ist physikalisch Unsinn, aber genau das Unheimliche:
+  // jeder Blick sieht sie dort, wo er gerade nicht nah genug ist)
+  float r = kugel * smoothstep(kugelAb, kugelAb + 0.6, strahlT);
+  if (r > 0.001) {
     vec4 gk;
-    float k = mitteAbstand(p, gk) - kugel;
+    float k = mitteAbstand(p, gk) - r;
     if (k < s) { s = k; normale = gk; was = 1.0; }
   }
   return s;
@@ -154,6 +161,7 @@ void main() {
   vec4 normale = vec4(0.0);
   float was = 0.0;
   for (int i = 0; i < 160; i++) {
+    strahlT = t;
     float s = szene(p, normale, was);
     if (s < 0.0015 * (1.0 + t)) { treffer = true; break; }
     // nie zu weit auf einmal (sonst springt der Strahl über die Nachbarzelle hinweg); mit Wucherungen vorsichtiger,
@@ -223,6 +231,16 @@ void main() {
       }
       // die Kugeln leuchten von selbst (pulsierend)
       f = haut * (kugelLicht * (0.7 + 0.3 * sin(zeit * 1.3)) + 0.3 * licht);
+      if (umriss == 1) {
+        // nur ein dunkler Umriss, etwas dunkler als der Nebel; bei Augen glüht die Iris
+        float sieht = flach == 1 ? dot(normale.xyz, -r.xyz) : mink(normale, -r);
+        f = nebelFarbe * 0.35;
+        if (augen == 1 && lider < 0.5) f += irisFarbe * kugelLicht * 2.0 * smoothstep(0.9, 0.95, sieht) * (1.0 - smoothstep(0.975, 0.98, sieht));
+        // im Nebel: Umrisse verschwinden nicht ganz, sie bleiben als Schatten
+        f = mix(nebelFarbe, f, max(exp(-t * nebel), 0.35));
+        farbe = vec4(pow(f, vec3(1.0 / 2.2)), 1.0);
+        return;
+      }
     } else {
       f = grund * (0.04 + licht);
     }
