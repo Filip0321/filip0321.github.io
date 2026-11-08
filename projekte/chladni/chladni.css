@@ -1,0 +1,23 @@
+/*
+Chladni-Figuren: nur was es nirgends sonst auf der Website gibt
+*/
+.chladni-feld {
+  position: relative;
+  aspect-ratio: 1;
+  width: min(100%, 80vh);
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #000;
+}
+
+.chladni-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.chladni-status {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}

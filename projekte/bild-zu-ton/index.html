@@ -57,6 +57,13 @@
             <output id="zeilenAnzeige"></output>
           </label>
           <label><input type="checkbox" id="invertieren"> invertieren</label>
+          <!-- vor dem Rastern: nur die Umrisse klingen lassen (Sobel, js/bild.js) -->
+          <label>Vorbearbeitung
+            <select id="vorbearbeitung">
+              <option value="keine">keine</option>
+              <option value="kanten">nur Kanten</option>
+            </select>
+          </label>
           <!-- nur Helligkeiten zwischen ab und bis klingen, alles andere wird still (0) -->
           <label>Schwelle ab
             <input type="range" id="schwelleAb" min="0" max="1" step="0.01" value="0">
@@ -111,6 +118,14 @@
             <output id="durchgaengeAnzeige"></output>
           </label>
           <!-- nur bei Tönen: jede Spalte wird angeschlagen und klingt ab; erst dadurch klingt rückwärts wirklich anders -->
+          <!-- Farbe hörbar (js/main.js, synthese): Rot, Grün, Blau als drei Stimmen oder links, Mitte, rechts -->
+          <label>Farbe
+            <select id="farbe">
+              <option value="aus">aus (nur Helligkeit)</option>
+              <option value="stimmen">drei Stimmen (Rot, Quinte Grün, Oktave Blau)</option>
+              <option value="stereo">Stereo (Rot links, Grün Mitte, Blau rechts)</option>
+            </select>
+          </label>
           <label id="anschlagLabel"><input type="checkbox" id="anschlag"> angeschlagen</label>
           <label><input type="checkbox" id="schleife"> Schleife</label> <!-- Player fängt am Ende wieder vorne an -->
           <label><input type="checkbox" id="rueckwaerts"> rückwärts</label> <!-- Strich von rechts nach links, Ton umgedreht -->
@@ -208,3 +223,4 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+

@@ -143,7 +143,10 @@ uniform float massstab;      // typische Größe der Welt (für die Umgebungsver
 uniform vec3 lampeFarbe, grundFarbe;
 uniform sampler2D verlauf;
 uniform int mitBoden;          // Boden unter den Welten, die aufhören (Mandelbulb, Mandelbox, Sierpinski, Q-Julia)
-uniform float bodenHoehe;      // wo er liegt (main.js sucht den tiefsten Punkt des Fraktals)
+uniform float bodenHoehe;      // wo er liegt (main.js sucht den tiefsten Punkt des Fraktals), entlang der Normale
+uniform vec3 bodenNormale;     // weg vom Boden; (0, 1, 0), solange er nicht gekippt ist
+uniform vec3 bodenU;           // zwei Richtungen in der Ebene, für das Muster des Steins
+uniform vec3 bodenV;
 uniform float bodenGroesse;    // wie groß das Fraktal ist: Maßstab für Steine und Kontaktschatten
 uniform int bodenArt;          // 0 Stein, 1 einfarbig
 uniform vec3 bodenFarbe;       // für einfarbig
@@ -272,11 +275,12 @@ float de(vec3 p) {
 }
 
 // ---------- Boden ----------
-// Eine Ebene ist die einfachste Abstandsfunktion überhaupt: der Abstand zu y = h ist p.y − h.
+// Eine Ebene ist die einfachste Abstandsfunktion überhaupt: der Abstand zu y = h ist p.y − h. Gekippt: n · p − h,
+// mit n der Normale der Ebene (Länge 1); für n = (0, 1, 0) ist das wieder p.y − h.
 // Fraktal und Boden zusammen: das Minimum der beiden Abstände (die Vereinigung zweier Körper).
 // Der Boden wirft keinen Schatten auf das Fraktal (er liegt darunter), darum prüft schatten() nur de().
 float bodenAbstand(vec3 p) {
-  return mitBoden == 1 ? p.y - bodenHoehe : 1e9;
+  return mitBoden == 1 ? dot(p, bodenNormale) - bodenHoehe : 1e9;
 }
 float alles(vec3 p) {
   return min(de(p), bodenAbstand(p));
@@ -394,17 +398,18 @@ void main() {
     vec3 grund;
     if (istBoden && bodenArt == 1) {
       // einfarbig: glatt, nur Farbe und Kontaktschatten
-      n = vec3(0.0, 1.0, 0.0);
+      n = bodenNormale;
       grund = bodenFarbe;
       ao = 0.35 + 0.65 * smoothstep(0.0, 0.35 * bodenGroesse, de(p));
     } else if (istBoden) {
       // dunkler Stein: Rauschen in mehreren Größen (fbm) für Flecken und Unebenheiten. Die Normale kommt
       // aus der Steigung des Rauschens (zwei Nachbarwerte), so fängt das flache Licht kleine Buckel.
       float k = 6.0 / bodenGroesse;
-      vec2 q = p.xz * k;
+      vec2 q = vec2(dot(p, bodenU), dot(p, bodenV)) * k; // Koordinaten in der (gekippten) Ebene
       float e = 0.05;
       float h0 = fbmBoden(q), hx = fbmBoden(q + vec2(e, 0.0)), hz = fbmBoden(q + vec2(0.0, e));
-      n = normalize(vec3(-(hx - h0) / e * 0.15, 1.0, -(hz - h0) / e * 0.15));
+      // die Buckel-Normale in der Ebene (u, n, v) statt (x, y, z)
+      n = normalize(bodenU * (-(hx - h0) / e * 0.15) + bodenNormale + bodenV * (-(hz - h0) / e * 0.15));
       grund = mix(vec3(0.05, 0.048, 0.045), vec3(0.16, 0.15, 0.14), h0) * (0.7 + 0.6 * rauschen(vec3(q * 0.15, 3.0)));
       // Kontaktschatten: je näher das Fraktal, desto dunkler (den Abstand zum Fraktal sagt de selbst)
       ao = 0.35 + 0.65 * smoothstep(0.0, 0.35 * bodenGroesse, de(p));

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Quilting - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="quilting.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Image Quilting</h1>
+      <ul class="tags">
+        <li>bild</li>
+        <li>werkzeuge</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel quilt-feld" id="stapel">
+        <canvas id="feld" aria-label="Image Quilting"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+        <div class="quilt-rechteck" id="rechteck" hidden></div>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="quilt-status" id="status" aria-live="polite"></p>
+
+      <details class="abschnitt" open>
+        <summary>Start</summary>
+        <div class="steuerung">
+          <label>Art
+            <select data-wert="art">
+              <option value="groesser">Textur vergrößern</option>
+              <option value="rechteck">Rechteck im Foto füllen</option>
+              <option value="transfer">Texturtransfer (Ziel aus Material)</option>
+            </select>
+          </label>
+          <label class="datei-knopf"><span data-nur="art=groesser,transfer">Material öffnen</span><span data-nur="art=rechteck">Foto öffnen</span> <input type="file" id="materialDatei" accept="image/*"></label>
+          <label class="datei-knopf" data-nur="art=transfer">Ziel öffnen <input type="file" id="zielDatei" accept="image/*"></label>
+          <button type="button" id="neuWuerfeln">neu würfeln</button>
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="sofort">sofort fertig</button>
+          <button type="button" data-nur="art=rechteck" id="rechteckZurueck">letztes Rechteck weg</button>
+          <button type="button" data-nur="art=rechteck" id="rechteckeLeeren">alle Rechtecke weg</button>
+          <label>Blöcke pro Bild <input type="range" data-wert="tempo" min="1" max="60" step="1" value="4"><output></output></label>
+        </div>
+        <p class="hinweis" data-nur="art=groesser">Ohne eigenes Material näht die Seite aus einem eingebauten Muster. Am besten wirken Fotos von Oberflächen: Rinde, Mauer, Kies, Stoff, Blätter, Schrift.</p>
+        <p class="hinweis" data-nur="art=rechteck">Auf dem Foto Rechtecke ziehen, so viele du willst. Sie werden nacheinander mit Stücken aus dem Rest des Fotos gefüllt (nie aus einem anderen Rechteck), die Nähte laufen dort, wo alt und neu sich am meisten gleichen.</p>
+        <p class="hinweis" data-nur="art=transfer">Das Ziel bestimmt die Helligkeit, das Material liefert die Stücke. Ein Gesicht aus Rinde, eine Stadt aus Reis.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Nähen</summary>
+        <div class="steuerung">
+          <label>Blockgröße (Pixel) <input type="range" data-wert="block" min="8" max="96" step="1" value="36"><output></output></label>
+          <label>Überlappung (%) <input type="range" data-wert="ueberlappung" min="8" max="50" step="1" value="17"><output></output></label>
+          <label>Naht
+            <select data-wert="naht">
+              <option value="schnitt">Schnitt mit kleinstem Fehler</option>
+              <option value="gerade">gerade in der Mitte</option>
+              <option value="keine">keine (neuer Block deckt zu)</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="naehteZeigen"> Nähte zeigen</label>
+          <label>Kandidaten <input type="range" data-wert="kandidaten" min="100" max="20000" step="100" value="3000"><output></output></label>
+          <label>Toleranz <input type="range" data-wert="toleranz" min="0" max="0.6" step="0.01" value="0.1"><output></output></label>
+        </div>
+        <div class="steuerung" data-nur="art=transfer">
+          <label>Ziel zählt <input type="range" data-wert="zielGewicht" min="0.1" max="0.95" step="0.01" value="0.7"><output></output></label>
+          <label>Durchgänge
+            <select data-wert="durchgaenge">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Größe</summary>
+        <div class="steuerung">
+          <label data-nur="art=groesser,transfer">Material (Pixel, längere Seite) <input type="range" data-wert="arbeitsgroesse" min="96" max="800" step="8" value="320"><output></output></label>
+          <label data-nur="art=groesser">Breite <input type="range" data-wert="breite" min="128" max="2048" step="16" value="800"><output></output></label>
+          <label data-nur="art=groesser">Höhe <input type="range" data-wert="hoehe" min="128" max="2048" step="16" value="800"><output></output></label>
+          <label data-nur="art=rechteck,transfer">Bild (Pixel, längere Seite) <input type="range" data-wert="fotoGroesse" min="256" max="1600" step="16" value="900"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

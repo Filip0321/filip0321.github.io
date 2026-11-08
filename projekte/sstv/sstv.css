@@ -1,0 +1,81 @@
+/*
+SSTV: gesendetes und empfangenes Bild nebeneinander (auf dem Handy untereinander), Pixel bleiben Pixel
+*/
+
+.werkbank .feld-rahmen.sstv-spalte {
+  align-items: stretch;
+  flex-direction: column;
+}
+.sstv-felder {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  width: min(100%, (100dvh - 10rem) * 2.5);
+  margin: 0 auto;
+}
+@media (max-width: 760px) {
+  .sstv-felder {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sstv-felder figure {
+  margin: 0;
+}
+.sstv-felder canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70dvh; /* hochkant (freier Modus) nicht endlos lang */
+  object-fit: contain; /* dann mit Rand statt verzerrt */
+  border: 1px solid currentColor;
+  background: #000;
+  image-rendering: pixelated;
+}
+.sstv-felder figcaption {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin-top: 0.3rem;
+}
+
+/* Stufen wie in Bild zu Ton: Start, Runde 1 …; die gewählte umrandet */
+.stufen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.stufen figure {
+  margin: 0;
+  width: 7rem;
+  cursor: pointer;
+}
+.stufen canvas {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  border: 1px solid currentColor;
+}
+.stufen figure.gewaehlt canvas {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+.stufen figcaption {
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Hellschreiber: Text über die ganze Breite, in Schreibmaschinenschrift */
+.bedienung .steuerung > label.hell-text {
+  flex: 1 1 100%;
+  align-items: flex-start;
+}
+.hell-text textarea {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: monospace;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  padding: 0.3rem;
+}

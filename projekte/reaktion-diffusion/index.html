@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reaktion-Diffusion - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="rd.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Reaktion-Diffusion</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>bild</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel rd-feld" id="stapel">
+        <canvas id="feld" aria-label="Reaktion-Diffusion: ziehen sät oder löscht"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+        <canvas id="zeichnung" class="schicht" hidden></canvas> <!-- die Startlinie beim Zeichnen, nicht im Export -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Start</summary>
+        <div class="steuerung">
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="schritt">ein Schritt</button>
+          <button type="button" id="neuSaeen">neu säen</button>
+          <label>Startform
+            <select data-wert="form">
+              <option value="punkt">Punkt</option>
+              <option value="kreis" selected>Kreis (Punkte auf der Linie)</option>
+              <option value="ring">Ring</option>
+              <option value="quadrat">Quadrat</option>
+              <option value="linie">Linie</option>
+              <option value="kreuz">Kreuz</option>
+              <option value="zufall">Zufall</option>
+              <option value="text">Text</option>
+              <option value="foto">Foto (dunkle Stellen)</option>
+              <option value="zeichnen">selbst zeichnen</option>
+            </select>
+          </label>
+          <label data-nur="form=zeichnen">Strichbreite (Zellen) <input type="range" data-wert="strichBreite" min="9" max="60" step="1" value="12"><output></output></label>
+          <button type="button" data-nur="form=zeichnen" id="strichZurueck">Strich zurück</button>
+          <button type="button" data-nur="form=zeichnen" id="stricheLeeren">alles weg</button>
+          <button type="button" data-nur="form=zeichnen" id="losWachsen">los wachsen</button>
+          <label data-nur="form=text">Text <input type="text" id="startText" value="WACHSEN"></label>
+          <label class="datei-knopf">Foto öffnen <input type="file" id="fotoDatei" accept="image/*"></label>
+          <label data-nur="form=foto">gesät, wo dunkler als <input type="range" data-wert="fotoSchwelle" min="0.05" max="0.95" step="0.01" value="0.4"><output></output></label>
+          <label>Feinheit (Zellen)
+            <select data-wert="feinheit">
+              <option value="256">256</option>
+              <option value="384">384</option>
+              <option value="512" selected>512</option>
+              <option value="768">768</option>
+              <option value="1024">1024</option>
+              <option value="1536">1536</option>
+              <option value="2048">2048</option>
+            </select>
+          </label>
+          <label>Format
+            <select data-wert="format">
+              <option value="quadrat">1 : 1</option>
+              <option value="quer">16 : 9</option>
+              <option value="hoch">9 : 16</option>
+              <option value="4:5">4 : 5</option>
+              <option value="foto">wie das Foto</option>
+            </select>
+          </label>
+          <label>Schritte pro Bild <input type="range" data-wert="tempo" min="1" max="40" step="1" value="12"><output></output></label>
+        </div>
+        <h3 class="gruppe">Pinsel (auf dem Bild ziehen, auch während es wächst)</h3>
+        <div class="steuerung">
+          <label>Pinsel
+            <select data-wert="pinselArt">
+              <option value="saeen">sät</option>
+              <option value="loeschen">löscht</option>
+            </select>
+          </label>
+          <label>Größe (%) <input type="range" data-wert="pinselGroesse" min="0.3" max="10" step="0.1" value="1.5"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Muster</summary>
+        <div class="steuerung">
+          <label>Vorlage <select data-wert="vorlage"></select></label>
+          <label>F und k
+            <select data-wert="fkArt">
+              <option value="gleich">überall gleich</option>
+              <option value="verlauf">als Verlauf (alle Muster auf einmal)</option>
+              <option value="foto">aus dem Foto (dunkel und hell)</option>
+            </select>
+          </label>
+          <label data-nur="fkArt=verlauf">Spanne <input type="range" data-wert="spanne" min="0.002" max="0.03" step="0.001" value="0.012"><output></output></label>
+          <label data-nur="fkArt=foto">Muster im Dunkeln <select data-wert="musterDunkel"></select></label>
+          <label data-nur="fkArt=foto">Muster im Hellen <select data-wert="musterHell"></select></label>
+        </div>
+        <!-- Karte: k nach rechts, F nach oben (js/karte.js) -->
+        <canvas id="karte" width="440" height="440" aria-label="Karte der Muster: klicken wählt F und k"></canvas>
+        <p class="hinweis">Klick auf die Karte wählt F (Futter) und k (Sterben). Rechts der roten Linie stirbt eine gleichmäßige Fläche aus; knapp daneben leben die Muster.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Form</summary>
+        <div class="steuerung">
+          <label>Grenze
+            <select data-wert="grenze">
+              <option value="keine">keine (Ränder laufen herum)</option>
+              <option value="kreis" selected>Kreis (wächst nie darüber)</option>
+            </select>
+          </label>
+          <label data-nur="grenze=kreis">Radius <input type="range" data-wert="radius" min="0.1" max="1.4" step="0.01" value="0.8"><output></output></label>
+          <label data-nur="grenze=kreis">weicher Rand <input type="range" data-wert="rand" min="0" max="0.6" step="0.01" value="0.2"><output></output></label>
+          <label data-nur="grenze=kreis">atmen <input type="range" data-wert="atmen" min="0" max="0.4" step="0.01" value="0"><output></output></label>
+          <label data-nur="grenze=kreis">Periode (s) <input type="range" data-wert="periode" min="2" max="60" step="1" value="12"><output></output></label>
+          <label>Richtung (Maserung) <input type="range" data-wert="richtung" min="0" max="0.9" step="0.01" value="0"><output></output></label>
+          <label>Winkel (°) <input type="range" data-wert="winkel" min="0" max="180" step="1" value="0"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Aussehen</summary>
+        <div class="steuerung">
+          <label>Farben
+            <select data-wert="skala">
+              <option value="glut">Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="grau">Grau</option>
+              <option value="weiss">Schwarz auf Weiß</option>
+            </select>
+          </label>
+          <label>Kante <input type="range" data-wert="kante" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label>Bildgröße (Pixel)
+            <select data-wert="bildgroesse">
+              <option value="auto">doppelt so fein wie das Gitter</option>
+              <option value="2048">2048</option>
+              <option value="3072">3072</option>
+              <option value="4096">4096</option>
+            </select>
+          </label>
+          <label>zeigt
+            <select data-wert="wert">
+              <option value="v">V (den Fresser)</option>
+              <option value="uv">U − V (auch das Futter)</option>
+            </select>
+          </label>
+          <label>Kontrast <input type="range" data-wert="kontrast" min="0.5" max="4" step="0.05" value="1.2"><output></output></label>
+          <label><input type="checkbox" data-wert="umkehren"> umkehren</label>
+          <label>Relief <input type="range" data-wert="relief" min="0" max="2" step="0.05" value="0"><output></output></label>
+          <label>Licht von (°) <input type="range" data-wert="licht" min="0" max="360" step="1" value="135"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt das Wachstum; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Jedes Signal kann etwas bewegen, der Balken zeigt, was gerade ankommt. Mit „Takt (Datei)“ auf „Schlag sät neu“ wächst auf jedem Schlag ein neuer Keim. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

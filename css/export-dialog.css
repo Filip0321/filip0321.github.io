@@ -81,3 +81,21 @@ Export-Fenster (/lib/export-dialog.js): Vorschau links, Einstellungen rechts; am
 .export-effekte {
   margin-top: 0.8rem;
 }
+
+/* eingeschaltete Effekte untereinander, nummeriert in ihrer Reihenfolge (eigener Abschnitt); die anderen nach Gruppen */
+.export-reihenfolge .kette {
+  margin-top: 0.4rem;
+}
+.export-reihenfolge .kette:empty::after {
+  content: "keine eingeschaltet";
+  opacity: 0.6;
+}
+.export-effekte-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.3rem 0 0.5rem 1rem;
+}
+.export-effekte-aus .regler-gruppe {
+  margin-left: 0.5rem;
+}

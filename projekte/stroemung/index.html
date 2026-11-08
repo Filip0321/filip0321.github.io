@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Strömung - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="stroemung.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Strömung</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>shader</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel stroemung-feld" id="stapel">
+        <canvas id="feld" aria-label="Flüssigkeit: ziehen rührt um"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Start</summary>
+        <div class="steuerung">
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="leeren">leeren</button>
+          <label>Gitter (Zellen)
+            <select data-wert="gitter">
+              <option value="128">128</option>
+              <option value="256" selected>256</option>
+              <option value="384">384</option>
+              <option value="512">512</option>
+            </select>
+          </label>
+          <label>Bild (Pixel)
+            <select data-wert="bild">
+              <option value="1024" selected>1024</option>
+              <option value="2048">2048</option>
+            </select>
+          </label>
+          <label>Format
+            <select data-wert="format">
+              <option value="quadrat">1 : 1</option>
+              <option value="quer">16 : 9</option>
+              <option value="hoch">9 : 16</option>
+              <option value="foto">wie das Foto</option>
+            </select>
+          </label>
+          <label>Rand
+            <select data-wert="rand">
+              <option value="waende">Wände (ein Becken)</option>
+              <option value="herum">läuft herum</option>
+            </select>
+          </label>
+          <label class="datei-knopf">Foto als Tinte <input type="file" id="fotoDatei" accept="image/*"></label>
+          <button type="button" id="fotoNochmal">Foto noch einmal</button>
+        </div>
+        <p class="hinweis">Auf dem Bild ziehen rührt um und gibt Tinte dazu.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Tinte und Strahlen</summary>
+        <div class="steuerung">
+          <label>Farbe
+            <select data-wert="farbArt">
+              <option value="wandert">wandert durch alle Farben</option>
+              <option value="eigen">eine eigene</option>
+              <option value="zwei">zwei eigene, abwechselnd</option>
+            </select>
+          </label>
+          <label data-nur="farbArt=eigen,zwei">Farbe <input type="color" data-wert="tintenFarbe" value="#e8d9b0"></label>
+          <label data-nur="farbArt=zwei">zweite <input type="color" data-wert="tintenFarbe2" value="#2c5fd6"></label>
+          <label data-nur="farbArt=wandert">Tempo der Farbe <input type="range" data-wert="farbTempo" min="0" max="0.5" step="0.01" value="0.05"><output></output></label>
+          <label>Menge <input type="range" data-wert="menge" min="0.05" max="2" step="0.05" value="0.6"><output></output></label>
+          <label>Klecksgröße (%) <input type="range" data-wert="klecks" min="0.5" max="10" step="0.1" value="2.5"><output></output></label>
+          <label>Kraft der Maus <input type="range" data-wert="kraft" min="0.1" max="5" step="0.1" value="1"><output></output></label>
+          <label><input type="checkbox" data-wert="tintBeiKlick" checked> Tinte auch beim Stillhalten</label>
+          <label>Strahlen <input type="range" data-wert="strahlen" min="0" max="6" step="1" value="3"><output></output></label>
+          <label data-nur="strahlen=1,2,3,4,5,6">Stärke <input type="range" data-wert="strahlKraft" min="0" max="100" step="1" value="40"><output></output></label>
+          <label data-nur="strahlen=1,2,3,4,5,6">drehen <input type="range" data-wert="strahlDrehen" min="-1" max="1" step="0.01" value="0.3"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Flüssigkeit</summary>
+        <div class="steuerung">
+          <label>Wirbel verstärken <input type="range" data-wert="wirbel" min="0" max="60" step="0.5" value="10"><output></output></label>
+          <label>bremsen <input type="range" data-wert="bremsen" min="0" max="3" step="0.05" value="0.2"><output></output></label>
+          <label>verblassen <input type="range" data-wert="verblassen" min="0" max="2" step="0.01" value="0.05"><output></output></label>
+          <label>Druck-Schritte (Jacobi) <input type="range" data-wert="jacobi" min="5" max="80" step="1" value="30"><output></output></label>
+          <label>Druck behalten <input type="range" data-wert="druckBehalten" min="0" max="1" step="0.05" value="0.8"><output></output></label>
+        </div>
+        <p class="hinweis">„Druck-Schritte“: wie genau die Flüssigkeit inkompressibel gehalten wird (mehr = genauer, langsamer). „Wirbel verstärken“ gibt die kleinen Wirbel zurück, die die Rechnung sonst verwischt.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Aussehen</summary>
+        <div class="steuerung">
+          <label>zeigt
+            <select data-wert="ansicht">
+              <option value="tinte">die Tinte</option>
+              <option value="tempo">die Strömung (Richtung als Farbe)</option>
+            </select>
+          </label>
+          <label>Hintergrund <input type="color" data-wert="grund" value="#050507"></label>
+          <label>Deckkraft <input type="range" data-wert="deckkraft" min="0.2" max="10" step="0.1" value="2"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt die Flüssigkeit; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Bass macht die Strahlen stärker, ein Schlag spritzt Tinte an eine zufällige Stelle; dazu können Wirbel und Farbe der Musik folgen. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

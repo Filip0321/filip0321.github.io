@@ -431,6 +431,22 @@ Effekt-Kette der Foto-Effekte: nummerierte Liste mit Knöpfen
   line-height: 1;
 }
 
+/* Effekte nur eines Overlays: eingerückt unter ihm, eigene Zählung (a., b. …) */
+.kette li:has(> .unter) {
+  flex-wrap: wrap;
+}
+.kette .unter {
+  flex-basis: 100%;
+  margin: 0 0 0 2em;
+  counter-reset: unter;
+}
+.kette .unter li {
+  counter-increment: unter;
+}
+.kette .unter li::before {
+  content: counter(unter, lower-alpha) ".";
+}
+
 /*
 Drehknöpfe und Fader (/lib/knopfRegler.js)
 Der echte Regler bleibt im HTML (er hält den Wert), wird aber versteckt;
@@ -590,4 +606,57 @@ button.fader {
 .fader:hover .fader-kappe,
 .fader:focus-visible .fader-kappe {
   background: var(--text);
+}
+
+
+/* Häkchen eines Effekts mit kleinem Knopf in derselben Zeile: ⧉ Kopie, × Kopie entfernen
+   (/lib/effekte/sammlung-ui.js) */
+.steuerung.mit-knopf {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.steuerung.mit-knopf > label {
+  flex: 1;
+}
+.steuerung.mit-knopf > button {
+  padding: 0.1em 0.55em;
+  line-height: 1.2;
+}
+
+/* Übersicht der Sammlung mit Vorschaubildern (/lib/effekte/effekt-menue.js) */
+.effekt-kacheln {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.8rem;
+}
+.effekt-kachel {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  text-align: left;
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+.effekt-kachel[aria-pressed="true"] {
+  opacity: 1;
+}
+.effekt-kachel canvas {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+}
+.effekt-kachel:hover,
+.effekt-kachel:focus-visible {
+  background: rgb(255 255 255 / 0.08);
+}
+.effekt-kachel[aria-pressed="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
 }

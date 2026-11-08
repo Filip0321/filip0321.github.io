@@ -43,6 +43,8 @@ class Stimmen extends AudioWorkletProcessor {
     this.zeitplan = null;
     this.bild = -1;
     this.naechsteNote = 0; // im Zeitplan
+    // Flecken als Stimmen: id -> { phase, schritt, schrittZiel, amp, ziel, pan, panZiel }
+    this.flecken = new Map();
     this.port.onmessage = ({ data }) => this.nachricht(data);
     const vorab = optionen?.processorOptions;
     if (vorab) {
@@ -59,6 +61,7 @@ class Stimmen extends AudioWorkletProcessor {
     else if (n.art === "werte") this.setzeZiele(n.werte);
     else if (n.art === "einstellung") this.stelle(n.werte);
     else if (n.art === "noten") n.noten.forEach((note) => this.schlageAn(note));
+    else if (n.art === "flecken") this.setzeFlecken(n.flecken);
   }
 
   // Striche neu: [{ freq (Hz pro Zeile), pan (−1 bis 1), art, grundton (Hz), instrument, nachklang }]
@@ -180,12 +183,55 @@ class Stimmen extends AudioWorkletProcessor {
     this.noten = this.noten.filter((note) => note.alter < note.ende); // verklungene Noten weg
   }
 
+  // Flecken: jeder Fleck eine Stimme, die ihm folgt. Wer verschwindet, wird leise (und dann vergessen), wer neu
+  // ist, fängt leise an. Tonhöhe und Panorama gleiten (etwa 60 ms), damit ein wandernder Fleck singt statt springt
+  setzeFlecken(liste) {
+    const da = new Set();
+    for (const f of liste) {
+      da.add(f.id);
+      const schritt = f.freq / sampleRate;
+      const st = this.flecken.get(f.id) ?? { phase: Math.random(), schritt, amp: 0, pan: f.pan };
+      st.schrittZiel = schritt;
+      st.ziel = f.laut;
+      st.panZiel = f.pan;
+      this.flecken.set(f.id, st);
+    }
+    for (const [id, st] of this.flecken) if (!da.has(id)) st.ziel = 0;
+  }
+
+  spieleFlecken(links, rechts, sinus) {
+    const n = links.length;
+    const k = this.k;
+    const gleiten = 1 - Math.exp(-1 / (0.06 * sampleRate));
+    // wie bei den Zeilen: viele Stimmen zusammen durch die Wurzel ihrer Zahl
+    const ausgleich = 1 / Math.sqrt(Math.max(1, this.flecken.size));
+    for (const [id, st] of this.flecken) {
+      let { phase, schritt, amp, pan } = st;
+      for (let i = 0; i < n; i++) {
+        amp += (st.ziel - amp) * k;
+        schritt += (st.schrittZiel - schritt) * gleiten;
+        pan += (st.panZiel - pan) * gleiten;
+        const x = phase * TABELLE;
+        const j = x | 0;
+        const wert = amp * ausgleich * (sinus[j] + (sinus[j + 1] - sinus[j]) * (x - j));
+        const winkel = ((pan + 1) * Math.PI) / 4;
+        links[i] += wert * Math.cos(winkel);
+        rechts[i] += wert * Math.sin(winkel);
+        phase += schritt;
+        if (phase >= 1) phase -= 1;
+      }
+      Object.assign(st, { phase, schritt, amp, pan });
+      if (st.ziel === 0 && amp < 1e-4) this.flecken.delete(id);
+    }
+  }
+
   // beim Rechnen fürs Video: die Helligkeiten des Bildes, in dem dieses Sample liegt, und seine Noten
   folgeZeitplan() {
     const bild = Math.min(Math.floor((currentFrame * this.zeitplan.fps) / sampleRate), this.zeitplan.bilder - 1);
     if (bild === this.bild) return;
     this.bild = bild;
     this.setzeZiele(this.zeitplan.werte.map((w, i) => w.subarray(bild * this.striche[i].zeilen, (bild + 1) * this.striche[i].zeilen)));
+    if (this.zeitplan.flecken) this.setzeFlecken(this.zeitplan.flecken[bild] ?? []);
     const noten = this.zeitplan.noten ?? [];
     while (this.naechsteNote < noten.length && noten[this.naechsteNote].bild <= bild) this.schlageAn(noten[this.naechsteNote++]);
   }
@@ -258,6 +304,7 @@ class Stimmen extends AudioWorkletProcessor {
       }
     }
     if (this.noten.length) this.spieleNoten(links, rechts);
+    if (this.flecken.size) this.spieleFlecken(links, rechts, sinus);
 
     // weich begrenzen wie in Spektral-Malen
     const { lautstaerke } = this.einstellung;
@@ -270,3 +317,4 @@ class Stimmen extends AudioWorkletProcessor {
 }
 
 registerProcessor("stimmen", Stimmen);
+

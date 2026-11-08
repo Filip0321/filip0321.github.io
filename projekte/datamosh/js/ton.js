@@ -15,6 +15,7 @@
 // aufaddiert.
 
 import { ladeTon } from "/lib/video-quelle.js";
+import { erstelleKaputt } from "/lib/ton-kaputt.js";
 import { paketVon } from "./folge.js";
 
 const RATE = 48000;
@@ -73,6 +74,32 @@ export async function baueTon(art, { daten, folge, grund, clips, datei }) {
   puffer.copyToChannel(ziel[0], 0);
   puffer.copyToChannel(ziel[1], 1);
   return puffer;
+}
+
+// ---------- Ton kaputt beim Mosh (nur beim Rendern) ----------
+// An jedem Mosh-Moment geht der Ton mit kaputt: wo ein Sprung oder Einschub (Halten, Ersetzen) anfängt oder ein
+// I-Frame gelöscht ist, stottert er sofort (ein kurzes Stück wiederholt sich), wird grob (weniger Bits, kleinere
+// Abtastrate), knistert und verzerrt. Das klingt dann in „nachklingen“ Sekunden wieder heil (e^−t/τ mit
+// τ = nachklingen / 3). Stärke 0 = aus. Die Rechnung ist /lib/ton-kaputt.js, dieselbe wie in den Foto-Effekten.
+// herkunft: aus baueFolge (folge.js), ein Eintrag pro Bild. Zurück: (stueck AudioBuffer, i) => ändert stueck
+export function moshKaputt(herkunft, fps, { staerke, nachklingen }) {
+  if (!staerke) return () => {};
+  let kaputt = null;
+  let seit = Infinity; // Bilder seit dem letzten Mosh-Moment
+  const tau = Math.max(0.05, nachklingen / 3) * fps;
+  return (stueck, i) => {
+    const h = herkunft[i];
+    const vorher = herkunft[i - 1];
+    const moment = h && (h.iWeg || (h.art !== "grund" && (!vorher || vorher.art !== h.art)));
+    seit = moment ? 0 : seit + 1;
+    const a = staerke * Math.exp(-seit / tau);
+    kaputt ??= erstelleKaputt(stueck.sampleRate, stueck.numberOfChannels);
+    const kanaele = Array.from({ length: stueck.numberOfChannels }, (_, k) => stueck.getChannelData(k));
+    kaputt(kanaele, {
+      knistern: 0.5 * a, rauschen: 0, leiern: 0, bits: 16 - 11 * a, teiler: 1 + 7 * a, aussetzer: 0,
+      verzerren: 0.5 * a, hoehen: 1, stottern: moment,
+    });
+  };
 }
 
 // ---------- Ton beim Abspielen ----------

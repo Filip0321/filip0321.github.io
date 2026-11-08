@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSTV durch den Raum - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="sstv.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>SSTV durch den Raum</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>bild</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen sstv-spalte">
+      <div class="sstv-felder">
+        <figure>
+          <canvas id="gesendet" width="320" height="256" aria-label="Das Bild, das gesendet wird"></canvas>
+          <figcaption>gesendet</figcaption>
+        </figure>
+        <figure>
+          <canvas id="empfangen" width="320" height="256" aria-label="Das empfangene Bild der gewählten Stufe"></canvas>
+          <figcaption>empfangen</figcaption>
+        </figure>
+      </div>
+      <p class="hinweis" id="status">&nbsp;</p>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Senden</summary>
+        <div class="steuerung">
+          <label>Was senden
+            <select id="sendeArt">
+              <option value="sstv" selected>ein Bild (SSTV)</option>
+              <option value="direkt">einen Klang, direkt</option>
+              <option value="fm">einen Klang, verpackt (FM)</option>
+              <option value="hell">Text (Hellschreiber)</option>
+              <option value="versteckt">ein Bild, versteckt im Klang</option>
+            </select>
+          </label>
+          <button type="button" id="senden">Abspielen</button>
+          <!-- nur bei FM: was Abspielen und WAV speichern nehmen -->
+          <label id="hoerLabel" hidden>Hören
+            <select id="hoerArt">
+              <option value="inhalt">den Klang (ausgepackt)</option>
+              <option value="signal">das Signal in der Luft</option>
+            </select>
+          </label>
+        </div>
+        <div class="steuerung" id="bildTeil">
+          <label class="datei-knopf">Bild öffnen <input type="file" id="bild" accept="image/*"></label>
+          <label id="modusLabel">Modus
+            <select id="modus">
+              <option value="m2" selected>Martin M2 (320 × 256, 58 s)</option>
+              <option value="m1">Martin M1 (320 × 256, 114 s)</option>
+              <option value="pd120">PD-120 (640 × 496, 2 min)</option>
+              <option value="pd180">PD-180 (640 × 496, 3 min)</option>
+              <option value="pd290">PD-290 (800 × 616, 5 min)</option>
+              <option value="frei">frei (jede Größe, nur hier lesbar)</option>
+            </select>
+          </label>
+          <label id="einpassenLabel">Bild
+            <select id="einpassen">
+              <option value="einpassen">ganz zeigen (Rand)</option>
+              <option value="fuellen">füllen (zuschneiden)</option>
+            </select>
+          </label>
+        </div>
+        <!-- nur beim freien Modus: die Höhe kommt aus dem Seitenverhältnis des Bildes -->
+        <div class="steuerung" id="freiTeil" hidden>
+          <label>Breite (Pixel) <input type="number" id="freiBreite" min="64" max="1920" step="2" value="640"></label>
+          <label>Zeit pro Pixel (ms) <input type="number" id="freiPixel" min="0.05" max="2" step="0.01" value="0.25"></label>
+        </div>
+        <!-- Klang: aus einer Datei oder selbst aufgenommen (Lucier fing mit seiner Stimme an) -->
+        <div class="steuerung" id="tonTeil" hidden>
+          <label class="datei-knopf">Klang öffnen <input type="file" id="klangDatei" accept="audio/*,video/*"></label>
+          <button type="button" id="klangAufnehmen">selbst aufnehmen</button>
+        </div>
+        <!-- FM: Träger, wie weit er schwingt, und wie hoch der Klang reichen darf -->
+        <div class="steuerung" id="fmTeil" hidden>
+          <label>Träger (Hz) <input type="number" id="traeger" min="500" max="12000" step="50" value="4000"></label>
+          <label>Hub (Hz) <input type="number" id="hub" min="50" max="5000" step="50" value="1200"></label>
+          <label>Klang bis (Hz) <input type="number" id="band" min="300" max="8000" step="100" value="2000"></label>
+        </div>
+        <!-- versteckt: wie viele der untersten Bits das Bild bekommt (versteckt.js) -->
+        <div class="steuerung" id="verstecktTeil" hidden>
+          <label>Bits pro Sample
+            <select id="versteckBits">
+              <option value="1" selected>1 (unhörbar, wenig Platz)</option>
+              <option value="2">2</option>
+              <option value="4">4 (leises Rauschen)</option>
+              <option value="8">8 (hörbar, viel Platz)</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="versteckFarbe"> in Farbe (dreimal so viel Platz)</label>
+          <label>Hören
+            <select id="versteckHoeren">
+              <option value="klang">den Klang</option>
+              <option value="bits">nur die versteckten Bits (laut)</option>
+            </select>
+          </label>
+        </div>
+        <div class="steuerung" id="hellTeil" hidden>
+          <label class="hell-text">Text <textarea id="hellText" rows="3">HELLSCHREIBER DURCH DEN RAUM 123</textarea></label>
+          <label>Ton (Hz) <input type="number" id="hellTon" min="400" max="3000" step="10" value="980"></label>
+        </div>
+        <p class="hinweis" id="dauer"></p>
+        <p class="hinweis" id="sendeHinweis">Abspielen spielt die gewählte Stufe. Zwei Geräte: hier abspielen, dort „Mikrofon an“ (oder Robot36, SSTV-Apps).</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Raum (nachgerechnet)</summary>
+        <div class="steuerung">
+          <label>Hall
+            <input type="range" id="hall" min="0" max="1.5" step="0.01" value="0.3">
+            <output data-fuer="hall"></output>
+          </label>
+          <label>Nachhall (s)
+            <input type="range" id="nachhall" min="0.05" max="3" step="0.05" value="0.6">
+            <output data-fuer="nachhall"></output>
+          </label>
+          <label>Echo
+            <input type="range" id="echo" min="0" max="1" step="0.01" value="0">
+            <output data-fuer="echo"></output>
+          </label>
+          <label>Echo nach (ms)
+            <input type="range" id="echoZeit" min="1" max="60" step="0.5" value="8">
+            <output data-fuer="echoZeit"></output>
+          </label>
+          <label>Rauschen
+            <input type="range" id="rauschen" min="0" max="3" step="0.01" value="0.2">
+            <output data-fuer="rauschen"></output>
+          </label>
+          <label>Lautsprecher ab (Hz)
+            <input type="range" id="unten" min="20" max="1400" step="10" value="300">
+            <output data-fuer="unten"></output>
+          </label>
+          <label>Mikrofon bis (Hz)
+            <input type="range" id="oben" min="1500" max="16000" step="100" value="8000">
+            <output data-fuer="oben"></output>
+          </label>
+          <label>Abtastrate daneben (ppm)
+            <input type="range" id="ppm" min="-3000" max="3000" step="10" value="200">
+            <output data-fuer="ppm"></output>
+          </label>
+          <label>Leiern (wie ein Tonband)
+            <input type="range" id="leiern" min="0" max="1" step="0.01" value="0">
+            <output data-fuer="leiern"></output>
+          </label>
+          <label class="datei-knopf">Geräusch im Raum <input type="file" id="geraeuschDatei" accept="audio/*,video/*"></label>
+          <span class="hinweis" id="geraeuschName">keins</span>
+          <label>Geräusch laut
+            <input type="range" id="geraeuschLaut" min="0" max="2" step="0.01" value="0.3">
+            <output data-fuer="geraeuschLaut"></output>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Kreislauf</summary>
+        <div class="steuerung">
+          <label id="kreislaufLabel">Was geht weiter
+            <select id="kreislauf">
+              <option value="ton">der Ton (wie Alvin Lucier)</option>
+              <option value="bild" id="kreislaufInhalt">das Bild (neu gesendet)</option>
+            </select>
+          </label>
+          <label>Runden <input type="number" id="rundenZahl" min="1" max="30" step="1" value="1"></label>
+          <label>Ablauf
+            <select id="ablauf">
+              <option value="schnell">schnell lesen</option>
+              <option value="hoeren">anhören und mitlesen</option>
+            </select>
+          </label>
+          <button type="button" id="runden">durch den Raum</button>
+          <button type="button" id="anhalten">anhalten</button>
+        </div>
+        <!-- Start und jede Runde; Klick = diese Stufe zeigen, speichern, von hier weitermachen -->
+        <div class="stufen" id="stufen"></div>
+        <div class="steuerung">
+          <button type="button" id="stufenLoeschen" hidden>Stufen löschen</button>
+        </div>
+        <p class="hinweis">Klick auf eine Stufe: zeigen, speichern, von dort weiter. Ton: wie Luciers „I Am Sitting in a Room“. Inhalt: jede Runde neu gesendet.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Empfangen</summary>
+        <div class="steuerung">
+          <button type="button" id="mikrofon">Mikrofon an</button>
+          <label class="datei-knopf">Tondatei hineinspielen <input type="file" id="tondatei" accept="audio/*,video/*"></label>
+          <label id="erwarteLabel">Modus
+            <select id="erwarte">
+              <option value="auto">automatisch (VIS)</option>
+              <option value="m1">Martin M1</option>
+              <option value="m2">Martin M2</option>
+              <option value="pd120">PD-120</option>
+              <option value="pd180">PD-180</option>
+              <option value="pd290">PD-290</option>
+            </select>
+          </label>
+          <label id="synchronLabel">Zeilen
+            <select id="synchron">
+              <option value="einrasten">an den Impulsen einrasten</option>
+              <option value="schraeg">nicht einrasten (wird schräg)</option>
+              <option value="frei">frei laufen (jeder Ton wird ein Bild)</option>
+            </select>
+          </label>
+        </div>
+        <!-- nur beim frei Laufen: welche Tonhöhe Schwarz und welche Weiß ist (gemessen wird zwischen etwa 400 und 3400 Hz) -->
+        <div class="steuerung" id="bereichTeil" hidden>
+          <label>Schwarz bei (Hz) <input type="number" id="schwarzHz" min="300" max="3400" step="10" value="500"></label>
+          <label>Weiß bei (Hz) <input type="number" id="weissHz" min="300" max="3400" step="10" value="2500"></label>
+        </div>
+        <p class="hinweis" id="empfangHinweis">Frei laufen: jeder Ton wird ein Bild, Tonhöhe ist Helligkeit (gemessen zwischen etwa 400 und 3400 Hz).</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung">
+          <button type="button" id="bildSpeichern">Bild speichern</button>
+          <button type="button" id="wavSpeichern">WAV speichern</button>
+          <button type="button" id="videoRendern">Video rendern</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- eigene Felder fürs Export-Fenster: /lib/export-dialog.js verschiebt sie beim Start dorthin -->
+    <div id="exportFelder" hidden>
+      <h3 class="gruppe">Inhalt</h3>
+      <div class="steuerung">
+        <label>Was
+          <select id="exportInhalt">
+            <option value="gewaehlt">die gewählte Stufe</option>
+            <option value="stufen">die Stufen (Bild: als Gitter, Video: nacheinander)</option>
+          </select>
+        </label>
+        <label id="exportBisLabel">bis <select id="exportBis"></select></label>
+        <label id="exportSpaltenLabel">nebeneinander (0 = automatisch) <input type="number" id="exportSpalten" min="0" max="12" step="1" value="0"></label>
+        <label id="exportBeschriftungLabel"><input type="checkbox" id="exportBeschriftung" checked> Start, Runde 1 … dazuschreiben</label>
+        <label id="exportHintergrundLabel">Hintergrund
+          <select id="exportHintergrund">
+            <option value="#000000">schwarz</option>
+            <option value="#ffffff">weiß</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script> <!-- Video kodieren (Export) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

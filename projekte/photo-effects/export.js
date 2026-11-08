@@ -7,6 +7,7 @@
 
 import { erstelleExportDialog, mitRahmen } from "/lib/export-dialog.js";
 import { ladeHerunter, zeitstempel, speichereCanvas, neueAufnahme, FPS, warte, repariereMp4, waehleTonCodec } from "/lib/export.js";
+import { erstelleKaputt, istAus } from "/lib/ton-kaputt.js";
 
 const MAX_SEKUNDEN = 30; // ein Foto als Video: Bild für Bild dauert, darum kurz
 
@@ -26,6 +27,7 @@ export function richteFotoExportEin({
   anhalten,      // () => Funktion, die danach alles wiederherstellt (Video weiterlaufen lassen, Overlays zurück)
   zuschnitt,     // () => Anteil oder null: CRT als letzter Effekt mit Wölbung nach außen
   hintergrund,   // () => Farbe hinter durchsichtigen Stellen im Video
+  tonWerte = () => null, // () => Werte für /lib/ton-kaputt.js (oder null): der Ton beim Video aus Video
   durchsichtig,  // () => true, wenn das Bild durchsichtig bleiben soll (PNG ohne Rahmen)
   sperre,        // (gesperrt) => die Bedienung der Seite sperren, solange gerechnet wird
 }) {
@@ -137,7 +139,7 @@ export function richteFotoExportEin({
 
     let aufnahme = null;
     try {
-      aufnahme = await neueAufnahme(mitRand(await rechne(erstes / FPS)), FPS, hintergrund(), null, einst.videoTyp);
+      aufnahme = await neueAufnahme(mitRand(await rechne(erstes / FPS)), FPS, hintergrund(), null, einst.videoTyp, einst.videoQualitaet);
       for (let i = erstes; i <= letztes; i++) {
         await aufnahme.bild(mitRand(await rechne(i / FPS)), (i - erstes) / FPS, 1 / FPS);
         videoKnopf.textContent = `Rendern … ${Math.round(((i - erstes + 1) / (letztes - erstes + 1)) * 100)} %`;
@@ -184,6 +186,26 @@ export function richteFotoExportEin({
     if (tonSpur) {
       const codec = await waehleTonCodec(tonSpur.numberOfChannels, tonSpur.sampleRate, typ);
       audio = codec ? { codec } : { discard: true }; // kein Codec: lieber ohne Ton als gar nicht
+      // Ton kaputt: Mediabunny gibt den Ton in Blöcken (AudioSample); jeder Block als Float32 pro Kanal heraus,
+      // durch dieselbe Rechnung wie beim Hören, und als neuer Block zurück (die Zeitstempel bleiben)
+      const w = tonWerte();
+      if (codec && w && !istAus(w)) {
+        let kaputt = null;
+        audio.process = (sample) => {
+          const n = sample.numberOfFrames;
+          const k = sample.numberOfChannels;
+          kaputt ??= erstelleKaputt(sample.sampleRate, k);
+          const daten = new Float32Array(n * k);
+          const kanaele = [];
+          for (let c = 0; c < k; c++) {
+            const ebene = daten.subarray(c * n, (c + 1) * n);
+            sample.copyTo(ebene, { planeIndex: c, format: "f32-planar" });
+            kanaele.push(ebene);
+          }
+          kaputt(kanaele, w);
+          return new Mediabunny.AudioSample({ data: daten, format: "f32-planar", numberOfChannels: k, sampleRate: sample.sampleRate, timestamp: sample.timestamp });
+        };
+      }
     }
 
     const conversion = await Mediabunny.Conversion.init({

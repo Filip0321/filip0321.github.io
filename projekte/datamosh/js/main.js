@@ -21,7 +21,7 @@ import { oeffneClip } from "./quellen.js";
 import { bereite } from "./kodieren.js";
 import { lege, baueGrund, schnittName } from "./schnitt.js";
 import { baueFolge, quelleBei, paketVon, pFramesAb } from "./folge.js";
-import { baueTon, richteAbspielTonEin } from "./ton.js";
+import { baueTon, richteAbspielTonEin, moshKaputt } from "./ton.js";
 import { richteDekoderEin } from "./dekoder.js";
 import { richteZeitleisteEin } from "./zeitleiste.js";
 import { helligkeit } from "/lib/yuv.js";
@@ -872,12 +872,13 @@ hole("videoRendern").addEventListener("click", async () => {
     if (!einst) return protokoll("Rendern: abgebrochen");
     const rahmen = document.createElement("canvas");
     const mitR = () => mitRahmen(leinwand, einst, rahmen);
-    const folge = baue(false).folge; // nur die gemerkten Eingriffe, ohne die flüchtigen
+    const { folge, herkunft } = baue(false); // nur die gemerkten Eingriffe, ohne die flüchtigen
     protokoll(`Rendern: ${folge.length} Bilder, ${einst.videoTyp}, Ton: ${einstellung.tonArt}`);
     // der Ton wird vorher ganz gebaut (ton.js) und dann Bild für Bild mitgegeben
     zeigeFortschritt("Ton …");
     const ton = await baueTon(einstellung.tonArt, { daten, folge, grund, clips, datei: hole("tonDatei").files[0] });
     const grenze = (i) => Math.round((i * (ton?.sampleRate ?? 0)) / daten.fps);
+    const kaputtMachen = moshKaputt(herkunft, daten.fps, { staerke: einstellung.moshKaputt, nachklingen: einstellung.moshNachklingen });
     dekoder.neu();
     n = 0;
     const bilder = [];
@@ -909,6 +910,7 @@ hole("videoRendern").addEventListener("click", async () => {
     for (let i = 0; i < folge.length; i++) {
       if (i > 0) await holeBild(i);
       const stueck = ton && schneideTon(ton, grenze(i), grenze(i + 1));
+      if (stueck) kaputtMachen(stueck, i); // Ton kaputt beim Mosh (ton.js), bei Stärke 0 nichts
       await Promise.all([aufnahme.bild(mitR(), i / daten.fps, 1 / daten.fps), stueck && aufnahme.ton(stueck)]);
       if (i % 15 === 0) {
         zeigeFortschritt(`Video … ${Math.round((i / folge.length) * 100)} %`);

@@ -64,6 +64,87 @@
         </details>
       </details>
 
+      <!-- das Feld als Sequencer: gol-ton.js (die Felder mit data-wert liest /lib/regler.js) -->
+      <details class="abschnitt" open>
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <button type="button" id="tonAn" aria-pressed="false">Ton an</button>
+          <label>Strich
+            <select data-wert="tonArt">
+              <option value="laeuft">läuft über das Feld</option>
+              <option value="steht">steht, das Spiel macht den Takt</option>
+            </select>
+          </label>
+          <label>Richtung
+            <select data-wert="tonRichtung">
+              <option value="senkrecht">senkrecht (unten tief)</option>
+              <option value="waagerecht">waagerecht (links tief)</option>
+            </select>
+          </label>
+          <label data-nur="tonArt=laeuft">Schritte pro Sekunde <input type="range" data-wert="tonTempo" min="1" max="32" step="1" value="8"><output></output></label>
+          <label data-nur="tonArt=steht">Stelle <input type="range" data-wert="tonLage" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+          <label data-nur="tonArt=steht">spielt
+            <select data-wert="tonSpielt">
+              <option value="neu">nur neue Zellen (was lebendig wird)</option>
+              <option value="alle">alle Zellen, jede Generation</option>
+            </select>
+          </label>
+        </div>
+        <h3 class="gruppe">Tonhöhen</h3>
+        <div class="steuerung">
+          <label>Tonleiter
+            <select data-wert="tonLeiter">
+              <option value="aus">aus (stufenlos)</option>
+              <option value="chromatisch">chromatisch</option>
+              <option value="dur">Dur</option>
+              <option value="moll">Moll</option>
+              <option value="pentatonik-dur" selected>Pentatonik Dur</option>
+              <option value="pentatonik-moll">Pentatonik Moll</option>
+              <option value="blues">Blues</option>
+              <option value="ganzton">Ganzton</option>
+            </select>
+          </label>
+          <label>Grundton
+            <select data-wert="tonGrundton">
+              <option value="0">C</option><option value="1">C♯</option><option value="2">D</option>
+              <option value="3">D♯</option><option value="4">E</option><option value="5">F</option>
+              <option value="6">F♯</option><option value="7">G</option><option value="8">G♯</option>
+              <option value="9" selected>A</option><option value="10">A♯</option><option value="11">H</option>
+            </select>
+          </label>
+          <label>tiefste Oktave <input type="range" data-wert="tonOktave" min="0" max="6" step="1" value="2"><output></output></label>
+          <label>Umfang (Oktaven) <input type="range" data-wert="tonUmfang" min="1" max="6" step="1" value="4"><output></output></label>
+          <label>Stimmen auf einmal <input type="range" data-wert="tonStimmen" min="1" max="12" step="1" value="6"><output></output></label>
+        </div>
+        <h3 class="gruppe">Klang</h3>
+        <div class="steuerung">
+          <label>Klang
+            <select data-wert="tonKlang">
+              <option value="triangle">Dreieck</option>
+              <option value="sine">Sinus</option>
+              <option value="square">Rechteck</option>
+              <option value="sawtooth">Sägezahn</option>
+            </select>
+          </label>
+          <label>Abklingen (s) <input type="range" data-wert="tonAbklingen" min="0.05" max="1.5" step="0.05" value="0.35"><output></output></label>
+          <label>Lautstärke <input type="range" data-wert="tonLaut" min="0" max="1" step="0.01" value="0.3"><output></output></label>
+        </div>
+        <h3 class="gruppe">Vorlagen</h3>
+        <div class="presets">
+          <button type="button" data-setze='{"tonLeiter": "pentatonik-moll", "tonGrundton": "9", "tonOktave": 3, "tonUmfang": 2, "tonKlang": "sine", "tonAbklingen": 0.8, "tonStimmen": 4}'>Spieluhr</button>
+          <button type="button" data-setze='{"tonLeiter": "moll", "tonGrundton": "2", "tonOktave": 1, "tonUmfang": 2, "tonKlang": "sawtooth", "tonAbklingen": 0.25, "tonStimmen": 3}'>Bass</button>
+          <button type="button" data-setze='{"tonLeiter": "ganzton", "tonGrundton": "0", "tonOktave": 4, "tonUmfang": 3, "tonKlang": "sine", "tonAbklingen": 1.2, "tonStimmen": 6}'>Glas</button>
+          <button type="button" data-setze='{"tonLeiter": "blues", "tonGrundton": "4", "tonOktave": 2, "tonUmfang": 3, "tonKlang": "triangle", "tonAbklingen": 0.3, "tonStimmen": 5}'>Blues</button>
+          <button type="button" data-setze='{"tonArt": "steht", "tonSpielt": "neu", "tonLeiter": "pentatonik-dur", "tonKlang": "triangle", "tonAbklingen": 0.5, "tonStimmen": 8}'>Geburten</button>
+        </div>
+        <h3 class="gruppe">Strich</h3>
+        <div class="steuerung">
+          <label>Farbe <input type="color" data-wert="tonFarbe" value="#ff4646"></label>
+          <label>Deckkraft <input type="range" data-wert="tonDeckkraft" min="0" max="1" step="0.05" value="0.35"><output></output></label>
+        </div>
+        <p class="hinweis">Jede lebende Zelle auf dem Strich ist eine Note. Läuft er, ist das Feld ein Sequencer; steht er, macht das Spiel den Takt (Pause = Stille). Mit „Ton an“ klingt auch das gerenderte Video.</p>
+      </details>
+
       <details class="abschnitt">
         <summary>Regeln</summary>
         <!-- Regeln: Conway ist 2 und 3 zum Überleben, 3 zum Beleben -->
@@ -121,3 +202,4 @@
   <script type="module" src="/lib/effekt-schicht.js"></script>
 </body>
 </html>
+

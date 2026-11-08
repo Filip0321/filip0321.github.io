@@ -53,7 +53,7 @@ function wechsleAnsicht() {
   wrapper.classList.toggle("aufnahme", ansicht.value === "aufnahme"); 
   spektrumObenLabel.hidden = !wasserfall; 
   spektrumGlattLabel.hidden = !(ansicht.value === "spektrum" || (wasserfall && spektrumOben.checked));
-  const laeuftNicht = ansicht.value === "spektrum" || ansicht.value === "aufnahme";
+  const laeuftNicht = ["spektrum", "aufnahme", "mitschrift"].includes(ansicht.value);
   laufrichtungLabel.hidden = laeuftNicht;
   tempoLabel.hidden = laeuftNicht;
   taktLabel.hidden = ansicht.value !== "aufnahme";
@@ -236,3 +236,4 @@ setzeEmpfindlichkeiten();
 
 const beobachter = new ResizeObserver(groesseGeaendert);
 beobachter.observe(canvas);
+

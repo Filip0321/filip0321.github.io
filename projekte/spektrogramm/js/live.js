@@ -4,6 +4,7 @@ import { fachTabelle, anteilZuFrequenz } from "./frequenzen.js";
 import { farbenZahlen, baueVerlauf } from "/lib/farben.js";
 import { zeichnePegel } from "./pegel.js";
 import { pruefeEinsatz, staerke } from "./einsaetze-live.js";
+import { schreibeMit, zeigeMitschrift } from "./mitschrift.js";
 
 export const laufrichtung = hole("laufrichtung"); // schieben / umlaufen
 export const spektrumOben = hole("spektrumOben"); 
@@ -253,6 +254,7 @@ function zeichne(zeit = performance.now()) {
   // Glättung hängt auch an der Bildrate
   analyser.smoothingTimeConstant = Number(glaettung.value) ** (sekunden * 60);
   analyser.getByteFrequencyData(werte);
+  schreibeMit(werte); // beim Hören: dieselbe Spalte auch in die Mitschrift (js/mitschrift.js)
   if (pruefeEinsatz(sekunden, zeit)) einsatzOffen = true;
   einsatzLampe.style.setProperty("--an", staerke); // CSS macht die Helligkeit
 
@@ -261,6 +263,7 @@ function zeichne(zeit = performance.now()) {
     zeichneWasserfall(neueReihen(sekunden, canvas.height - oben)); // zeichnet das Spektrum oben selbst mit
   else if (ansicht.value === "spektrum")
     zeichneSpektrum(canvas.height, verlauf);
+  else if (ansicht.value === "mitschrift") zeigeMitschrift();
   // "aufnahme": das Gesamtbild steht schon, den Abspielkopf malt laufeKopf
   zeichnePegel(zeit, sekunden);
   laufId = requestAnimationFrame(zeichne); // Live-Schleife; die zweite Schleife (Abspielkopf) ist laufeKopf
@@ -279,3 +282,4 @@ export function stoppeZeichnen() {
 export function zeichnetGerade() {
   return laufId !== null;
 }
+

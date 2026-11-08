@@ -283,9 +283,9 @@ export function richteZeitleisteEin(rahmen, { beiStelle, beiAuswahl, beiClip, be
         beiClipWahl?.(c);
         zug = { art: rand, c, f0: fVon(pt.x), y0: pt.y, alt: { start: c.start, von: c.von, laenge: c.laenge, spur: c.spur } };
       } else {
-        zug = null;
-        const t = Math.floor(fVon(pt.x));
-        if (s.herkunft.length) beiStelle(bildZuZeit(t));
+        // leere Stelle: Tippen springt dorthin (beim Loslassen), mit dem Finger ziehen scrollt die Zeitleiste
+        // (die Seite lässt dem Canvas waagerechte Gesten, touch-action: pan-y in datamosh.css)
+        zug = { art: "leer", f: Math.floor(fVon(pt.x)), x0: event.clientX, s0: rahmen.scrollLeft, finger: event.pointerType === "touch", bewegt: false };
       }
       zeichne();
       return;
@@ -306,6 +306,12 @@ export function richteZeitleisteEin(rahmen, { beiStelle, beiAuswahl, beiClip, be
       // Zeiger zeigt, was Ziehen tun würde
       const t = s.daten && pt.y >= oben() && pt.y < ergebnisOben() - TRENN && clipBei(pt);
       canvas.style.cursor = t ? (t.rand === "mitte" ? "grab" : "ew-resize") : "pointer";
+      return;
+    }
+    if (zug.art === "leer") {
+      const dx = event.clientX - zug.x0;
+      if (Math.abs(dx) > 6) zug.bewegt = true;
+      if (zug.finger) rahmen.scrollLeft = zug.s0 - dx;
       return;
     }
     if (zug.art === "auswahl") {
@@ -342,17 +348,22 @@ export function richteZeitleisteEin(rahmen, { beiStelle, beiAuswahl, beiClip, be
     if (!zug) return;
     const war = zug;
     zug = null;
+    if (war.art === "leer") {
+      if (!war.bewegt && s.herkunft.length) beiStelle(bildZuZeit(war.f));
+      return;
+    }
     if (war.art === "auswahl") {
       beiAuswahl(auswahl);
       beiStelle(bildBei(punkt(event).x));
     } else beiClip("fertig");
   });
 
-  // am Handy übernimmt der Browser das waagerechte Wischen (scrollen) und bricht das Ziehen ab:
-  // dann bleibt alles, wie es war (Clips verschiebt man dort mit „Clip an die Stelle“)
+  // am Handy gehören waagerechte Gesten dem Canvas (Clip ziehen, auswählen, leere Stelle: scrollen), senkrechte
+  // dem Browser (die Seite scrollt). Zieht man einen Clip senkrecht in eine andere Spur, übernimmt darum der
+  // Browser und bricht das Ziehen ab: dann bleibt alles, wie es war (Spuren tauscht man dort mit ↑ ↓ Spur)
   canvas.addEventListener("pointercancel", () => {
     if (zug?.c) Object.assign(zug.c, zug.alt);
-    if (zug) beiClip("fertig");
+    if (zug?.c) beiClip("fertig");
     zug = null;
   });
 

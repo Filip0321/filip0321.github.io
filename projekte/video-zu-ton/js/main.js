@@ -9,16 +9,18 @@
 //   stimmen-worklet.js    eine Stimme pro Zeile, oder der Strich als Wellenform
 //   kopf.js               Striche, Balken und Skala über dem Video
 //   ausloeser.js          Objekte auf einem Strich finden: jedes neue spielt eine Note
+//   /lib/flecken.js       Flecken im Bild finden und verfolgen: jeder Fleck eine eigene Stimme (unten, „Flecken“)
 //   export-video.js       WAV und Video Bild für Bild
 
 import { richteReglerEin } from "/lib/regler.js";
 import { richteMausInfoEin, zeigeFrequenz, notenName } from "/lib/maus-info.js";
 import { richteExportEin } from "/lib/export.js";
-import { video, oeffneDatei, oeffneKamera, istKamera } from "./quelle.js";
+import { video, oeffneDatei, oeffneKamera, istKamera, holeAusrichtung } from "./quelle.js";
 import { richteGpuEin } from "./gpu.js";
 import { richteKlangEin } from "./klang.js";
 import { richteKopfEin } from "./kopf.js";
-import { zeilenFrequenzen, zeilenGrenzen, akkord } from "./frequenzen.js";
+import { zeilenFrequenzen, zeilenGrenzen, akkord, hoeheZuFrequenz } from "./frequenzen.js";
+import { findeFlecken, neuesGedaechtnis } from "/lib/flecken.js";
 import { richteAusloeserEin } from "./ausloeser.js";
 import { neuerStrich, VORLAGEN, MAX_STRICHE, richteStrichListeEin } from "./striche.js";
 import { richteVideoExportEin } from "./export-video.js";
@@ -64,7 +66,7 @@ const { einstellung } = richteReglerEin({
     ausschnittArt: () => passeFeldAn(),
     originalton: () => klang.originalton(einstellung.originalton),
     drehung: () => {
-      gpu.setzeDrehung(Number(einstellung.drehung));
+      richteAus();
       ausschnitt = null; // der Ausschnitt gehörte zum ungedrehten Bild
       if (quelleDa) lese(false);
       passeFeldAn();
@@ -140,13 +142,25 @@ function rechtecke() {
   return { bereich: lupe ? ausschnitt : GANZ, fenster: ausschnitt && !lupe ? ausschnitt : GANZ };
 }
 
+// Drehung und Größe: was der Browser beim Hochladen nicht gedreht hat (erkannt beim Öffnen, quelle.js), plus die
+// Drehung von Hand. Die Größe kommt aus der Datei (Mediabunny), nicht von videoWidth und videoHeight: die meldet
+// Firefox schon gedreht, auch wenn das Bild in der Textur noch quer liegt (daher früher das gestreckte Bild).
+// Von Hand gedreht um 90° oder 270°: Breite und Höhe tauschen (für Videos, die ohne Metadaten quer liegen)
+function feldGroesse() {
+  const a = holeAusrichtung();
+  const [b, h] = a ? [a.breite, a.hoehe] : [video.videoWidth, video.videoHeight];
+  return Number(einstellung.drehung) % 2 === 1 ? { breite: h, hoehe: b } : { breite: b, hoehe: h };
+}
+function richteAus() {
+  const a = holeAusrichtung();
+  gpu.setzeDrehung(((a?.drehung ?? 0) + Number(einstellung.drehung)) % 4, a ? feldGroesse() : null);
+}
+
 // Feld im Seitenverhältnis dessen, was man sieht (bei der Lupe: des Ausschnitts)
 function passeFeldAn() {
   if (!quelleDa) return;
   const [l, u, r, o] = rechtecke().bereich;
-  // gedreht um 90° oder 270°: Breite und Höhe tauschen
-  const quer = Number(einstellung.drehung) % 2 === 1;
-  const [b, h] = quer ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight];
+  const { breite: b, hoehe: h } = feldGroesse();
   stapel.style.setProperty("--verhaeltnis", `${b * (r - l)} / ${h * (o - u)}`);
   zeichneNeu();
 }
@@ -183,7 +197,38 @@ function lese(neu = true) {
   }
   werte = ergebnis.werte;
   letzteNoten = findeNoten(werte);
+  letzteFlecken = einstellung.flecken ? findeStimmen() : [];
   return werte;
+}
+
+// Flecken als Stimmen: wo das bearbeitete Bild (was auch der Strich sieht: hell, Kanten, Bewegung …) über der
+// Schwelle liegt, sind Flecken; jeder bekommt eine Nummer und behält sie, solange er sich bewegt (blobs.js).
+//   Höhe im Bild  Tonhöhe (dieselbe Skala und Tonleiter wie die Zeilen)
+//   Größe         Lautstärke (Wurzel der Fläche: doppelt so breit und hoch = doppelt so laut)
+//   links/rechts  Panorama
+// Außerhalb des Fensters (Ausschnitt) klingt nichts, wie bei den Strichen
+let letzteFlecken = []; // [{ id, freq, laut, pan, x, y, x0, y0, x1, y1 }] in Anteilen des Bildes (0 bis 1, y oben 0)
+let fleckGedaechtnis = neuesGedaechtnis();
+function findeStimmen() {
+  const bild = gpu.leseBearbeitet();
+  if (!bild) return [];
+  const e = einstellung;
+  const gefunden = findeFlecken(bild, { art: 0, schwelle: e.fleckSchwelle, gedaechtnis: 0, zusammen: 2, kleinste: e.fleckKleinste, anzahl: e.fleckAnzahl, spur: 1 }, fleckGedaechtnis);
+  const [l, u, r, o] = rechtecke().fenster; // uv, y = 0 unten
+  const stimmen = [];
+  for (const f of gefunden) {
+    const x = f.x / bild.width;
+    const hoehe = 1 - f.y / bild.height; // 0 unten, 1 oben
+    if (x < l || x > r || hoehe < u || hoehe > o) continue;
+    stimmen.push({
+      id: f.id,
+      freq: hoeheZuFrequenz(hoehe, { tief: e.tief, hoch: e.hoch, tonleiter: e.tonleiter, grundton: Number(e.leiterGrundton) }),
+      laut: Math.min(1, Math.sqrt(f.flaeche) * 2.5),
+      pan: x * 2 - 1,
+      x, y: f.y / bild.height, x0: f.x0 / bild.width, y0: f.y0 / bild.height, x1: f.x1 / bild.width, y1: f.y1 / bild.height,
+    });
+  }
+  return stimmen;
 }
 
 // Auslösen: neue Objekte auf Strichen dieser Art -> Noten { strich, freq, staerke }
@@ -219,6 +264,7 @@ function starteSchleife() {
     if (!exportLaeuft) {
       klang.werte(lese(true));
       if (letzteNoten.length) klang.noten(letzteNoten);
+      klang.flecken(letzteFlecken);
       zeichneNeu();
     }
     proBild(neuesBild);
@@ -245,6 +291,28 @@ function zeichneKopf(mitWerten, fuerExport = false) {
     balkenFarbe: e.balkenFarbe,
     rechteck: fuerExport ? null : rahmenBeimZiehen,
   });
+  if (e.flecken && (fuerExport ? e.exportStriche : e.zeigeStriche)) zeichneFlecken();
+}
+
+// die Flecken als Rahmen mit Nummer über dem Video (in Anteilen des ganzen Bildes; mit Lupe nur, was drin ist)
+function zeichneFlecken() {
+  const c = kopfCanvas.getContext("2d");
+  const [l, u, r, o] = rechtecke().bereich;
+  const nachX = (x) => ((x - l) / (r - l)) * kopfCanvas.width;
+  const nachY = (y) => ((o - (1 - y)) / (o - u)) * kopfCanvas.height; // y von oben; bereich hat y = 0 unten
+  c.save();
+  c.strokeStyle = einstellung.balkenFarbe;
+  c.fillStyle = einstellung.balkenFarbe;
+  c.globalAlpha = einstellung.deckkraft;
+  c.lineWidth = Math.max(1, kopfCanvas.width / 500);
+  c.font = `${Math.round(kopfCanvas.height / 30)}px monospace`;
+  for (const f of letzteFlecken) {
+    const x0 = nachX(f.x0);
+    const y0 = nachY(f.y0);
+    c.strokeRect(x0, y0, nachX(f.x1) - x0, nachY(f.y1) - y0);
+    c.fillText(`${f.id} · ${Math.round(f.freq)} Hz`, x0, y0 - 4);
+  }
+  c.restore();
 }
 
 function zeichneNeu() {
@@ -281,6 +349,7 @@ new ResizeObserver(passeGroesseAn).observe(bild);
 async function nimmQuelle(oeffne) {
   try {
     await oeffne();
+    richteAus(); // neue Quelle: Drehung neu (die erkannte gehört zur Datei)
     quelleDa = true;
     starteSchleife();
     ausschnitt = null;
@@ -473,8 +542,11 @@ richteExportEin({
 });
 
 const videoExport = richteVideoExportEin({
-  lese: (neu) => ({ werte: lese(neu).map((w) => w.slice()), noten: letzteNoten }),
-  vergiss: () => ausloeser.vergiss(),
+  lese: (neu) => ({ werte: lese(neu).map((w) => w.slice()), noten: letzteNoten, flecken: letzteFlecken }),
+  vergiss: () => {
+    ausloeser.vergiss();
+    fleckGedaechtnis = neuesGedaechtnis(); // die Nummern fangen im Video neu an
+  },
   zeichne: (mitWerten) => {
     if (mitWerten) {
       gpu.ladeBild(video);

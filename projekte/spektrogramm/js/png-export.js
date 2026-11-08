@@ -3,6 +3,7 @@ import { SKALA, frequenzZuAnteil, beschriftung } from "./frequenzen.js";
 import { FENSTER } from "/lib/fft.js";
 import { ANALYSE_RATE, SPRUNG, ZEILEN, dateiName, gesamtDb, gesamtStuecke, zeitZuSpalte } from "./datei.js";
 import { fertigesGesamtBild } from "./gesamtbild.js";
+import { mitschriftBild } from "./mitschrift.js";
 import { exportBereich, setzeBereich, loescheBereich } from "./bereich.js";
 import { originalTon } from "./datei.js";
 import { zeichneEinsaetze } from "./einsaetze.js";
@@ -15,6 +16,8 @@ const bildSpeichern = hole("bildSpeichern");
 const exportBreite = hole("exportBreite"); // "anzeige" oder "voll"
 const mitEinsaetzen = hole("mitEinsaetzen"); // Häkchen: Einsätze und Flux-Kurve ins PNG
 const mitTakt = hole("mitTakt"); // Häkchen: Taktraster ins PNG
+const exportQuelle = hole("exportQuelle"); // "gesamt" oder "mitschrift" (gleiche Maße, siehe js/mitschrift.js)
+const quellBild = () => (exportQuelle.value === "mitschrift" ? mitschriftBild() : fertigesGesamtBild());
 
 const RAND_LINKS = 56; // Platz für die Frequenzen
 const RAND_UNTEN = 32; // Platz für die Zeit
@@ -71,7 +74,7 @@ export function baueExport(achsen, breiteArt = exportBreite.value, bereich = exp
   c.fillRect(0, 0, bild.width, bild.height);
   c.imageSmoothingEnabled = !Number.isInteger(spaltenBreite);
   // nur die Spalten des Bereichs: drawImage(quelle, qx, qy, qBreite, qHoehe, zx, zy, zBreite, zHoehe)
-  c.drawImage(fertigesGesamtBild(), ersteSpalte, 0, spalten, ZEILEN, links, oben, breite, ZEILEN);
+  c.drawImage(quellBild(), ersteSpalte, 0, spalten, ZEILEN, links, oben, breite, ZEILEN);
   // Sekunden -> x im Gesamtbild (ohne den Rand links), ab der ersten Spalte des Bereichs
   const zeitZuX = (t) => (zeitZuSpalte(t) - ersteSpalte) * spaltenBreite;
   const ergebnis = { bild, links, oben, breite, hoehe: ZEILEN, zeitZuX, von, bis };
@@ -116,7 +119,7 @@ export function baueExport(achsen, breiteArt = exportBreite.value, bereich = exp
   c.textAlign = "left";
   c.textBaseline = "middle";
   c.fillText(
-    `${dateiName}${ganz ? "" : ` | ${zeigeZeit(von, 0.1)} bis ${zeigeZeit(bis, 0.1)}`} | ` +
+    `${dateiName}${exportQuelle.value === "mitschrift" ? " | Mitschrift" : ""}${ganz ? "" : ` | ${zeigeZeit(von, 0.1)} bis ${zeigeZeit(bis, 0.1)}`} | ` +
       `Schwarzpunkt ${minDb.value} dB | Weißpunkt ${maxDb.value} dB | Fenster ${FENSTER}`,
     links,
     oben / 2,
@@ -214,3 +217,4 @@ bildSpeichern.addEventListener("click", async () => {
     zeigeMeldung(fehler.message);
   }
 });
+

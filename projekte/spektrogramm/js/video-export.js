@@ -55,7 +55,7 @@ videoSpeichern.addEventListener("click", async () => {
     aufnahme = await neueAufnahme(mitRahmen(rahmen, einst, mitRand), FPS, "#111111", {
       kanaele: ton.numberOfChannels,
       rate: ton.sampleRate,
-    }, einst.videoTyp);
+    }, einst.videoTyp, einst.videoQualitaet);
 
     const anzahl = Math.ceil((bis - von) * FPS); // so viele Bilder, wie der Bereich lang ist
     const rate = ton.sampleRate;
@@ -89,3 +89,4 @@ videoSpeichern.addEventListener("click", async () => {
     videoSpeichern.textContent = "Video speichern";
   }
 });
+

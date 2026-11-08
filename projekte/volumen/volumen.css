@@ -1,0 +1,46 @@
+/*
+Volumen-Viewer: nur was es nirgends sonst auf der Website gibt
+*/
+.vol-feld {
+  --format: 1.7778;
+  position: relative;
+  aspect-ratio: var(--format);
+  width: min(100%, calc(75vh * var(--format)));
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #000;
+  touch-action: none; /* ziehen dreht, nicht die Seite scrollen */
+  cursor: grab;
+}
+
+.vol-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* die drei Schnitte nebeneinander, auf dem Handy untereinander */
+.schnitte {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.schnitte figure {
+  margin: 0;
+}
+
+.schnitte canvas {
+  width: 100%;
+  height: auto;
+  border: 1px solid currentColor;
+  background: #000;
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+.vol-info {
+  font-variant-numeric: tabular-nums;
+}

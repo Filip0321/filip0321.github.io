@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Physarum - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="physarum.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Physarum</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>shader</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel physarum-feld" id="stapel">
+        <canvas id="feld" aria-label="Physarum: ziehen lockt oder vertreibt"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+
+      <details class="abschnitt" open>
+        <summary>Start</summary>
+        <div class="steuerung">
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="neu">neu</button>
+          <label>Start
+            <select data-wert="start">
+              <option value="zufall" selected>überall verstreut</option>
+              <option value="mitte">Mitte, nach außen</option>
+              <option value="scheibe">Scheibe</option>
+              <option value="ring">Ring, nach innen</option>
+            </select>
+          </label>
+          <label>Agenten (Tausend) <input type="range" data-wert="anzahl" min="20" max="4000" step="10" value="600"><output></output></label>
+          <label>Auflösung
+            <select data-wert="aufloesung">
+              <option value="512">512</option>
+              <option value="1024" selected>1024</option>
+              <option value="1536">1536</option>
+              <option value="2048">2048</option>
+            </select>
+          </label>
+          <label>Format
+            <select data-wert="format">
+              <option value="quadrat">1 : 1</option>
+              <option value="quer">16 : 9</option>
+              <option value="hoch">9 : 16</option>
+              <option value="foto">wie das Foto</option>
+            </select>
+          </label>
+          <label>Schritte pro Bild <input type="range" data-wert="tempo" min="1" max="10" step="1" value="2"><output></output></label>
+        </div>
+        <h3 class="gruppe">Pinsel (auf dem Bild ziehen)</h3>
+        <div class="steuerung">
+          <label>Pinsel
+            <select data-wert="pinselArt">
+              <option value="lockt">lockt an</option>
+              <option value="vertreibt">vertreibt</option>
+            </select>
+          </label>
+          <label>Größe (%) <input type="range" data-wert="pinselGroesse" min="0.5" max="15" step="0.5" value="3"><output></output></label>
+          <label>Stärke <input type="range" data-wert="pinselStaerke" min="1" max="50" step="1" value="10"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Verhalten</summary>
+        <div class="steuerung">
+          <button type="button" data-setze='{"sensorWinkel": 22.5, "drehWinkel": 45, "sensorAbstand": 9, "schritt": 1, "ablage": 5, "verfall": 0.1, "diffusion": 1}'>Netz (Jones)</button>
+          <button type="button" data-setze='{"sensorWinkel": 45, "drehWinkel": 15, "sensorAbstand": 20, "schritt": 1.5, "ablage": 3, "verfall": 0.05, "diffusion": 0.6}'>Zellen</button>
+          <button type="button" data-setze='{"sensorWinkel": 60, "drehWinkel": 60, "sensorAbstand": 4, "schritt": 1, "ablage": 5, "verfall": 0.2, "diffusion": 1}'>Linien</button>
+          <button type="button" data-setze='{"sensorWinkel": 10, "drehWinkel": 80, "sensorAbstand": 30, "schritt": 2, "ablage": 4, "verfall": 0.08, "diffusion": 0.8}'>Wirbel</button>
+          <label>Fühler-Winkel (°) <input type="range" data-wert="sensorWinkel" min="2" max="90" step="0.5" value="22.5"><output></output></label>
+          <label>Dreh-Winkel (°) <input type="range" data-wert="drehWinkel" min="2" max="90" step="0.5" value="45"><output></output></label>
+          <label>Fühler-Abstand (Pixel) <input type="range" data-wert="sensorAbstand" min="1" max="60" step="0.5" value="9"><output></output></label>
+          <label>Schrittweite (Pixel) <input type="range" data-wert="schritt" min="0.2" max="5" step="0.1" value="1"><output></output></label>
+          <label>Spur ablegen <input type="range" data-wert="ablage" min="0.5" max="20" step="0.5" value="5"><output></output></label>
+          <label>Verfall <input type="range" data-wert="verfall" min="0.005" max="0.4" step="0.005" value="0.1"><output></output></label>
+          <label>Verteilen <input type="range" data-wert="diffusion" min="0" max="1" step="0.05" value="1"><output></output></label>
+          <label>Rand
+            <select data-wert="rand">
+              <option value="herum">läuft herum</option>
+              <option value="abprallen">prallt ab</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Futter (Foto)</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Foto öffnen <input type="file" id="fotoDatei" accept="image/*"></label>
+          <label>lockt <input type="range" data-wert="futter" min="0" max="10" step="0.1" value="2"><output></output></label>
+          <label><input type="checkbox" data-wert="futterUmkehren"> Dunkles lockt (statt Helles)</label>
+        </div>
+        <p class="hinweis">Das Foto riecht wie Spur: helle Stellen (oder dunkle) ziehen die Agenten an, dort wachsen dichte Netze, und das Bild erscheint als Geflecht.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Aussehen</summary>
+        <div class="steuerung">
+          <label>Farben
+            <select data-wert="skala">
+              <option value="grau">Grau</option>
+              <option value="glut">Glut</option>
+              <option value="viridis">Viridis</option>
+              <option value="eis">Eis</option>
+              <option value="weiss">Schwarz auf Weiß</option>
+              <option value="eigen">zwei eigene</option>
+            </select>
+          </label>
+          <label data-nur="skala=eigen">von <input type="color" data-wert="farbe1" value="#0b0b10"></label>
+          <label data-nur="skala=eigen">bis <input type="color" data-wert="farbe2" value="#f3e3b0"></label>
+          <label>Helligkeit <input type="range" data-wert="helligkeit" min="0.001" max="0.1" step="0.001" value="0.008"><output></output></label>
+          <label>Gamma <input type="range" data-wert="gamma" min="0.3" max="3" step="0.05" value="1"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt den Schleimpilz; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Jedes Signal kann etwas bewegen: Tempo, wie weit die Fühler reichen (gröbere oder feinere Adern), wie viel Spur gelegt wird. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

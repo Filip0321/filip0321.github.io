@@ -71,19 +71,20 @@ export function zeichneSzene(c, szene, k, anteil) {
 // alle Töne der Abschnitte hintereinander zu einer Tonspur
 function hintereinander(puffer) {
   const laenge = puffer.reduce((summe, p) => summe + p.length, 0);
-  const kanaele = puffer[0].numberOfChannels;
+  // so viele Kanäle wie der breiteste (Farbe als Stereo); ein Mono-Abschnitt klingt dann auf beiden Seiten
+  const kanaele = Math.max(...puffer.map((p) => p.numberOfChannels));
   const ziel = new AudioBuffer({ length: laenge, numberOfChannels: kanaele, sampleRate: puffer[0].sampleRate });
   let pos = 0;
   for (const p of puffer) {
-    for (let kanal = 0; kanal < kanaele; kanal++) ziel.copyToChannel(p.getChannelData(kanal), kanal, pos);
+    for (let kanal = 0; kanal < kanaele; kanal++) ziel.copyToChannel(p.getChannelData(Math.min(kanal, p.numberOfChannels - 1)), kanal, pos);
     pos += p.length;
   }
   return ziel;
 }
 
 // von, bis: der Bereich aus dem Export-Fenster als Anteil (0 bis 1) der ganzen Länge
-// typ: "mp4" oder "webm"
-export async function speichereVideo(szene, { name, beiFortschritt, von = 0, bis = 1, typ = "mp4" }) {
+// typ: "mp4" oder "webm"; qualitaet: Faktor auf die Bitrate (Export-Fenster)
+export async function speichereVideo(szene, { name, beiFortschritt, von = 0, bis = 1, typ = "mp4", qualitaet = 1 }) {
   const abschnitte = szene.abschnitte;
   // rückwärts: jeder Abschnitt für sich umgedreht, die Reihenfolge der Stufen bleibt
   const ton = hintereinander(abschnitte.map((a) => (szene.rueckwaerts ? rueckwaerts(a.puffer) : a.puffer)));
@@ -103,7 +104,7 @@ export async function speichereVideo(szene, { name, beiFortschritt, von = 0, bis
   const rate = ton.sampleRate;
   let aufnahme = null; // außerhalb von try, damit catch es abbrechen kann
   try {
-    aufnahme = await neueAufnahme(rahmen, FPS, szene.rahmenFarbe, { kanaele: ton.numberOfChannels, rate }, typ);
+    aufnahme = await neueAufnahme(rahmen, FPS, szene.rahmenFarbe, { kanaele: ton.numberOfChannels, rate }, typ, qualitaet);
     // nur der Bereich: Bilder von erstes bis vor letztes, die Zeit im Video fängt beim Bereich bei 0 an
     const erstes = Math.round(von * ton.duration * FPS);
     const letztes = Math.max(erstes + 1, Math.ceil(bis * ton.duration * FPS));
@@ -144,3 +145,4 @@ export function speichereBild(szene, name, typ = "png") {
   zeichneSzene(bild.getContext("2d"), szene, szene.abschnitte.length - 1, null);
   return speichereCanvas(bild, typ, `${name}-${zeitstempel()}`); // gibt ein Promise zurück: main.js kann warten
 }
+

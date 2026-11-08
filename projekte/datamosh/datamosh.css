@@ -59,7 +59,7 @@ Datamosh: nur was es nirgends sonst auf der Website gibt
   position: sticky;
   left: 0;
   display: block;
-  touch-action: pan-x; /* am Handy: wischen scrollt, Tippen wählt */
+  touch-action: pan-y; /* am Handy: senkrecht scrollt die Seite, waagerecht ziehen gehört der Zeitleiste (Clips ziehen, auswählen, auf leerer Stelle scrollen: zeitleiste.js) */
 }
 
 .zl-breite {
