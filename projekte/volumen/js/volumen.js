@@ -123,10 +123,13 @@ void main() {
     t += ds;
   }
   vec3 f;
+  // der Grund bleibt genau die gewählte Farbe (die Helligkeitskurve am Ende gilt nur fürs Volumen; vorher wurde sie
+  // auch auf den Grund in der Box angewendet, dann war die Box auf dunkelgrauem Grund als heller Kasten zu sehen)
   if (art == 0) {
-    f = c + (1.0 - a) * grund;
+    farbe = vec4(pow(c, vec3(1.0 / 1.8)) + (1.0 - a) * grund, 1.0);
+    return;
   } else if (art == 1) {
-    if (!getroffen) { f = grund; }
+    if (!getroffen) { farbe = vec4(grund, 1.0); return; }
     else {
       vec3 n = -normalize(gefaelle(treffer) + 1e-6);
       float diffus = max(dot(n, -r), 0.0);
@@ -216,10 +219,12 @@ export function erstelleVolumen(canvas) {
   }
 
   // v: von laden.js; die Werte in Stücken umwandeln, damit nicht noch einmal das ganze Volumen als Kopie entsteht
+  let fremd = false; // volT gehört der Simulation (sim3d.js): nicht löschen
   function setze(vol) {
     v = vol;
     // texStorage3D legt die Größe fest und lässt sich nicht noch einmal aufrufen: für jedes Volumen eine neue Textur
-    gl.deleteTexture(volT);
+    if (!fremd) gl.deleteTexture(volT);
+    fremd = false;
     volT = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, volT);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -282,5 +287,13 @@ export function erstelleVolumen(canvas) {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  return { setze, setzeTf, setzeMaske, zeige };
+  // eine 3D-Textur, die schon auf der Grafikkarte liegt (die Simulation), statt Werten von der CPU; Wert in .r
+  function setzeFremd(textur, vol) {
+    if (!fremd) gl.deleteTexture(volT);
+    fremd = true;
+    volT = textur;
+    v = vol;
+  }
+
+  return { gl, setze, setzeFremd, setzeTf, setzeMaske, zeige };
 }
