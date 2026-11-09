@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klangraum - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="klangraum.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Klangraum</h1>
+      <ul class="tags">
+        <li>werkzeuge</li>
+        <li>ton</li>
+        <li>simulation</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel klang-feld">
+        <canvas id="feld" width="480" height="360" aria-label="Wege der Schallstrahlen im Raum"></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="klang-status"><span id="status"></span> <span id="position"></span></p>
+
+      <details class="abschnitt" open>
+        <summary>Klang</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Datei öffnen <input type="file" id="datei" accept="audio/*"></label>
+          <button type="button" id="mikro">Mikrofon aufnehmen</button>
+          <button type="button" id="beispiel">Beispiel (Saiten)</button>
+          <span id="quelleInfo"></span>
+        </div>
+        <p class="hinweis">Jede Tonaufnahme, auch eine WAV aus dem Stimmensynthesizer. Ohne Klang nimmt „berechnen“ das Beispiel.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Dehnen (Paulstretch)</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="dehnen"> dehnen</label>
+          <label data-nur="dehnen=true">Faktor <input type="range" data-wert="faktor" min="1" max="100" step="0.5" value="8"><output></output></label>
+          <label data-nur="dehnen=true">Fenster (s) <input type="range" data-wert="fenster" min="0.05" max="2.5" step="0.05" value="0.5"><output></output></label>
+        </div>
+        <p class="hinweis">Aus einer Sekunde werden „Faktor“ Sekunden, ohne dass es tiefer wird. Großes Fenster: flächig, alles Rhythmische verschwimmt; kleines: es bleibt mehr vom Anschlag, dafür körniger.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Raum</summary>
+        <div class="steuerung">
+          <label>Raum
+            <select data-wert="raum">
+              <option value="5,3,4">Dodekaeder, 4 um jede Kante (hyperbolisch)</option>
+              <option value="4,3,5">Würfel, 5 um jede Kante (hyperbolisch)</option>
+              <option value="5,3,5">Dodekaeder, 5 um jede Kante (hyperbolisch)</option>
+              <option value="4,3,4">Würfel, flach (zum Vergleich)</option>
+              <option value="aus">kein Hall</option>
+            </select>
+          </label>
+          <label>Größe (Innenradius, m) <input type="range" data-wert="groesse" min="1" max="40" step="0.5" value="6"><output></output></label>
+          <label>Dämpfung der Wände <input type="range" data-wert="daempfung" min="0.1" max="4" step="0.05" value="1"><output></output></label>
+          <label>durchlässig <input type="range" data-wert="durchlaessig" min="0" max="0.95" step="0.01" value="0"><output></output></label>
+          <label>Länge des Halls (s) <input type="range" data-wert="dauer" min="0.5" max="12" step="0.5" value="4"><output></output></label>
+          <label>Strahlen
+            <select data-wert="strahlen">
+              <option value="3000">3000 (schnell)</option>
+              <option value="10000" selected>10 000</option>
+              <option value="40000">40 000 (glatt, langsam)</option>
+            </select>
+          </label>
+          <label>trocken ↔ Hall <input type="range" data-wert="mischung" min="0" max="1" step="0.01" value="0.5"><output></output></label>
+        </div>
+        <p class="hinweis">„durchlässig“ öffnet die Wände: ein Teil der Strahlen geht in die Nachbarzelle weiter. Im flachen Gitter irren sie umher und kommen immer wieder vorbei, im hyperbolischen verschwinden sie ins Unendliche – der Hall wird dort viel kürzer. Die Kurven unten zeigen es.</p>
+        <canvas class="klang-kurve" id="kurve" width="600" height="240" aria-label="Abklingkurven"></canvas>
+        <p class="hinweis" id="t60"></p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ergebnis</summary>
+        <div class="steuerung">
+          <button type="button" id="los">berechnen und abspielen</button>
+          <button type="button" id="halt">anhalten</button>
+          <button type="button" id="speichern">als WAV speichern</button>
+          <label>Bild
+            <select data-wert="aufloesung">
+              <option value="320">320 × 240</option>
+              <option value="480" selected>480 × 360</option>
+              <option value="960">960 × 720</option>
+            </select>
+          </label>
+        </div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

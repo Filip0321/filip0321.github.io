@@ -1,25 +1,42 @@
 // Drei Schnittansichten wie in jedem Programm für CT und MRT: axial (von oben, z fest), koronal (von vorn, y fest),
 // sagittal (von der Seite, x fest). Gezeichnet auf der CPU aus den Werten, mit demselben Fenster als Graustufen
 // („Fensterung“: von → schwarz, bis → weiß). Ein Klick in eine Ansicht setzt die beiden anderen Schnitte.
+// Mit dem Pinsel (werkzeug() nicht „zeigen“) malt man stattdessen in die Maske: beiPinsel(stelle, achse).
+// Ausgeblendetes ist in den Schnitten dunkel und rötlich, damit man sieht, was fehlt.
 
-export function richteSchnitteEin(canvasse, beiKlick) {
+import { sichtbar } from "./maske.js";
+
+export function richteSchnitteEin(canvasse, beiKlick, beiPinsel, werkzeug) {
   const ansichten = [
     { c: canvasse.axial, achse: 2, h: 0, v: 1 },     // waagerecht x, senkrecht y
     { c: canvasse.koronal, achse: 1, h: 0, v: 2 },   // x, z
     { c: canvasse.sagittal, achse: 0, h: 1, v: 2 },  // y, z
   ];
   let vol = null;
+  let maske = null;
   let stelle = [0.5, 0.5, 0.5];
 
   for (const a of ansichten) {
-    a.c.addEventListener("pointerdown", (event) => {
-      if (!vol) return;
+    let malt = false;
+    const wo = (event) => {
       const r = a.c.getBoundingClientRect();
       const neu = [...stelle];
-      neu[a.h] = (event.clientX - r.left) / r.width;
-      neu[a.v] = a.v === 2 ? 1 - (event.clientY - r.top) / r.height : (event.clientY - r.top) / r.height;
-      beiKlick(neu);
+      neu[a.h] = Math.min(1, Math.max(0, (event.clientX - r.left) / r.width));
+      const y = Math.min(1, Math.max(0, (event.clientY - r.top) / r.height));
+      neu[a.v] = a.v === 2 ? 1 - y : y;
+      return neu;
+    };
+    a.c.addEventListener("pointerdown", (event) => {
+      if (!vol) return;
+      if (werkzeug() === "zeigen") return beiKlick(wo(event));
+      malt = true;
+      a.c.setPointerCapture(event.pointerId);
+      beiPinsel(wo(event), a.achse, "anfang");
     });
+    a.c.addEventListener("pointermove", (event) => {
+      if (malt) beiPinsel(wo(event), a.achse, "weiter");
+    });
+    for (const art of ["pointerup", "pointercancel"]) a.c.addEventListener(art, () => (malt = false));
   }
 
   // fenster: [von, bis]; s: [x, y, z] von 0 bis 1
@@ -51,7 +68,10 @@ export function richteSchnitteEin(canvasse, beiKlick) {
           const w = vol.werte[k[0] + k[1] * vol.b + k[2] * vol.b * vol.h];
           const g = Math.max(0, Math.min(255, (w - fenster[0]) * skal));
           const p = (i + j * bw) * 4;
-          d[p] = d[p + 1] = d[p + 2] = g;
+          if (maske && !sichtbar(maske, k[0] / vol.b, k[1] / vol.h, k[2] / vol.t)) {
+            d[p] = 50 + g * 0.3; // ausgeblendet: dunkel, rötlich
+            d[p + 1] = d[p + 2] = g * 0.2;
+          } else d[p] = d[p + 1] = d[p + 2] = g;
           d[p + 3] = 255;
         }
       }
@@ -69,5 +89,5 @@ export function richteSchnitteEin(canvasse, beiKlick) {
       ctx.fillRect(0, y - dickeV / 2, bw, dickeV);
     }
   }
-  return { setze: (v) => (vol = v), zeichne };
+  return { setze: (v) => (vol = v), setzeMaske: (m) => (maske = m), zeichne };
 }
