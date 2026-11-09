@@ -11,6 +11,7 @@ import { richteReglerEin } from "/lib/regler.js";
 
 const RATE = 48000;
 const canvas = hole("feld");
+const stapel = canvas.closest(".feld-stapel");
 const ctx = canvas.getContext("2d");
 const kurve = hole("kurve");
 const status = hole("status");
@@ -276,8 +277,9 @@ function zeigeKurven() {
 // Poincaré-Kugel: der ganze unendliche Raum in einer Kugel, ihr Rand ist „unendlich weit weg“.
 function zeichne(t) {
   const W = Number(e.aufloesung);
-  const H = Math.round(W * 0.75);
-  if (canvas.width !== W) {
+  const ratio = stapel.clientWidth / Math.max(1, stapel.clientHeight);
+  const H = Math.max(1, Math.round(W / ratio));
+  if (canvas.width !== W || canvas.height !== H) {
     canvas.width = W;
     canvas.height = H;
   }

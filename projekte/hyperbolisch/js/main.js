@@ -220,7 +220,11 @@ function groesse() {
   }
 }
 function stelleFormat() {
-  stapel.style.setProperty("--format", { quer: 16 / 9, hoch: 9 / 16, quadrat: 1 }[e.format] ?? 16 / 9);
+  const alt = { quer: 16 / 9, quadrat: 1, hoch: 9 / 16 }[e.format];
+  const [b, h] = (e.format ?? "16:9").split(":").map(Number);
+  const ratio = alt ?? (b > 0 && h > 0 ? b / h : 16 / 9);
+  stapel.style.setProperty("--format", ratio);
+  stapel.style.setProperty("--verhaeltnis", ratio);
 }
 document.querySelector('[data-wert="format"]').addEventListener("input", stelleFormat);
 

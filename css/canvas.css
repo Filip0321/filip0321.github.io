@@ -193,3 +193,17 @@ HTML dazu:
     justify-content: flex-start;
   }
 }
+
+/* Gemeinsame Formatwahl für Visualisierungen ohne eigenes Format-Menü. */
+.feld-stapel.format-einstellbar {
+  aspect-ratio: var(--format);
+}
+.werkbank .feld-stapel.format-einstellbar {
+  width: min(100%, calc(80vh * var(--verhaeltnis)));
+}
+@media (orientation: landscape) and (min-width: 40rem) {
+  .werkbank .feld-stapel.format-einstellbar {
+    width: min(100%, calc((100vh - 4rem) * var(--verhaeltnis)));
+    width: min(100%, calc((100dvh - 4rem) * var(--verhaeltnis)));
+  }
+}

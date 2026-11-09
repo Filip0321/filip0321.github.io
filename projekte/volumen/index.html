@@ -34,7 +34,7 @@
 
     <div class="feld-rahmen">
       <div class="feld-stapel vol-feld" id="stapel">
-        <canvas id="feld" aria-label="Volumen: ziehen dreht, Mausrad zoomt"></canvas>
+        <canvas id="feld" aria-label="Volumen: ziehen dreht, Umschalt-Ziehen verschiebt, Alt-Ziehen und Mausrad zoomen"></canvas>
         <canvas id="effekte" class="schicht" hidden></canvas>
         <svg id="lasso" class="vol-lasso" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
       </div>
@@ -198,6 +198,7 @@
           <button type="button" data-ansicht="hinten">hinten</button>
           <button type="button" data-ansicht="oben">oben</button>
           <button type="button" data-ansicht="unten">unten</button>
+          <button type="button" id="kameraZuruecksetzen">Kamera zurücksetzen</button>
         </div>
         <div class="steuerung">
           <span>Volumen drehen</span>
@@ -216,13 +217,17 @@
           <label>Bildauflösung <input type="range" data-wert="bildAufloesung" min="0.25" max="1" step="0.05" value="0.75"><output></output></label>
           <label>Format
             <select data-wert="format">
-              <option value="quer">16 : 9</option>
-              <option value="quadrat">1 : 1</option>
-              <option value="hoch">9 : 16</option>
+              <option value="16:9">16 : 9</option>
+              <option value="4:3">4 : 3</option>
+              <option value="1:1">1 : 1</option>
+              <option value="4:5">4 : 5</option>
+              <option value="9:16">9 : 16</option>
+              <option value="3:2">3 : 2</option>
+              <option value="21:9">21 : 9</option>
             </select>
           </label>
         </div>
-        <p class="hinweis">Ziehen dreht, das Mausrad zoomt. CT steht am Anfang aufrecht (Kopf oben, Gesicht zu dir); liegt ein Scan anders, mit „90° um …“ drehen, bis es passt. „wie in der Datei“: ohne jede Drehung, so wie die Achsen gespeichert sind.</p>
+        <p class="hinweis">Ziehen dreht; Umschalt + Ziehen verschiebt; Alt + Ziehen oder das Mausrad zoomt. Mit zwei Fingern kannst du gleichzeitig verschieben und zoomen. „Kamera zurücksetzen“ stellt den Blick wieder her. CT steht am Anfang aufrecht (Kopf oben, Gesicht zu dir); liegt ein Scan anders, mit „90° um …“ drehen, bis es passt. „wie in der Datei“: ohne jede Drehung, so wie die Achsen gespeichert sind.</p>
       </details>
 
       <details class="abschnitt">

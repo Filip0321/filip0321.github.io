@@ -66,6 +66,7 @@
           <label>Format
             <select data-wert="format">
               <option value="16:9" selected>16:9</option>
+              <option value="4:3">4:3</option>
               <option value="1:1">1:1 (quadratisch)</option>
               <option value="4:5">4:5</option>
               <option value="9:16">9:16 (hochkant)</option>
@@ -73,6 +74,7 @@
               <option value="21:9">21:9</option>
             </select>
           </label>
+          <button type="button" id="ansichtZurueck">Ansicht zurücksetzen</button>
           <!-- über 1: mehr Pixel als der Bildschirm (Supersampling, schärfer, langsamer) -->
           <label>Auflösung
             <input type="range" data-wert="aufloesung" min="0.25" max="2" step="0.05" value="0.75">
@@ -364,4 +366,3 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
-

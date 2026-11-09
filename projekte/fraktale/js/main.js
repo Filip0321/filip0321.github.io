@@ -164,16 +164,48 @@ const { einstellung, setze } = richteReglerEin({
       // Phoenix klingt nur bei wenigen c gut; das klassische (Ushiki): c = 0,5667, p = −0,5
       if (a === "phoenix") [["juliaRe", 0.5667], ["juliaIm", 0], ["phoenixP", -0.5]].forEach(([n, w]) => setze(n, w));
       if (a === "julia") [["juliaRe", -0.8], ["juliaIm", 0.156]].forEach(([n, w]) => setze(n, w));
-      Object.assign(ansicht2, { mitte: [a === "mandelbrot" ? -0.6 : a === "schiff" ? -0.4 : 0, a === "schiff" ? -0.5 : 0], massstab: a === "phoenix" ? 2.2 : 2.6 });
+      setzeStartAnsicht2();
     },
   },
 });
 
+// Startansicht der 2D-Fraktale: dieselben Werte wie beim Wechsel der Fraktal-Art.
+function setzeStartAnsicht2() {
+  const a = einstellung.art;
+  Object.assign(ansicht2, {
+    mitte: [a === "mandelbrot" ? -0.6 : a === "schiff" ? -0.4 : 0, a === "schiff" ? -0.5 : 0],
+    massstab: a === "phoenix" ? 2.2 : 2.6,
+  });
+}
+
+function setzeAnsichtZurueck() {
+  gedrueckt.clear();
+  ziehen = null;
+  finger.clear();
+  zange = null;
+  lampeAnKamera = false;
+  lampe = { gier: 0, nick: 0 };
+  maus = [0, 0];
+  if (einstellung.dimension === "2d") {
+    setzeStartAnsicht2();
+  } else {
+    kam = startKamera(einstellung.welt);
+    sicht = { ...kam, pos: [...kam.pos] };
+    schrittPhase = 0;
+    geht = 0;
+    rennt = 0;
+  }
+}
+hole("ansichtZurueck").addEventListener("click", setzeAnsichtZurueck);
+
 // Format des Bildes: frei (16:9 wie bisher) oder fest, z. B. quadratisch. Das Feld bekommt das
 // Seitenverhältnis als CSS-Variable; höher als 80 % des Fensters wird es nicht (9:16 am Rechner)
 function stelleFormat() {
+  const alt = { quer: 16 / 9, quadrat: 1, hoch: 9 / 16 }[einstellung.format];
   const [x, y] = (einstellung.format ?? "16:9").split(":").map(Number);
-  stapel.style.setProperty("--format", String(x / y));
+  const ratio = alt ?? (x > 0 && y > 0 ? x / y : 16 / 9);
+  stapel.style.setProperty("--format", String(ratio));
+  stapel.style.setProperty("--verhaeltnis", String(ratio));
 }
 
 // eine Farbskala oder eigene Farben (dunkel, Mitte, hell), wie bei den Attraktoren

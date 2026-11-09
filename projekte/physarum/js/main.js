@@ -67,7 +67,7 @@ function tabelle() {
 }
 
 // ---------- Anfang ----------
-const FORMATE = { quadrat: 1, quer: 16 / 9, hoch: 9 / 16 };
+const FORMATE = { quadrat: 1, "1:1": 1, quer: 16 / 9, "16:9": 16 / 9, "4:3": 4 / 3, "4:5": 4 / 5, hoch: 9 / 16, "9:16": 9 / 16, "3:2": 3 / 2, "21:9": 21 / 9 };
 let b = 0;
 let h = 0;
 function neu() {
@@ -76,6 +76,7 @@ function neu() {
   b = Math.round(seiten >= 1 ? lang : lang * seiten);
   h = Math.round(seiten >= 1 ? lang / seiten : lang);
   stapel.style.setProperty("--format", b / h);
+  stapel.style.setProperty("--verhaeltnis", b / h);
   const n = Math.round(e.anzahl * 1000);
   const start = new Float32Array(n * 4);
   zs = saat;

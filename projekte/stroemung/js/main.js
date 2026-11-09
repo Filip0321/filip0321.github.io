@@ -36,7 +36,7 @@ const { einstellung: e } = richteReglerEin({
 });
 
 // ---------- Größe ----------
-const FORMATE = { quadrat: 1, quer: 16 / 9, hoch: 9 / 16 };
+const FORMATE = { quadrat: 1, "1:1": 1, quer: 16 / 9, "16:9": 16 / 9, "4:3": 4 / 3, "4:5": 4 / 5, hoch: 9 / 16, "9:16": 9 / 16, "3:2": 3 / 2, "21:9": 21 / 9 };
 function neu() {
   const seiten = e.format === "foto" && foto ? foto.width / foto.height : FORMATE[e.format] ?? 1;
   // Gitter: Zellen auf der kürzeren Seite; Bild: Pixel auf der längeren
@@ -47,6 +47,7 @@ function neu() {
   const tb = Math.round(seiten >= 1 ? lang : lang * seiten);
   const th = Math.round(seiten >= 1 ? lang / seiten : lang);
   stapel.style.setProperty("--format", tb / th);
+  stapel.style.setProperty("--verhaeltnis", tb / th);
   fluid.neu(gb, gh, tb, th, e.rand === "herum");
   zeit = 0;
 }
