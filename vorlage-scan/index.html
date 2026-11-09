@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NAME - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/projekte/volumen/volumen.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>NAME</h1>
+      <ul class="tags">
+        <li>bild</li>
+        <li>shader</li>
+      </ul>
+    </header>
+    <!-- Bild und Bedienung kommen aus dem Volumen-Viewer (/projekte/volumen/js/vorlage.js) -->
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script type="module">
+    import { baueSeite } from "/projekte/volumen/js/vorlage.js";
+    baueSeite({
+      daten: ["/projekte/ORDNER/scan.nrrd"], // oder NHDR und seine Datendatei, oder alle DICOM-Dateien einer Serie
+      verstecke: ["daten"],
+      einstellungen: { gewebe: "knochen", art: "volumen", drehen: true },
+    });
+  </script>
+</body>
+</html>

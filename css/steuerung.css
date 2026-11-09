@@ -660,3 +660,20 @@ button.fader {
   outline: 2px solid currentColor;
   outline-offset: 1px;
 }
+
+/* eigener Text in einem Effekt (Zeitungspapier): über die ganze Breite, unter der Beschriftung */
+.steuerung label.text-eingabe {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.steuerung textarea {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.5rem;
+  resize: vertical;
+}

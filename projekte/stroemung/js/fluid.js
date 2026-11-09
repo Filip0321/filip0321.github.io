@@ -158,6 +158,9 @@ void main() { farbe = texture(quelle, uv) * faktor; }`;
 //   Die Gewichte entlang der Linie sind eine wandernde Welle (Forssell 1995): so fließen die Striche sichtbar.
 //   Der Schritt entlang der Linie: Mittelpunktsregel (erst einen halben Schritt, dort die Richtung neu messen).
 //   (2: Linien allein, 3: Linien in der Tinte, 4: Linien mit der Richtung als Farbe)
+// 5: Schlieren (Toepler 1864): wo sich die Menge der Tinte (hier: die Dichte) ändert, wird Licht abgelenkt; eine
+//   Messerschneide fängt die Ablenkung zur einen Seite ab (dunkel), zur anderen nicht (hell), ohne Ablenkung grau.
+//   Farbig: die Richtung der Ablenkung wählt die Farbe; Dunkelfeld: nur abgelenktes Licht kommt durch.
 const ANZEIGE = `${KOPF}
 uniform sampler2D tinte;
 uniform sampler2D geschw;
@@ -166,6 +169,7 @@ uniform float art;
 uniform float staerke;
 uniform vec2 bildGroesse;
 uniform float laenge, koernung, zeit;
+uniform float schlierenArt, schlierenStaerke, messerWinkel;
 vec3 farbton(float h) {
   return clamp(abs(fract(h + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
 }
@@ -202,6 +206,17 @@ void main() {
     return;
   }
   vec4 t = texture(tinte, uv);
+  if (art > 4.5) {
+    vec2 e = 1.0 / bildGroesse;
+    vec2 d = vec2(texture(tinte, uv + vec2(e.x, 0.0)).a - texture(tinte, uv - vec2(e.x, 0.0)).a,
+                  texture(tinte, uv + vec2(0.0, e.y)).a - texture(tinte, uv - vec2(0.0, e.y)).a) * schlierenStaerke * 4.0;
+    vec3 s;
+    if (schlierenArt < 0.5) s = vec3(clamp(0.5 + dot(d, vec2(cos(messerWinkel), sin(messerWinkel))), 0.0, 1.0));
+    else if (schlierenArt < 1.5) s = mix(vec3(0.5), farbton(atan(d.y, d.x) / 6.2831853 + 0.5), clamp(length(d) * 2.0, 0.0, 1.0));
+    else s = vec3(clamp(length(d), 0.0, 1.0));
+    farbe = vec4(s, 1.0);
+    return;
+  }
   // Menge a deckt den Grund ab (1 − e^(−a), sanft gegen 1), die Farbe ist rgb / a
   float deckt = 1.0 - exp(-max(t.a, 0.0) * staerke);
   vec3 f = clamp(t.rgb / max(t.a, 1e-4), 0.0, 1.0);
@@ -359,7 +374,10 @@ export async function erstelleFluid(canvas) {
   function zeige(a) {
     gl.useProgram(P.anzeige.p);
     gl.uniform2f(P.anzeige.orte.bildGroesse, tb, th);
-    lauf(P.anzeige, null, { tinte: tinte[0], geschw: geschw[0] }, { grund: a.grund, art: a.art, staerke: a.staerke, laenge: a.laenge ?? 20, koernung: a.koernung ?? 1, zeit: a.zeit ?? 0 });
+    lauf(P.anzeige, null, { tinte: tinte[0], geschw: geschw[0] }, {
+      grund: a.grund, art: a.art, staerke: a.staerke, laenge: a.laenge ?? 20, koernung: a.koernung ?? 1, zeit: a.zeit ?? 0,
+      schlierenArt: a.schlierenArt ?? 0, schlierenStaerke: a.schlierenStaerke ?? 1, messerWinkel: ((a.messerWinkel ?? 0) * Math.PI) / 180,
+    });
   }
 
   // ein Bild als Tinte (füllend), z. B. ein Foto, das dann zerfließt

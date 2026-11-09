@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rayleigh-Taylor - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="/projekte/volumen/volumen.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Rayleigh-Taylor</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>shader</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel vol-feld" id="stapel">
+        <canvas id="feld" aria-label="Volumen: ziehen dreht, Mausrad zoomt"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+        <svg id="lasso" class="vol-lasso" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="hinweis vol-info" id="info"></p>
+
+      <details class="abschnitt" open>
+        <summary>Simulation</summary>
+        <div class="steuerung">
+          <label>Versuch
+            <select data-wert="simArt">
+              <option value="rt">Rayleigh-Taylor (schwer über leicht)</option>
+              <option value="wolken">Wolkentank (Milch in Salzwasser)</option>
+              <option value="tropfen">Tropfen Tinte</option>
+            </select>
+          </label>
+          <label>Gitter
+            <select data-wert="simGitter">
+              <option value="48">48³ (schwache Geräte)</option>
+              <option value="64" selected>64³</option>
+              <option value="96">96³</option>
+              <option value="128">128³ (starke Grafikkarte)</option>
+            </select>
+          </label>
+          <button type="button" id="simStart">starten (neu)</button>
+          <label><input type="checkbox" data-wert="simPause"> anhalten</label>
+          <label>Tempo <input type="range" data-wert="simTempo" min="0" max="3" step="0.05" value="1"><output></output></label>
+          <label>Schwere <input type="range" data-wert="simSchwere" min="5" max="300" step="1" value="60"><output></output></label>
+          <label data-nur="simArt=rt">Unruhe der Grenze <input type="range" data-wert="simUnruhe" min="0" max="4" step="0.05" value="1"><output></output></label>
+          <label data-nur="simArt=wolken">Salz <input type="range" data-wert="simSalz" min="0" max="400" step="1" value="150"><output></output></label>
+          <label data-nur="simArt=wolken">Höhe der Salzschicht <input type="range" data-wert="simSchicht" min="0.15" max="0.8" step="0.01" value="0.4"><output></output></label>
+          <label data-nur="simArt=wolken">Zufluss Milch <input type="range" data-wert="simDuese" min="0" max="3" step="0.05" value="1"><output></output></label>
+          <label data-nur="simArt=wolken">Strahl <input type="range" data-wert="simStrahl" min="0" max="300" step="1" value="60"><output></output></label>
+          <label>Druck-Schritte <input type="range" data-wert="simJacobi" min="6" max="40" step="1" value="20"><output></output></label>
+          <label>von vorn nach (s, 0 = nie) <input type="range" data-wert="simNeuNach" min="0" max="60" step="1" value="14"><output></output></label>
+        </div>
+        <p class="hinweis">Rayleigh-Taylor: Schweres liegt über Leichtem, die Grenze wird instabil, es fällt in Fingern und Pilzen. Wolkentank: wie im Film vor dem Computer, unten Salzwasser, oben Süßwasser, von oben fließt Milch hinein. Sie sinkt bis zur Salzschicht, bleibt dort liegen und quillt zu Wolkenbänken (auf dem Kopf gefilmt: Gewitterwolken). Tropfen: Tinte fällt ins Wasser und rollt sich zu Wirbelringen ein. Alles läuft auf der Grafikkarte und wird so gezeigt wie die CT-Scans im <a href="/projekte/volumen/">Volumen-Viewer</a>: Schnitte, Schere, Aufbau, Schlieren, Effekte, Video. Ein anderer Versuch oder ein anderes Gitter startet gleich neu.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Darstellung</summary>
+        <div class="steuerung">
+          <label>Art
+            <select data-wert="art">
+              <option value="volumen">Volumen (durchscheinend)</option>
+              <option value="oberflaeche">Oberfläche (eine Schwelle)</option>
+              <option value="mip">MIP (hellster Punkt)</option>
+              <option value="roentgen">Röntgen (Schwächung summiert)</option>
+              <option value="schlieren">Schlieren (wie Toepler)</option>
+            </select>
+          </label>
+          <label data-nur="art=schlieren">Schlieren
+            <select data-wert="schlierenArt">
+              <option value="0">Messerschneide (grau)</option>
+              <option value="1">farbig</option>
+              <option value="2">Dunkelfeld</option>
+            </select>
+          </label>
+          <label data-nur="art=schlieren">Stärke <input type="range" data-wert="schlierenStaerke" min="0.05" max="10" step="0.05" value="1.5"><output></output></label>
+          <label data-nur="art=schlieren">Messer (°) <input type="range" data-wert="messerWinkel" min="0" max="180" step="1" value="0"><output></output></label>
+          <label data-nur="art=oberflaeche">Schwelle <input type="range" data-wert="schwelle" min="-1000" max="3000" step="1" value="300"><output></output></label>
+          <label data-nur="art=oberflaeche">Farbe <input type="color" data-wert="oberFarbe" value="#e9dcc4"></label>
+          <label>Dichte <input type="range" data-wert="dichte" min="0.05" max="4" step="0.05" value="1"><output></output></label>
+          <label data-nur="art=volumen">Licht <input type="range" data-wert="licht" min="0" max="1" step="0.05" value="0.8"><output></output></label>
+          <label>Schrittweite (Voxel) <input type="range" data-wert="schritt" min="0.25" max="3" step="0.05" value="0.7"><output></output></label>
+        </div>
+        <h3 class="gruppe">Farben</h3>
+        <div class="steuerung">
+          <label>von <input type="range" data-wert="von" min="-1000" max="3000" step="1" value="-200"><output></output></label>
+          <label>bis <input type="range" data-wert="bis" min="-1000" max="3000" step="1" value="1200"><output></output></label>
+          <label>Farben
+            <select data-wert="skala">
+              <option value="glut">Glut</option>
+              <option value="grau">Grau</option>
+              <option value="eis">Eis</option>
+              <option value="viridis">Viridis</option>
+            </select>
+          </label>
+          <label>Deckkraft <input type="range" data-wert="deckkraft" min="0.01" max="1" step="0.01" value="0.5"><output></output></label>
+          <label>Kurve <input type="range" data-wert="gamma" min="0.3" max="6" step="0.1" value="2"><output></output></label>
+        </div>
+        <p class="hinweis">Die Werte gehen von 0 (klares Wasser) bis 1 (ganz schwerer Stoff, Milch, Tinte). „von“ und „bis“ sind das Fenster, auch für die Schnitte; „Kurve“ macht dünne Schleier schwächer oder stärker.</p>
+      </details>
+
+      <details class="abschnitt" open id="schnitteAbschnitt">
+        <summary>Schnitte</summary>
+        <div class="steuerung">
+          <label>x (sagittal) <input type="range" data-wert="schnittX" min="0" max="1" step="0.002" value="0.5"><output></output></label>
+          <label>y (koronal) <input type="range" data-wert="schnittY" min="0" max="1" step="0.002" value="0.5"><output></output></label>
+          <label>z (axial) <input type="range" data-wert="schnittZ" min="0" max="1" step="0.002" value="0.5"><output></output></label>
+        </div>
+        <div class="schnitte">
+          <figure><canvas id="axial" width="1" height="1"></canvas><figcaption>axial</figcaption></figure>
+          <figure><canvas id="koronal" width="1" height="1"></canvas><figcaption>koronal</figcaption></figure>
+          <figure><canvas id="sagittal" width="1" height="1"></canvas><figcaption>sagittal</figcaption></figure>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ausblenden</summary>
+        <div class="steuerung">
+          <label>Ziehen im Bild
+            <select data-wert="ziehen">
+              <option value="drehen">dreht</option>
+              <option value="schereInnen">Schere: was im Umriss liegt, weg</option>
+              <option value="schereAussen">Schere: nur das im Umriss behalten</option>
+            </select>
+          </label>
+          <label>In den Schnitten
+            <select data-wert="werkzeug">
+              <option value="zeigen">Klick setzt die Schnitte</option>
+              <option value="radieren">Pinsel: ausblenden</option>
+              <option value="zurueckholen">Pinsel: zurückholen</option>
+              <option value="stueckBehalten">Klick: nur dieses Stück behalten</option>
+              <option value="stueckWeg">Klick: dieses Stück ausblenden</option>
+            </select>
+          </label>
+          <label data-nur="werkzeug=stueckBehalten,stueckWeg">Grenze <input type="range" data-wert="grenze" min="-1000" max="3000" step="1" value="200"><output></output></label>
+          <label data-nur="werkzeug=radieren,zurueckholen">Pinsel <input type="range" data-wert="pinsel" min="0.005" max="0.2" step="0.005" value="0.03"><output></output></label>
+          <label data-nur="werkzeug=radieren,zurueckholen"><input type="checkbox" data-wert="durchAlle"> durch alle Schichten</label>
+          <button type="button" id="rueckgaengig">rückgängig</button>
+          <button type="button" id="allesZeigen">alles wieder zeigen</button>
+        </div>
+        <p class="hinweis">Die Schere schneidet durch die ganze Tiefe, so wie man gerade schaut. Der Pinsel malt in einem Schnitt eine Kugel weg. „Stück“: ein Klick in einen Schnitt nimmt alles, was dort über der Grenze liegt und damit zusammenhängt (z. B. einen einzelnen Pilz), und behält nur das oder blendet es aus. Die Simulation rechnet unter der Maske weiter.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Ausschneiden und Aufbau</summary>
+        <div class="steuerung">
+          <label>x von <input type="range" data-wert="xVon" min="0" max="1" step="0.005" value="0"><output></output></label>
+          <label>x bis <input type="range" data-wert="xBis" min="0" max="1" step="0.005" value="1"><output></output></label>
+          <label>y von <input type="range" data-wert="yVon" min="0" max="1" step="0.005" value="0"><output></output></label>
+          <label>y bis <input type="range" data-wert="yBis" min="0" max="1" step="0.005" value="1"><output></output></label>
+          <label>z von <input type="range" data-wert="zVon" min="0" max="1" step="0.005" value="0"><output></output></label>
+          <label>z bis <input type="range" data-wert="zBis" min="0" max="1" step="0.005" value="1"><output></output></label>
+          <label><input type="checkbox" data-wert="aufbauen"> Schicht für Schicht aufbauen</label>
+          <label data-nur="aufbauen=true">Richtung
+            <select data-wert="aufbauRichtung">
+              <option value="y+">von unten nach oben</option>
+              <option value="y-">von oben nach unten</option>
+              <option value="x+">von links nach rechts</option>
+              <option value="x-">von rechts nach links</option>
+              <option value="z+">von hinten nach vorn</option>
+              <option value="z-">von vorn nach hinten</option>
+            </select>
+          </label>
+          <label data-nur="aufbauen=true">Dauer (s) <input type="range" data-wert="aufbauDauer" min="1" max="30" step="0.5" value="6"><output></output></label>
+          <label data-nur="aufbauen=true"><input type="checkbox" data-wert="aufbauSchleife"> immer wieder</label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Kamera und Bild</summary>
+        <div class="steuerung">
+          <span>Ansicht von</span>
+          <button type="button" data-ansicht="vorn">vorn</button>
+          <button type="button" data-ansicht="links">links</button>
+          <button type="button" data-ansicht="rechts">rechts</button>
+          <button type="button" data-ansicht="hinten">hinten</button>
+          <button type="button" data-ansicht="oben">oben</button>
+          <button type="button" data-ansicht="unten">unten</button>
+        </div>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="drehen"> dreht sich</label>
+          <label data-nur="drehen=true">Tempo <input type="range" data-wert="drehTempo" min="-1.5" max="1.5" step="0.01" value="0.3"><output></output></label>
+          <label>Abstand <input type="range" data-wert="abstand" min="0.6" max="5" step="0.01" value="1.8"><output></output></label>
+          <label>Hintergrund <input type="color" data-wert="grund" value="#000000"></label>
+          <label>Bildauflösung <input type="range" data-wert="bildAufloesung" min="0.25" max="1" step="0.05" value="0.75"><output></output></label>
+          <label>Format
+            <select data-wert="format">
+              <option value="quer">16 : 9</option>
+              <option value="quadrat">1 : 1</option>
+              <option value="hoch">9 : 16</option>
+            </select>
+          </label>
+        </div>
+        <p class="hinweis">Ziehen dreht, das Mausrad zoomt.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

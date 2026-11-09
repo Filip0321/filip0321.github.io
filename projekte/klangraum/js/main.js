@@ -267,7 +267,8 @@ function zeigeKurven() {
   const s = (x) => (x ? `${x.toFixed(2)} s` : "–");
   hole("t60").textContent =
     `Nachhallzeit T60 (tief, mitte, hoch): ${BAENDER.map((_, b) => s(t60[b])).join(", ")}` +
-    (hall.vergleich ? `; flacher Würfel gleicher Größe (gestrichelt): ${BAENDER.map((_, b) => s(t60[b + 3])).join(", ")}` : "");
+    (hall.vergleich ? `; flacher Würfel gleicher Größe (gestrichelt): ${BAENDER.map((_, b) => s(t60[b + 3])).join(", ")}` : "") +
+    (e.raum === "5,3,3" ? `. Umfang dieser Welt: ${Math.round((2 * Math.PI * e.groesse) / (Math.PI / 10))} m, ein Umlauf dauert ${((2 * Math.PI * e.groesse) / (Math.PI / 10) / SCHALL).toFixed(2)} s` : "");
 }
 
 // ---------- Bild: Strahlen ----------
