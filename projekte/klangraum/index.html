@@ -71,6 +71,7 @@
               <option value="5,3,4">Dodekaeder, 4 um jede Kante (hyperbolisch)</option>
               <option value="4,3,5">Würfel, 5 um jede Kante (hyperbolisch)</option>
               <option value="5,3,5">Dodekaeder, 5 um jede Kante (hyperbolisch)</option>
+              <option value="5,3,3">Dodekaeder, 3 um jede Kante (sphärisch: die Welt ist endlich)</option>
               <option value="4,3,4">Würfel, flach (zum Vergleich)</option>
               <option value="aus">kein Hall</option>
             </select>
@@ -88,7 +89,7 @@
           </label>
           <label>trocken ↔ Hall <input type="range" data-wert="mischung" min="0" max="1" step="0.01" value="0.5"><output></output></label>
         </div>
-        <p class="hinweis">„durchlässig“ öffnet die Wände: ein Teil der Strahlen geht in die Nachbarzelle weiter. Im flachen Gitter irren sie umher und kommen immer wieder vorbei, im hyperbolischen verschwinden sie ins Unendliche – der Hall wird dort viel kürzer. Die Kurven unten zeigen es.</p>
+        <p class="hinweis">„durchlässig“ öffnet die Wände: ein Teil der Strahlen geht in die Nachbarzelle weiter. Im flachen Gitter irren sie umher und kommen immer wieder vorbei, im hyperbolischen verschwinden sie ins Unendliche – der Hall wird dort viel kürzer. Die Kurven unten zeigen es. Im sphärischen Raum ist die Welt endlich: 120 Zellen füllen sie ganz aus. Ganz durchlässig läuft der Schall einmal um die Welt, trifft sich am Gegenpol wieder und kommt gebündelt zurück: ein Echo vom anderen Ende der Welt, immer wieder, im Takt des Umfangs.</p>
         <canvas class="klang-kurve" id="kurve" width="600" height="240" aria-label="Abklingkurven"></canvas>
         <p class="hinweis" id="t60"></p>
       </details>

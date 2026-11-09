@@ -161,8 +161,11 @@ function schritt(dt) {
   });
 }
 function zeige() {
-  const art = { tinte: 0, tempo: 1, linien: 2, linienTinte: 3, linienFarbe: 4 }[e.ansicht];
-  fluid.zeige({ grund: hexZuRgb(e.grund).map((x) => x / 255), art, staerke: e.deckkraft, laenge: e.linienLaenge, koernung: e.linienKorn, zeit: zeit * e.linienFluss });
+  const art = { tinte: 0, tempo: 1, linien: 2, linienTinte: 3, linienFarbe: 4, schlieren: 5 }[e.ansicht];
+  fluid.zeige({
+    grund: hexZuRgb(e.grund).map((x) => x / 255), art, staerke: e.deckkraft, laenge: e.linienLaenge, koernung: e.linienKorn, zeit: zeit * e.linienFluss,
+    schlierenArt: Number(e.schlierenArt), schlierenStaerke: e.schlierenStaerke, messerWinkel: e.messerWinkel,
+  });
 }
 
 let vorher = performance.now();
