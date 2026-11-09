@@ -2,7 +2,8 @@
 //   laden.js     NRRD/RAW lesen, Testkörper und Mandelbulb rechnen
 //   volumen.js   3D-Textur und Strahlen (Volumen, Oberfläche, MIP, Röntgen)
 //   tf.js        Transferfunktion (Gewebe-Voreinstellungen für CT, eigene)
-//   schnitte.js  axial, koronal, sagittal
+//   schnitte.js  axial, koronal, sagittal (und dort mit dem Pinsel ausblenden)
+//   maske.js     was ausgeblendet ist (Pinsel, Schere)
 // Später soll hier auch Rayleigh-Taylor 3D gezeigt werden (dieselbe Darstellung, die Werte kommen dann aus einer
 // Simulation statt aus einer Datei).
 
@@ -10,6 +11,7 @@ import { ladeDateien, testkoerper, mandelbulb, halbiere } from "./laden.js";
 import { erstelleVolumen } from "./volumen.js";
 import { GEWEBE, ausPunkten, eigene } from "./tf.js";
 import { richteSchnitteEin } from "./schnitte.js";
+import { erstelleMaske, merke, rueckgaengig, allesZeigen, pinsel, schere, stueck } from "./maske.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { hexZuRgb } from "/lib/farben.js";
 import { richteExportEin } from "/lib/export.js";
@@ -27,12 +29,17 @@ try {
   meldung.textContent = fehler.message;
   throw fehler;
 }
-const schnitte = richteSchnitteEin({ axial: hole("axial"), koronal: hole("koronal"), sagittal: hole("sagittal") }, (s) => {
-  setze("schnittX", s[0]);
-  setze("schnittY", s[1]);
-  setze("schnittZ", s[2]);
-  zeichneSchnitte();
-});
+const schnitte = richteSchnitteEin(
+  { axial: hole("axial"), koronal: hole("koronal"), sagittal: hole("sagittal") },
+  (s) => {
+    setze("schnittX", s[0]);
+    setze("schnittY", s[1]);
+    setze("schnittZ", s[2]);
+    zeichneSchnitte();
+  },
+  (q, achse, wann) => malen(q, achse, wann),
+  () => e.werkzeug,
+);
 
 let geladen = null; // wie geladen (volle Auflösung)
 let vol = null; // was gezeigt wird (vielleicht halbiert)
@@ -43,6 +50,13 @@ let zeit = 0;
 let aufbauStart = null;
 let exportLaeuft = false;
 let neuZeichnen = true;
+let maske = null;
+// Ausrichtung des Volumens (spaltenweise wie im Shader). Für CT: Kopf nach oben, Gesicht zur Kamera.
+// Die Achsen im CT (DICOM, „LPS“): x zur linken Seite des Patienten, y nach hinten, z zum Kopf. Die Kamera schaut
+// am Anfang von +z auf die Mitte, oben ist +y. Also: Welt-x = x, Welt-y = z, Welt-z = −y (Drehung um x um −90°).
+const EINHEIT = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+const KOPF_OBEN = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+let lage = EINHEIT;
 
 const { einstellung: e, setze } = richteReglerEin({
   beiAenderung: () => (neuZeichnen = true),
@@ -59,6 +73,7 @@ const { einstellung: e, setze } = richteReglerEin({
     schnittZ: () => zeichneSchnitte(),
     aufbauen: () => (aufbauStart = e.aufbauen ? zeit : null),
     format: () => stelleFormat(),
+    ziehen: () => (stapel.style.cursor = e.ziehen === "drehen" ? "" : "crosshair"),
   },
 });
 function melde(text) {
@@ -69,6 +84,12 @@ function melde(text) {
 // ---------- Laden ----------
 function zeige(v) {
   if (!v) return;
+  if (v !== geladen) {
+    // neues Volumen: neue Maske, Ausrichtung passend zur Art
+    maske = erstelleMaske(v.b, v.h, v.t);
+    schnitte.setzeMaske(maske);
+    lage = v.ct ? KOPF_OBEN : EINHEIT;
+  }
   geladen = v;
   vol = e.aufloesung === "halb" ? halbiere(v) : v;
   try {
@@ -79,7 +100,7 @@ function zeige(v) {
   }
   schnitte.setze(vol);
   // Regler für das Fenster auf den Wertebereich der Daten stellen
-  for (const name of ["von", "bis", "schwelle"]) {
+  for (const name of ["von", "bis", "schwelle", "grenze"]) {
     const feld = document.querySelector(`[data-wert="${name}"]`);
     feld.min = Math.floor(v.min);
     feld.max = Math.ceil(v.max);
@@ -88,6 +109,7 @@ function zeige(v) {
   setze("von", v.ct ? -200 : v.min);
   setze("bis", v.ct ? 1200 : v.max);
   setze("schwelle", v.ct ? 300 : v.min + (v.max - v.min) * 0.5);
+  setze("grenze", v.ct ? 200 : Math.round((v.min + (v.max - v.min) * 0.3) * 100) / 100);
   setze("gewebe", v.ct ? "knochen" : "eigen");
   document.querySelectorAll("[data-nur-ct]").forEach((el) => (el.disabled = !v.ct));
   ["abstandX", "abstandY", "abstandZ"].forEach((id, i) => (hole(id).value = +v.abstand[i].toFixed(3)));
@@ -138,23 +160,140 @@ function zeichneSchnitte() {
 
 // ---------- Kamera ----------
 let ziehen = null;
+let umriss = null; // Punkte der Schere (Anteile 0 bis 1 im Bild)
+const lassoLinie = document.querySelector("#lasso polyline");
+function imBild(event) {
+  const r = stapel.getBoundingClientRect();
+  return [(event.clientX - r.left) / r.width, (event.clientY - r.top) / r.height];
+}
 stapel.addEventListener("pointerdown", (event) => {
   stapel.setPointerCapture?.(event.pointerId);
+  if (e.ziehen !== "drehen" && vol) {
+    umriss = [imBild(event)];
+    return;
+  }
   ziehen = { x: event.clientX, y: event.clientY };
 });
 stapel.addEventListener("pointermove", (event) => {
+  if (umriss) {
+    umriss.push(imBild(event));
+    lassoLinie.setAttribute("points", umriss.map((p) => p.join(",")).join(" "));
+    return;
+  }
   if (!ziehen) return;
   gier -= (event.clientX - ziehen.x) * 0.008;
   nick = Math.max(-1.5, Math.min(1.5, nick - (event.clientY - ziehen.y) * 0.008));
   ziehen = { x: event.clientX, y: event.clientY };
   neuZeichnen = true;
 });
-for (const art of ["pointerup", "pointercancel"]) stapel.addEventListener(art, () => (ziehen = null));
+for (const art of ["pointerup", "pointercancel"]) stapel.addEventListener(art, () => {
+  ziehen = null;
+  if (umriss) {
+    if (umriss.length > 2 && art === "pointerup") schneide(umriss);
+    umriss = null;
+    lassoLinie.setAttribute("points", "");
+  }
+});
 stapel.addEventListener("wheel", (event) => {
   event.preventDefault();
   setze("abstand", Math.max(0.6, Math.min(5, e.abstand * Math.exp(event.deltaY * 0.001))));
   neuZeichnen = true;
 }, { passive: false });
+
+// ---------- Ausblenden: Schere und Pinsel ----------
+// Schere: den Umriss in ein kleines Bild füllen (das macht der Browser), dann jede Zelle der Maske dort nachsehen
+function schneide(punkte) {
+  const breite = Math.min(640, canvas.width);
+  const hoehe = Math.round((breite * canvas.height) / canvas.width);
+  const bild = new OffscreenCanvas(breite, hoehe);
+  const ctx = bild.getContext("2d");
+  ctx.beginPath();
+  for (const [x, y] of punkte) ctx.lineTo(x * breite, y * hoehe);
+  ctx.closePath();
+  ctx.fill();
+  const pixel = ctx.getImageData(0, 0, breite, hoehe).data;
+  const innen = new Uint8Array(breite * hoehe);
+  for (let i = 0; i < innen.length; i++) innen[i] = pixel[i * 4 + 3] > 127 ? 1 : 0;
+  merke(maske);
+  schere(maske, { breite, hoehe, innen }, { lage, dreh: drehung(), abstand: e.abstand, seite: canvas.width / canvas.height, groesse: groesse() }, e.ziehen === "schereInnen" ? "innen" : "aussen");
+  zeichneSchnitte();
+  neuZeichnen = true;
+}
+// echte Ausdehnung, größte Seite 1 (wie im Shader)
+function groesse() {
+  const echt = [vol.b * vol.abstand[0], vol.h * vol.abstand[1], vol.t * vol.abstand[2]];
+  const m = Math.max(...echt);
+  return echt.map((x) => x / m);
+}
+let malZeit = 0;
+function malen(q, achse, wann) {
+  if (!maske) return;
+  if (e.werkzeug.startsWith("stueck")) {
+    // ein Klick: das zusammenhängende Stück unter dem Punkt behalten oder ausblenden
+    if (wann !== "anfang") return;
+    merke(maske);
+    const zellen = stueck(maske, geladen, q, e.grenze, e.werkzeug === "stueckWeg" ? "weg" : "behalten");
+    if (!zellen) {
+      rueckgaengig(maske);
+      melde(`Dort ist nichts über der Grenze (${e.grenze}) oder es ist schon ausgeblendet.`);
+    } else melde("");
+    zeichneSchnitte();
+    neuZeichnen = true;
+    return;
+  }
+  if (wann === "anfang") merke(maske);
+  pinsel(maske, q, e.pinsel, groesse(), e.werkzeug === "radieren" ? 0 : 255, e.durchAlle ? achse : -1);
+  neuZeichnen = true;
+  // die Schnitte neu zeichnen kostet bei großen Scans: höchstens 20-mal pro Sekunde
+  const jetzt = performance.now();
+  if (jetzt - malZeit > 50 || wann === "anfang") {
+    malZeit = jetzt;
+    zeichneSchnitte();
+  }
+}
+hole("rueckgaengig").addEventListener("click", () => {
+  if (maske && rueckgaengig(maske)) {
+    zeichneSchnitte();
+    neuZeichnen = true;
+  }
+});
+hole("allesZeigen").addEventListener("click", () => {
+  if (!maske) return;
+  allesZeigen(maske);
+  zeichneSchnitte();
+  neuZeichnen = true;
+});
+
+// ---------- Ausrichtung und Ansicht ----------
+// 3 × 3 spaltenweise multiplizieren: (A · B)
+function mal(A, B) {
+  const C = new Array(9);
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) C[3 * j + i] = A[i] * B[3 * j] + A[3 + i] * B[3 * j + 1] + A[6 + i] * B[3 * j + 2];
+  return C;
+}
+// 90° um eine Achse der Welt (spaltenweise); spiegeln: links und rechts tauschen
+const DREHE = {
+  x: [1, 0, 0, 0, 0, 1, 0, -1, 0],
+  y: [0, 0, -1, 0, 1, 0, 1, 0, 0],
+  z: [0, 1, 0, -1, 0, 0, 0, 0, 1],
+  spiegeln: [-1, 0, 0, 0, 1, 0, 0, 0, 1],
+};
+for (const knopf of document.querySelectorAll("[data-lage]")) {
+  knopf.addEventListener("click", () => {
+    const art = knopf.dataset.lage;
+    if (art === "zurueck") lage = vol?.ct ? KOPF_OBEN : EINHEIT;
+    else if (art === "roh") lage = EINHEIT;
+    else lage = mal(DREHE[art], lage);
+    neuZeichnen = true;
+  });
+}
+const ANSICHTEN = { vorn: [0, 0], links: [-Math.PI / 2, 0], rechts: [Math.PI / 2, 0], hinten: [Math.PI, 0], oben: [0, -1.5], unten: [0, 1.5] };
+for (const knopf of document.querySelectorAll("[data-ansicht]")) {
+  knopf.addEventListener("click", () => {
+    [gier, nick] = ANSICHTEN[knopf.dataset.ansicht];
+    neuZeichnen = true;
+  });
+}
 
 // Drehmatrix aus gier (um die senkrechte Achse) und nick; Spalten für GLSL (mat3 ist spaltenweise)
 function drehung() {
@@ -185,9 +324,18 @@ function zeichne() {
     canvas.width = b;
     canvas.height = h;
   }
-  // Aufbau: die Box wächst von unten nach oben, Schicht für Schicht (wie der Scanner sie aufnimmt)
-  let zBis = e.zBis;
-  if (aufbauStart !== null) zBis = Math.min(e.zBis, e.zVon + ((zeit - aufbauStart) / e.aufbauDauer) * (e.zBis - e.zVon));
+  // Aufbau: die Box wächst Schicht für Schicht entlang einer Achse, in die gewählte Richtung
+  // (z vorwärts ist wie der Scanner aufnimmt: vom Fuß zum Kopf). „immer wieder“: nach dem Ende kurz ganz, dann neu.
+  const von = [e.xVon, e.yVon, e.zVon];
+  const bis = [e.xBis, e.yBis, e.zBis];
+  if (aufbauStart !== null) {
+    let s = (zeit - aufbauStart) / e.aufbauDauer;
+    s = e.aufbauSchleife ? Math.min(1, s % 1.25) : Math.min(1, s);
+    const k = { x: 0, y: 1, z: 2 }[e.aufbauRichtung[0]];
+    if (e.aufbauRichtung[1] === "+") bis[k] = von[k] + s * (bis[k] - von[k]);
+    else von[k] = bis[k] - s * (bis[k] - von[k]);
+  }
+  if (maske?.geaendert) volumen.setzeMaske(maske);
   volumen.zeige({
     // MIP zeigt Graustufen im Fenster der Schnitte (von, bis), alles andere das der Transferfunktion
     fenster: e.art === "mip" ? [e.von, e.bis] : fenster,
@@ -199,9 +347,10 @@ function zeichne() {
     grund: hexZuRgb(e.grund).map((x) => x / 255),
     oberFarbe: hexZuRgb(e.oberFarbe).map((x) => x / 255),
     dreh: drehung(),
+    lage,
     abstand: e.abstand,
-    boxVon: [e.xVon, e.yVon, e.zVon],
-    boxBis: [e.xBis, e.yBis, zBis],
+    boxVon: von,
+    boxBis: bis,
   });
 }
 
@@ -237,7 +386,7 @@ const render = {
   merke() {
     const alt = { gier, zeit, aufbauStart };
     return () => {
-      ({ gier, zeit, aufbauStart } = alt);
+      ({ gier, zeit, aufbauStart } = alt); // (nicht die Maske: die ändert sich beim Rendern nicht)
       neuZeichnen = true;
     };
   },

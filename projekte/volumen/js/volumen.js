@@ -12,6 +12,9 @@
 // Werte: so, wie sie in der Datei stehen (bei CT in Hounsfield-Einheiten), als halbe Gleitkommazahlen (R16F):
 // ganze Zahlen bis 2048 genau, bis 4096 in Zweierschritten, das reicht für CT. Die Transferfunktion ist eine
 // 1D-Textur (256 Farben) über einem Fenster [von, bis] dieser Werte.
+// Dazu eine zweite 3D-Textur, die Maske (maske.js): wo sie unter 0,5 ist, gilt der Wert „leer“ (Luft).
+// Ausrichtung (lage): eine Drehung (oder Spiegelung) des Volumens in der Welt; statt das Volumen zu drehen, wird
+// der Strahl mit der umgekehrten Drehung (bei Drehungen: transponiert) ins Volumen gebracht.
 
 const VOLL = `#version 300 es
 in vec2 lage;
@@ -44,8 +47,11 @@ uniform float licht;         // 0 flach, 1 beleuchtet
 uniform vec3 grund;          // Hintergrund
 uniform vec3 oberFarbe;      // Farbe der Oberfläche
 uniform int ct;              // 1: Werte sind Hounsfield-Einheiten (für Röntgen: Schwächung aus HU)
+uniform mediump sampler3D maske; // 1 sichtbar, 0 ausgeblendet
+uniform float leer;          // was an ausgeblendeten Stellen gilt (Luft)
+uniform mat3 lage;           // Ausrichtung des Volumens in der Welt
 
-float wert(vec3 p) { return texture(vol, p).r; }
+float wert(vec3 p) { return texture(maske, p).r < 0.5 ? leer : texture(vol, p).r; }
 vec4 nachschlagen(float v) {
   float t = clamp((v - fenster.x) / (fenster.y - fenster.x), 0.0, 1.0);
   return texture(tf, vec2(t, 0.5));
@@ -61,8 +67,9 @@ float zufall(vec2 q) { return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5
 
 void main() {
   // Kamera: steht in Richtung +z (gedreht mit dreh) im Abstand „abstand“ und schaut zur Mitte
-  vec3 auge = dreh * vec3(0.0, 0.0, abstand);
-  vec3 r = normalize(dreh * vec3(uv.x * seite * 0.5, uv.y * 0.5, -1.0));
+  // … und alles in die Lage des Volumens gebracht (transpose = umgekehrte Drehung)
+  vec3 auge = transpose(lage) * (dreh * vec3(0.0, 0.0, abstand));
+  vec3 r = normalize(transpose(lage) * (dreh * vec3(uv.x * seite * 0.5, uv.y * 0.5, -1.0)));
   // Schnitt mit der (ausgeschnittenen) Box: Würfel von −groesse/2 bis +groesse/2, Ausschnitt darin
   vec3 lo = (boxVon - 0.5) * groesse, hi = (boxBis - 0.5) * groesse;
   vec3 t1 = (lo - auge) / r, t2 = (hi - auge) / r;
@@ -187,6 +194,26 @@ export function erstelleVolumen(canvas) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   let v = null;
+  // Maske: am Anfang eine einzige sichtbare Zelle (bis setzeMaske eine echte bringt)
+  let maskeT = null;
+  let maskeForm = "";
+  function setzeMaske(m) {
+    const form = `${m.b}x${m.h}x${m.t}`;
+    if (form !== maskeForm) {
+      gl.deleteTexture(maskeT);
+      maskeT = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_3D, maskeT);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.CLAMP_TO_EDGE);
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, m.b, m.h, m.t);
+      maskeForm = form;
+    }
+    gl.bindTexture(gl.TEXTURE_3D, maskeT);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0, m.b, m.h, m.t, gl.RED, gl.UNSIGNED_BYTE, m.daten);
+    m.geaendert = false;
+  }
 
   // v: von laden.js; die Werte in Stücken umwandeln, damit nicht noch einmal das ganze Volumen als Kopie entsteht
   function setze(vol) {
@@ -214,9 +241,9 @@ export function erstelleVolumen(canvas) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, farben);
   }
 
-  // a: { fenster, art, schwelle, dichte, schritt, licht, grund, oberFarbe, dreh (9 Zahlen), abstand, boxVon, boxBis }
+  // a: { fenster, art, schwelle, dichte, schritt, licht, grund, oberFarbe, dreh, lage (je 9 Zahlen), abstand, boxVon, boxBis }
   function zeige(a) {
-    if (!v) return;
+    if (!v || !maskeT) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(p);
     gl.activeTexture(gl.TEXTURE0);
@@ -225,6 +252,11 @@ export function erstelleVolumen(canvas) {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, tfT);
     gl.uniform1i(ort.tf, 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_3D, maskeT);
+    gl.uniform1i(ort.maske, 2);
+    gl.uniform1f(ort.leer, v.ct ? -1024 : v.min);
+    gl.uniformMatrix3fv(ort.lage, false, a.lage);
     // Ausdehnung: Voxel mal Voxelgröße, größte Seite 1
     const echt = [v.b * v.abstand[0], v.h * v.abstand[1], v.t * v.abstand[2]];
     const m = Math.max(...echt);
@@ -250,5 +282,5 @@ export function erstelleVolumen(canvas) {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  return { setze, setzeTf, zeige };
+  return { setze, setzeTf, setzeMaske, zeige };
 }

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stimmensynthesizer - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="stimme.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Stimmensynthesizer</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel stimme-feld">
+        <canvas id="feld" width="480" height="360" aria-label="Schnitt durch Kopf und Hals: Zunge ziehen, im Rohr eine Engstelle drücken, unten die Tonhöhe spielen"></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="stimme-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Stimme</summary>
+        <div class="steuerung">
+          <button type="button" id="ton">Ton an</button>
+          <label>Klang
+            <select data-wert="klangArt">
+              <option value="rohr">Rohr (wie Pink Trombone)</option>
+              <option value="formanten">Formanten (wie SAM)</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="dauerton" checked> Stimme hält an (sonst nur, solange man unten spielt)</label>
+          <label>Tonhöhe
+            <select data-wert="frequenzArt">
+              <option value="regler">vom Regler und der Tastatur</option>
+              <option value="musik">folgt der Musik</option>
+            </select>
+          </label>
+          <label data-nur="frequenzArt=regler">Frequenz (Hz) <input type="range" data-wert="frequenz" min="30" max="700" step="1" value="110"><output></output></label>
+          <label>Tastatur ab (Hz) <input type="range" data-wert="tastenVon" min="30" max="300" step="1" value="70"><output></output></label>
+          <label><input type="checkbox" data-wert="einrasten"> Tastatur rastet auf Halbtöne ein</label>
+          <label>Spannung <input type="range" data-wert="spannung" min="0" max="1" step="0.01" value="0.6"><output></output></label>
+          <label>Stimmlippen schwingen <input type="range" data-wert="stimmlippen" min="0" max="1" step="0.01" value="1"><output></output></label>
+          <label>Lautstärke <input type="range" data-wert="lautstaerke" min="0" max="1" step="0.01" value="0.6"><output></output></label>
+          <label>Vibrato <input type="range" data-wert="vibrato" min="0" max="0.06" step="0.001" value="0.005"><output></output></label>
+          <label>Zittern <input type="range" data-wert="zittern" min="0" max="3" step="0.01" value="0.2"><output></output></label>
+          <label>Untertöne <input type="range" data-wert="untertoene" min="0" max="1" step="0.01" value="0"><output></output></label>
+        </div>
+        <div class="steuerung">
+          <button type="button" data-setze='{"frequenz": 110, "spannung": 0.6, "stimmlippen": 1, "vibrato": 0.005, "zittern": 0.2, "untertoene": 0}'>normal</button>
+          <button type="button" data-setze='{"spannung": 0.15, "stimmlippen": 0, "zittern": 0.2, "untertoene": 0}'>Flüstern</button>
+          <button type="button" data-setze='{"frequenz": 38, "spannung": 0.9, "stimmlippen": 1, "vibrato": 0, "zittern": 2.5, "untertoene": 0.5}'>Knarren</button>
+          <button type="button" data-setze='{"frequenz": 62, "spannung": 0.95, "stimmlippen": 1, "vibrato": 0.01, "zittern": 1.2, "untertoene": 0.85}'>Growl</button>
+          <button type="button" data-setze='{"frequenz": 330, "spannung": 0.4, "stimmlippen": 1, "vibrato": 0.035, "zittern": 0.6, "untertoene": 0}'>Klagen</button>
+          <button type="button" data-setze='{"spannung": 1, "stimmlippen": 1, "vibrato": 0, "zittern": 0, "untertoene": 0}'>Maschine</button>
+          <button type="button" data-setze='{"klangArt": "formanten", "frequenz": 92, "spannung": 0.9, "stimmlippen": 1, "vibrato": 0, "zittern": 0, "untertoene": 0, "bits": 4, "abtast": 11025, "melodie": "gleich"}'>alter Sprachchip</button>
+        </div>
+        <h3 class="gruppe">Chip</h3>
+        <div class="steuerung">
+          <label>Bits <input type="range" data-wert="bits" min="2" max="16" step="1" value="16"><output></output></label>
+          <label>Abtastrate (Hz) <input type="range" data-wert="abtast" min="2000" max="48000" step="25" value="48000"><output></output></label>
+        </div>
+        <p class="hinweis">Unten im Bild ist eine Tastatur über zwei Oktaven: links und rechts die Tonhöhe, oben gepresst, unten hauchig. Untertöne schwächen jeden zweiten Puls der Stimmlippen: die Periode verdoppelt sich, der Ton fällt eine Oktave und wird rau (so knarrt und growlt eine echte Stimme auch). „Formanten (wie SAM)“ rechnet kein Rohr, sondern spielt die drei Resonanzen direkt, bei jedem Puls neu gestartet: metallisch und schnarrend wie die Sprachprogramme der frühen 80er. Weniger Bits und eine niedrige Abtastrate machen jede der beiden Arten zum alten Chip.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Mund</summary>
+        <div class="steuerung">
+          <button type="button" data-setze='{"zungeOrt": 17.5, "zungeWeite": 2.5, "lippen": 3}'>a</button>
+          <button type="button" data-setze='{"zungeOrt": 25.5, "zungeWeite": 2.35, "lippen": 3}'>e</button>
+          <button type="button" data-setze='{"zungeOrt": 26, "zungeWeite": 2.05, "lippen": 3}'>i</button>
+          <button type="button" data-setze='{"zungeOrt": 19, "zungeWeite": 2.2, "lippen": 0.28}'>o</button>
+          <button type="button" data-setze='{"zungeOrt": 15, "zungeWeite": 2.05, "lippen": 0.25}'>u</button>
+          <button type="button" data-setze='{"zungeOrt": 23.5, "zungeWeite": 2.65, "lippen": 3}'>ä</button>
+          <button type="button" data-setze='{"zungeOrt": 22.5, "zungeWeite": 2.05, "lippen": 1.2}'>ö</button>
+          <button type="button" data-setze='{"zungeOrt": 26, "zungeWeite": 2.1, "lippen": 0.75}'>ü</button>
+        </div>
+        <div class="steuerung">
+          <label>Zunge: Ort <input type="range" data-wert="zungeOrt" min="12" max="29" step="0.1" value="17.5"><output></output></label>
+          <label>Zunge: Weite <input type="range" data-wert="zungeWeite" min="2.05" max="3.5" step="0.01" value="2.5"><output></output></label>
+          <label>Lippen <input type="range" data-wert="lippen" min="0" max="3" step="0.01" value="3"><output></output></label>
+          <label>Nase (Gaumensegel) <input type="range" data-wert="nase" min="0.01" max="0.6" step="0.01" value="0.01"><output></output></label>
+          <label>Zischen <input type="range" data-wert="zischen" min="0" max="2" step="0.01" value="1"><output></output></label>
+        </div>
+        <p class="hinweis">Im Bild: den Kreis in der Zunge ziehen (hinten oder vorn, hoch oder tief). Ins Rohr drücken macht dort eine Engstelle: ganz an der Wand ist es zu (p, t, k beim Loslassen), knapp daneben zischt es (s, sch, f). Mehrere Finger gehen gleichzeitig.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Sprechen</summary>
+        <div class="steuerung">
+          <label>Sprache
+            <select data-wert="sprache">
+              <option value="deutsch">Deutsch</option>
+              <option value="englisch">Englisch</option>
+            </select>
+          </label>
+          <label class="stimme-text">Text <input type="text" id="text" class="stimme-text" value="Hallo, ich bin eine Stimme aus Rohren."></label>
+          <label class="stimme-text">Lautschrift (SAMPA, von Hand änderbar) <input type="text" id="lautschrift" class="stimme-text" spellcheck="false" autocomplete="off"></label>
+          <span class="hinweis" id="unbekannt"></span>
+          <label>Tempo (s pro Einheit) <input type="range" data-wert="tempo" min="0.04" max="0.3" step="0.005" value="0.09"><output></output></label>
+          <label>Melodie
+            <select data-wert="melodie">
+              <option value="fallend">fallend (Aussage)</option>
+              <option value="frage">am Ende hoch (Frage)</option>
+              <option value="gleich">gleich (Maschine)</option>
+              <option value="singen">singen (Moll-Pentatonik)</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="wiederholen"> wiederholen</label>
+          <button type="button" id="sprechen">sprechen</button>
+          <button type="button" id="anhalten">anhalten</button>
+          <button type="button" id="sprechenAufnehmen">sprechen und als WAV speichern</button>
+        </div>
+        <p class="hinweis">Der Text wird nach Regeln in Lautschrift übersetzt; was falsch klingt, dort verbessern. Die Zeichen (SAMPA):</p>
+        <ul class="hinweis stimme-zeichen">
+          <li>Vokale: i (Liebe) · I (bin) · e (See) · E (Bett) · { (engl. cat) · a (Haus) · V (engl. cup) · @ (Rohr<b>e</b>) · 6 (Wass<b>er</b>) · 3 (engl. bird) · O (Sonne) · o (Rohr) · U (Mund) · u (gut) · y (über) · Y (Müll) · 2 (schön) · 9 (Hölle); : macht lang (o:), zwei nacheinander gleiten (aI, aU, OY, eI, oU)</li>
+          <li>Konsonanten: p b t d k g f v s z h m n l j w wie geschrieben · S (sch) · Z (Garage) · C (ich) · x (Bach) · N (Ring) · R (deutsches r) · r (englisches r) · T (engl. thing) · D (engl. this) · tS · dZ · ts · pf · ? (Knacklaut)</li>
+          <li>Pausen: _ kurz, . lang; Leerzeichen trennen Wörter ohne Pause</li>
+        </ul>
+        <p class="hinweis">Es klingt nach einer Maschine aus Rohren, nicht nach einem Menschen: echte Sprache hat viel mehr Bewegung, als ein paar Posen pro Laut hergeben.</p>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <!-- Musik bewegt die Stimme; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es nichts -->
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Mit Tonhöhe „folgt der Musik“ singt die Stimme den lautesten Ton zwischen 80 und 1000 Hz mit (in Oktaven verschoben, bis er auf die Tastatur passt). Dazu kann jedes Signal die Tonhöhe heben, den Mund öffnen oder lauter machen.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Bild</summary>
+        <div class="steuerung">
+          <label>Auflösung
+            <select data-wert="aufloesung">
+              <option value="320">320 × 240</option>
+              <option value="480" selected>480 × 360</option>
+              <option value="960">960 × 720</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="beschriftung" checked> Beschriftung</label>
+          <label>Grund <input type="color" data-wert="grundFarbe" value="#0b0908"></label>
+          <label>Fleisch <input type="color" data-wert="fleischFarbe" value="#4a1616"></label>
+          <label>Luft <input type="color" data-wert="luftFarbe" value="#0b0908"></label>
+          <label>Linien <input type="color" data-wert="linienFarbe" value="#d8cfc2"></label>
+          <label>Griffe <input type="color" data-wert="griffFarbe" value="#e0a040"></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Aufnahme</summary>
+        <div class="steuerung">
+          <button type="button" id="aufnahme">Aufnahme starten</button>
+          <span id="aufnahmeText"></span>
+        </div>
+        <p class="hinweis">Nimmt genau auf, was die Stimme macht (ohne Musik), als WAV-Datei: für Soundscapes und zum Weiterbearbeiten.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

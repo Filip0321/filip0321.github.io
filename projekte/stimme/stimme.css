@@ -1,0 +1,38 @@
+/*
+Stimmensynthesizer: nur was es nirgends sonst auf der Website gibt
+*/
+.stimme-feld {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: min(100%, 110vh);
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #000;
+}
+
+.stimme-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated; /* niedrige Auflösung bleibt kantig statt verschwommen */
+  touch-action: none; /* Finger ziehen die Zunge, nicht die Seite */
+}
+
+.stimme-status {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}
+
+.stimme-text {
+  width: 100%;
+  font: inherit;
+}
+
+.stimme-zeichen {
+  padding-left: 1.2em;
+}
+
+.stimme-zeichen li {
+  margin-block: 0.3em;
+}

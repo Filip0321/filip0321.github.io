@@ -36,6 +36,7 @@
       <div class="feld-stapel vol-feld" id="stapel">
         <canvas id="feld" aria-label="Volumen: ziehen dreht, Mausrad zoomt"></canvas>
         <canvas id="effekte" class="schicht" hidden></canvas>
+        <svg id="lasso" class="vol-lasso" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
       </div>
     </div>
 
@@ -124,6 +125,34 @@
         </div>
       </details>
 
+      <details class="abschnitt" open>
+        <summary>Ausblenden</summary>
+        <div class="steuerung">
+          <label>Ziehen im Bild
+            <select data-wert="ziehen">
+              <option value="drehen">dreht</option>
+              <option value="schereInnen">Schere: was im Umriss liegt, weg</option>
+              <option value="schereAussen">Schere: nur das im Umriss behalten</option>
+            </select>
+          </label>
+          <label>In den Schnitten
+            <select data-wert="werkzeug">
+              <option value="zeigen">Klick setzt die Schnitte</option>
+              <option value="radieren">Pinsel: ausblenden</option>
+              <option value="zurueckholen">Pinsel: zurückholen</option>
+              <option value="stueckBehalten">Klick: nur dieses Stück behalten</option>
+              <option value="stueckWeg">Klick: dieses Stück ausblenden</option>
+            </select>
+          </label>
+          <label data-nur="werkzeug=stueckBehalten,stueckWeg">Grenze <input type="range" data-wert="grenze" min="-1000" max="3000" step="1" value="200"><output></output></label>
+          <label data-nur="werkzeug=radieren,zurueckholen">Pinsel <input type="range" data-wert="pinsel" min="0.005" max="0.2" step="0.005" value="0.03"><output></output></label>
+          <label data-nur="werkzeug=radieren,zurueckholen"><input type="checkbox" data-wert="durchAlle"> durch alle Schichten</label>
+          <button type="button" id="rueckgaengig">rückgängig</button>
+          <button type="button" id="allesZeigen">alles wieder zeigen</button>
+        </div>
+        <p class="hinweis">Die Schere schneidet durch die ganze Tiefe, so wie man gerade schaut: erst drehen, bis das Störende frei vor einem liegt (die Liege des CT, eine Hand vor dem Gesicht), dann Umriss ziehen. Der Pinsel malt in einem Schnitt eine Kugel weg, mit „durch alle Schichten“ einen Zylinder. „Stück“: ein Klick in einen Schnitt nimmt alles, was dort über der Grenze liegt und damit zusammenhängt (bei CT ab 200 etwa Knochen und Kontrastmittel), und behält nur das oder blendet genau das aus (die Liege). Hängt etwas über eine dünne Brücke zusammen, erst mit der Schere oder dem Pinsel trennen. Was ausgeblendet ist, zeigen die Schnitte rötlich. Nur Werte ausblenden (z. B. alles unter Knochen) geht über das Gewebe oder „von“.</p>
+      </details>
+
       <details class="abschnitt">
         <summary>Ausschneiden und Aufbau</summary>
         <div class="steuerung">
@@ -134,12 +163,41 @@
           <label>z von <input type="range" data-wert="zVon" min="0" max="1" step="0.005" value="0"><output></output></label>
           <label>z bis <input type="range" data-wert="zBis" min="0" max="1" step="0.005" value="1"><output></output></label>
           <label><input type="checkbox" data-wert="aufbauen"> Schicht für Schicht aufbauen</label>
+          <label data-nur="aufbauen=true">Richtung
+            <select data-wert="aufbauRichtung">
+              <option value="z+">z: vom Fuß zum Kopf (wie der Scanner)</option>
+              <option value="z-">z: vom Kopf zum Fuß</option>
+              <option value="y+">y: von vorn nach hinten</option>
+              <option value="y-">y: von hinten nach vorn</option>
+              <option value="x+">x: von rechts nach links (des Patienten)</option>
+              <option value="x-">x: von links nach rechts</option>
+            </select>
+          </label>
           <label data-nur="aufbauen=true">Dauer (s) <input type="range" data-wert="aufbauDauer" min="1" max="30" step="0.5" value="6"><output></output></label>
+          <label data-nur="aufbauen=true"><input type="checkbox" data-wert="aufbauSchleife"> immer wieder</label>
         </div>
       </details>
 
-      <details class="abschnitt">
+      <details class="abschnitt" open>
         <summary>Kamera und Bild</summary>
+        <div class="steuerung">
+          <span>Ansicht von</span>
+          <button type="button" data-ansicht="vorn">vorn</button>
+          <button type="button" data-ansicht="links">links</button>
+          <button type="button" data-ansicht="rechts">rechts</button>
+          <button type="button" data-ansicht="hinten">hinten</button>
+          <button type="button" data-ansicht="oben">oben</button>
+          <button type="button" data-ansicht="unten">unten</button>
+        </div>
+        <div class="steuerung">
+          <span>Volumen drehen</span>
+          <button type="button" data-lage="x">90° um x</button>
+          <button type="button" data-lage="y">90° um y</button>
+          <button type="button" data-lage="z">90° um z</button>
+          <button type="button" data-lage="spiegeln">spiegeln</button>
+          <button type="button" data-lage="zurueck">Ausrichtung zurück</button>
+          <button type="button" data-lage="roh">wie in der Datei</button>
+        </div>
         <div class="steuerung">
           <label><input type="checkbox" data-wert="drehen"> dreht sich</label>
           <label data-nur="drehen=true">Tempo <input type="range" data-wert="drehTempo" min="-1.5" max="1.5" step="0.01" value="0.3"><output></output></label>
@@ -154,7 +212,7 @@
             </select>
           </label>
         </div>
-        <p class="hinweis">Ziehen dreht, das Mausrad zoomt.</p>
+        <p class="hinweis">Ziehen dreht, das Mausrad zoomt. CT steht am Anfang aufrecht (Kopf oben, Gesicht zu dir); liegt ein Scan anders, mit „90° um …“ drehen, bis es passt. „wie in der Datei“: ohne jede Drehung, so wie die Achsen gespeichert sind.</p>
       </details>
 
       <details class="abschnitt">
