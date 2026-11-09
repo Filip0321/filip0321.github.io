@@ -4,6 +4,7 @@
 //   tf.js        Transferfunktion (Gewebe-Voreinstellungen für CT, eigene)
 //   schnitte.js  axial, koronal, sagittal (und dort mit dem Pinsel ausblenden)
 //   maske.js     was ausgeblendet ist (Pinsel, Schere)
+//   sim3d.js     Strömung in 3D auf der Grafikkarte (Rayleigh-Taylor, Wolkentank, Tropfen Tinte)
 // Später soll hier auch Rayleigh-Taylor 3D gezeigt werden (dieselbe Darstellung, die Werte kommen dann aus einer
 // Simulation statt aus einer Datei).
 
@@ -12,6 +13,7 @@ import { erstelleVolumen } from "./volumen.js";
 import { GEWEBE, ausPunkten, eigene } from "./tf.js";
 import { richteSchnitteEin } from "./schnitte.js";
 import { erstelleMaske, merke, rueckgaengig, allesZeigen, pinsel, schere, stueck } from "./maske.js";
+import { erstelleSimulation } from "./sim3d.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { hexZuRgb } from "/lib/farben.js";
 import { richteExportEin } from "/lib/export.js";
@@ -91,9 +93,10 @@ function zeige(v) {
     lage = v.ct ? KOPF_OBEN : EINHEIT;
   }
   geladen = v;
-  vol = e.aufloesung === "halb" ? halbiere(v) : v;
+  vol = e.aufloesung === "halb" && !v.sim ? halbiere(v) : v;
   try {
-    volumen.setze(vol);
+    if (v.sim) volumen.setzeFremd(sim.textur(), vol);
+    else volumen.setze(vol);
   } catch (fehler) {
     melde(`Die Grafikkarte nimmt das Volumen nicht (${fehler.message}). „halbe Auflösung“ versuchen.`);
     return;
@@ -295,6 +298,59 @@ for (const knopf of document.querySelectorAll("[data-ansicht]")) {
   });
 }
 
+// ---------- Simulation ----------
+let sim = null;
+let simZeit = 0;
+let simLesen = 0;
+// Voreinstellungen je Versuch: Größe des Tanks (relativ zur Gitterzahl) und wie es aussieht
+const VERSUCHE = {
+  rt: { nummer: 0, form: [1, 1, 1], name: "Rayleigh-Taylor", skala: "eis", deckkraft: 0.35, gamma: 1.2, von: 0.05 },
+  wolken: { nummer: 1, form: [1.5, 1, 1], name: "Wolkentank", skala: "grau", deckkraft: 0.18, gamma: 1.4, von: 0.02 },
+  tropfen: { nummer: 2, form: [1, 1.25, 1], name: "Tropfen Tinte", skala: "glut", deckkraft: 0.3, gamma: 1.3, von: 0.03 },
+};
+function simStarten() {
+  try {
+    sim ??= erstelleSimulation(volumen.gl);
+  } catch (fehler) {
+    return melde(fehler.message);
+  }
+  const v = VERSUCHE[e.simArt];
+  const N = Number(e.simGitter);
+  const groesse = v.form.map((f) => Math.round(f * N));
+  sim.neu(groesse, v.nummer, { unruhe: e.simUnruhe, schicht: e.simSchicht, saat: Math.random() * 100 });
+  simZeit = 0;
+  simLesen = 0;
+  const [b, h, t] = groesse;
+  zeige({ b, h, t, werte: new Float32Array(b * h * t), abstand: [1, 1, 1], name: v.name, ct: false, min: 0, max: 1, sim: true });
+  setze("gewebe", "eigen");
+  setze("von", v.von);
+  setze("bis", 1);
+  setze("skala", v.skala);
+  setze("deckkraft", v.deckkraft);
+  setze("gamma", v.gamma);
+  setze("art", "volumen");
+  transfer();
+  neuZeichnen = true;
+}
+function simSchritt(dt) {
+  const t = dt * e.simTempo;
+  if (t <= 0) return;
+  // große Zeitschritte in kleinere teilen (höchstens 1/30 s), sonst rechnet die Mitnahme zu grob
+  const k = Math.ceil(t / (1 / 30));
+  for (let i = 0; i < k; i++) {
+    sim.schritt(t / k, { auftrieb: e.simSchwere, salz: e.simSalz, duese: e.simDuese, strahl: e.simStrahl, jacobi: e.simJacobi });
+  }
+  simZeit += t;
+  neuZeichnen = true;
+  // ab und zu die Werte auf die CPU holen: für die Schnitte, den Pinsel und „Stück behalten“ (kostet: nicht jedes Bild)
+  if (hole("schnitteAbschnitt").open && simZeit - simLesen > 0.5) {
+    simLesen = simZeit;
+    sim.lies(vol.werte);
+    zeichneSchnitte();
+  }
+}
+hole("simStart").addEventListener("click", simStarten);
+
 // Drehmatrix aus gier (um die senkrechte Achse) und nick; Spalten für GLSL (mat3 ist spaltenweise)
 function drehung() {
   const cg = Math.cos(gier), sg = Math.sin(gier), cn = Math.cos(nick), sn = Math.sin(nick);
@@ -310,6 +366,7 @@ function stelleFormat() {
 // ---------- Zeichnen ----------
 function schritt(dt) {
   zeit += dt;
+  if (vol?.sim && !e.simPause) simSchritt(dt);
   if (e.drehen) {
     gier += e.drehTempo * dt;
     neuZeichnen = true;
@@ -336,6 +393,7 @@ function zeichne() {
     else von[k] = bis[k] - s * (bis[k] - von[k]);
   }
   if (maske?.geaendert) volumen.setzeMaske(maske);
+  if (vol?.sim) volumen.setzeFremd(sim.textur(), vol); // die Simulation rechnet abwechselnd in zwei Texturen
   volumen.zeige({
     // MIP zeigt Graustufen im Fenster der Schnitte (von, bis), alles andere das der Transferfunktion
     fenster: e.art === "mip" ? [e.von, e.bis] : fenster,
@@ -391,7 +449,11 @@ const render = {
     };
   },
   vorschau(i, n, dt) {
+    // die Simulation lässt sich nicht zurückspulen: in der Vorschau steht sie still
+    const p = e.simPause;
+    e.simPause = true;
     for (let j = 0; j < i; j++) schritt(dt);
+    e.simPause = p;
     zeichne();
   },
 };

@@ -68,6 +68,38 @@
       </details>
 
       <details class="abschnitt" open>
+        <summary>Simulation</summary>
+        <div class="steuerung">
+          <label>Versuch
+            <select data-wert="simArt">
+              <option value="rt">Rayleigh-Taylor (schwer über leicht)</option>
+              <option value="wolken">Wolkentank (Milch in Salzwasser)</option>
+              <option value="tropfen">Tropfen Tinte</option>
+            </select>
+          </label>
+          <label>Gitter
+            <select data-wert="simGitter">
+              <option value="48">48³ (schwache Geräte)</option>
+              <option value="64" selected>64³</option>
+              <option value="96">96³</option>
+              <option value="128">128³ (starke Grafikkarte)</option>
+            </select>
+          </label>
+          <button type="button" id="simStart">starten (neu)</button>
+          <label><input type="checkbox" data-wert="simPause"> anhalten</label>
+          <label>Tempo <input type="range" data-wert="simTempo" min="0" max="3" step="0.05" value="1"><output></output></label>
+          <label>Schwere <input type="range" data-wert="simSchwere" min="5" max="300" step="1" value="60"><output></output></label>
+          <label data-nur="simArt=rt">Unruhe der Grenze <input type="range" data-wert="simUnruhe" min="0" max="4" step="0.05" value="1"><output></output></label>
+          <label data-nur="simArt=wolken">Salz <input type="range" data-wert="simSalz" min="0" max="400" step="1" value="150"><output></output></label>
+          <label data-nur="simArt=wolken">Höhe der Salzschicht <input type="range" data-wert="simSchicht" min="0.15" max="0.8" step="0.01" value="0.4"><output></output></label>
+          <label data-nur="simArt=wolken">Zufluss Milch <input type="range" data-wert="simDuese" min="0" max="3" step="0.05" value="1"><output></output></label>
+          <label data-nur="simArt=wolken">Strahl <input type="range" data-wert="simStrahl" min="0" max="300" step="1" value="60"><output></output></label>
+          <label>Druck-Schritte <input type="range" data-wert="simJacobi" min="6" max="40" step="1" value="20"><output></output></label>
+        </div>
+        <p class="hinweis">Rayleigh-Taylor: Schweres liegt über Leichtem, die Grenze wird instabil, es fällt in Fingern und Pilzen. Wolkentank: wie im Film vor dem Computer, unten Salzwasser, oben Süßwasser, von oben fließt Milch hinein. Sie sinkt bis zur Salzschicht, bleibt dort liegen und quillt zu Wolkenbänken (auf dem Kopf gefilmt: Gewitterwolken). Tropfen: Tinte fällt ins Wasser und rollt sich zu Wirbelringen ein. Alles läuft auf der Grafikkarte und lässt sich mit allem hier zeigen: Schnitte, Schere, Aufbau, Effekte, Video.</p>
+      </details>
+
+      <details class="abschnitt" open>
         <summary>Darstellung</summary>
         <div class="steuerung">
           <label>Art
@@ -111,7 +143,7 @@
         <p class="hinweis">„von“ und „bis“ gelten immer für die Schnitte (Graustufen) und bei „eigene Kurve“ auch für das Volumen. Bei CT sind die Werte Hounsfield-Einheiten: Luft −1000, Fett um −100, Wasser 0, Weichteile 20 bis 80, Blut mit Kontrastmittel 150 bis 300, Knochen ab 300.</p>
       </details>
 
-      <details class="abschnitt" open>
+      <details class="abschnitt" open id="schnitteAbschnitt">
         <summary>Schnitte</summary>
         <div class="steuerung">
           <label>x (sagittal) <input type="range" data-wert="schnittX" min="0" max="1" step="0.002" value="0.5"><output></output></label>
