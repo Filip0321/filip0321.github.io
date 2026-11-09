@@ -34,7 +34,7 @@
 
     <div class="feld-rahmen">
       <div class="feld-stapel vol-feld" id="stapel">
-        <canvas id="feld" aria-label="Volumen: ziehen dreht, Mausrad zoomt"></canvas>
+        <canvas id="feld" aria-label="Volumen: ziehen dreht, Shift oder rechte Maustaste verschiebt, Alt zieht zum Zoomen"></canvas>
         <canvas id="effekte" class="schicht" hidden></canvas>
         <svg id="lasso" class="vol-lasso" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
       </div>
@@ -209,12 +209,17 @@
           <label>Format
             <select data-wert="format">
               <option value="quer">16 : 9</option>
+              <option value="4:3">4 : 3</option>
               <option value="quadrat">1 : 1</option>
+              <option value="4:5">4 : 5</option>
               <option value="hoch">9 : 16</option>
+              <option value="3:2">3 : 2</option>
+              <option value="21:9">21 : 9</option>
             </select>
           </label>
+          <button type="button" id="kameraZuruecksetzen">Kamera zurücksetzen</button>
         </div>
-        <p class="hinweis">Ziehen dreht, das Mausrad zoomt.</p>
+        <p class="hinweis">Ziehen dreht; Shift oder rechte Maustaste verschiebt; Alt zieht zum Zoomen, das Mausrad zoomt.</p>
       </details>
 
       <details class="abschnitt">

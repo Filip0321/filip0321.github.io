@@ -14,6 +14,7 @@ import { richteExportEin } from "/lib/export.js";
 import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
 
 const G = 160; // Gitter für den Sand (das Bild selbst rechnet der Shader für jedes Pixel)
+let formatRatio = 1; // Startformat quadratisch
 
 const canvas = hole("feld"); // "feld": so heißt das Bild, das /lib/effekt-schicht.js mit Effekten überzieht
 const status = hole("status");
@@ -54,10 +55,20 @@ const { einstellung: e, setze } = richteReglerEin({
       if (e.resonanz) setze("frequenz", Math.round(Number(e.resonanz)));
       setze("frequenzArt", "regler");
     },
-    bildgroesse: () => {
-      canvas.width = canvas.height = Number(e.bildgroesse);
-    },
+    bildgroesse: () => passeBildgroesseAn(),
   },
+});
+
+function passeBildgroesseAn() {
+  const lang = Number(e.bildgroesse);
+  canvas.width = Math.max(1, Math.round(formatRatio >= 1 ? lang : lang * formatRatio));
+  canvas.height = Math.max(1, Math.round(formatRatio >= 1 ? lang / formatRatio : lang));
+}
+window.addEventListener("formatwechsel", (event) => {
+  const ratio = Number(event.detail?.ratio);
+  if (!(ratio > 0)) return;
+  formatRatio = ratio;
+  passeBildgroesseAn();
 });
 
 function neueModen() {
@@ -263,7 +274,7 @@ richteExportEin({
   tonFuer: (sekunden) => musik.tonFuerExport() ?? (e.tonHoeren && e.frequenzArt !== "musik" ? sinusFuer(sekunden, zeit) : null),
 });
 
-canvas.width = canvas.height = Number(e.bildgroesse);
+passeBildgroesseAn();
 neueModen();
 neuerSand();
 requestAnimationFrame(schleife);

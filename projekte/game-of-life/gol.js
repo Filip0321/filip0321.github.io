@@ -10,10 +10,11 @@ const stufenFeld = hole("stufen");
 
 let stufen = Number(stufenFeld.value);
 
-let zelle = 1
+let zelle = 1;
+let formatRatio = 4 / 3; // Standardformat 4:3, wird von /lib/format.js geändert
 let SPALTEN = 40 * stufen;
 let ZEILEN = 30 * stufen;
-let LUECKE = SPALTEN / ZEILEN / 10 / stufen;
+let LUECKE = (4 / 3) / 10 / stufen;
 
 // Zustände der Zellen (erstmal zwei leere Arrays) 
 
@@ -35,12 +36,27 @@ const nachbar3Feld = hole("nachbar3");
 
 // Größe einer Zelle in Canvas-Pixeln (die Ansicht, wird berechnet)
 
-function aktualisiere() {
+function aktualisiere(uebernehmen = false) {
+  const alt = gitter;
+  const altSpalten = SPALTEN;
+  const altZeilen = ZEILEN;
   SPALTEN = 40 * stufen;
-  ZEILEN = 30 * stufen;
-  LUECKE = SPALTEN / ZEILEN / 10 / stufen;     // Abstand zwischen Zellen als Anteil der Zellgröße
+  ZEILEN = Math.max(1, Math.round(SPALTEN / formatRatio));
+  // Abstand wie im ursprünglichen 4:3-Bild, jetzt unabhängig vom gewählten Seitenverhältnis.
+  LUECKE = (4 / 3) / 10 / stufen;
   gitter = new Uint8Array(SPALTEN * ZEILEN);
   naechstes = new Uint8Array(SPALTEN * ZEILEN);
+  if (uebernehmen && alt) {
+    const breite = Math.min(altSpalten, SPALTEN);
+    const hoehe = Math.min(altZeilen, ZEILEN);
+    const altX = Math.floor((altSpalten - breite) / 2);
+    const neuX = Math.floor((SPALTEN - breite) / 2);
+    const altY = Math.floor((altZeilen - hoehe) / 2);
+    const neuY = Math.floor((ZEILEN - hoehe) / 2);
+    for (let y = 0; y < hoehe; y++) {
+      gitter.set(alt.subarray((y + altY) * altSpalten + altX, (y + altY) * altSpalten + altX + breite), (y + neuY) * SPALTEN + neuX);
+    }
+  }
 }
 
 // Bekannte Muster
@@ -119,8 +135,8 @@ const ctx = canvas.getContext("2d");
 
 function passeGroesseAn() {
   const dpr = Math.max(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(canvas.clientWidth * dpr);
-  canvas.height = Math.round(canvas.width / 4 * 3);  // Seitenverhältnis des Spielfelds
+  canvas.width = Math.max(16, Math.round(canvas.clientWidth * dpr));
+  canvas.height = Math.max(16, Math.round(canvas.clientHeight * dpr));
   zelle = canvas.width / SPALTEN; 
   // console.log(canvas.width, canvas.height, SPALTEN, ZEILEN)                              
 }
@@ -431,6 +447,14 @@ function schleife(zeit) {
 
 // Startwerte setzen und Animation starten
 
+window.addEventListener("formatwechsel", (event) => {
+  const ratio = Number(event.detail?.ratio);
+  if (!(ratio > 0)) return;
+  formatRatio = ratio;
+  aktualisiere(true); // bisherige lebende Zellen bleiben im überlappenden Bereich
+  passeGroesseAn();
+  zeichne();
+});
 window.addEventListener("resize", () => {
   passeGroesseAn();
   zeichne();
@@ -496,4 +520,3 @@ richteExportEin({
   zuschnitt: crtZuschnitt,
   tonFuer: (sekunden) => ton.rendere(sekunden), // mit „Ton an“ klingt das Video wie das Feld
 });
-

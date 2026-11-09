@@ -13,6 +13,10 @@ Volumen-Viewer: nur was es nirgends sonst auf der Website gibt
   cursor: grab;
 }
 
+.vol-feld.zieht {
+  cursor: grabbing;
+}
+
 .vol-feld canvas {
   position: absolute;
   inset: 0;

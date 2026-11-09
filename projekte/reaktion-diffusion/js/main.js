@@ -87,7 +87,7 @@ const WEISS = [[255, 255, 255], [0, 0, 0]];
 const tabelle = () => farbtabelle(e.skala === "weiss" ? WEISS : skalaAnker(e.skala));
 
 // ---------- Größe und Säen ----------
-const FORMATE = { quadrat: 1, quer: 16 / 9, hoch: 9 / 16, "4:5": 4 / 5 };
+const FORMATE = { quadrat: 1, "1:1": 1, quer: 16 / 9, "16:9": 16 / 9, "4:3": 4 / 3, hoch: 9 / 16, "9:16": 9 / 16, "4:5": 4 / 5, "3:2": 3 / 2, "21:9": 21 / 9 };
 function neu() {
   const seiten = e.format === "foto" && foto ? foto.width / foto.height : FORMATE[e.format] ?? 1;
   // Feinheit = Zellen auf der längeren Seite
@@ -99,7 +99,8 @@ function neu() {
   const f = e.bildgroesse === "auto" ? Math.min(2, 2048 / Math.max(b, h)) : Number(e.bildgroesse) / Math.max(b, h);
   canvas.width = Math.round(b * f);
   canvas.height = Math.round(h * f);
-  stapel.style.setProperty("--format", b / h); // rd.css: Seitenverhältnis des Felds
+  stapel.style.setProperty("--format", b / h);
+  stapel.style.setProperty("--verhaeltnis", b / h); // rd.css: Seitenverhältnis des Felds
   // selbst zeichnen: erst leer und still, gesät wird mit „los wachsen“
   zeichnet = e.form === "zeichnen";
   sim.saeen(zeichneStart(b, h, zeichnet ? "leer" : e.form, { text: hole("startText").value, foto, schwelle: e.fotoSchwelle, saat: zufallSaat }));
