@@ -123,11 +123,18 @@
             <select data-wert="ansicht">
               <option value="tinte">die Tinte</option>
               <option value="tempo">die Strömung (Richtung als Farbe)</option>
+              <option value="linien">Strömungslinien (LIC)</option>
+              <option value="linienTinte">Tinte mit Strömungslinien</option>
+              <option value="linienFarbe">Strömungslinien, Richtung als Farbe</option>
             </select>
           </label>
+          <label data-nur="ansicht=linien,linienTinte,linienFarbe">Linienlänge <input type="range" data-wert="linienLaenge" min="4" max="60" step="1" value="20"><output></output></label>
+          <label data-nur="ansicht=linien,linienTinte,linienFarbe">Körnung <input type="range" data-wert="linienKorn" min="1" max="6" step="0.5" value="1.5"><output></output></label>
+          <label data-nur="ansicht=linien,linienTinte,linienFarbe">fließen <input type="range" data-wert="linienFluss" min="0" max="3" step="0.05" value="1"><output></output></label>
           <label>Hintergrund <input type="color" data-wert="grund" value="#050507"></label>
           <label>Deckkraft <input type="range" data-wert="deckkraft" min="0.2" max="10" step="0.1" value="2"><output></output></label>
         </div>
+        <p class="hinweis" data-nur="ansicht=linien,linienTinte,linienFarbe">Strömungslinien (Line Integral Convolution): jeder Pixel mittelt ein Rauschen entlang seiner Stromlinie. Was auf derselben Linie liegt, wird gleich hell, quer dazu wechselt es: Striche genau in Fließrichtung, wie Eisenfeilspäne. Kostet viel Grafikkarte: auf schwachen Geräten die Linienlänge klein lassen.</p>
       </details>
 
       <details class="abschnitt" id="musik">

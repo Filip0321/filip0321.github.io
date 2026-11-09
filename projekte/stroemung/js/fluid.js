@@ -150,27 +150,71 @@ uniform sampler2D quelle;
 uniform float faktor;
 void main() { farbe = texture(quelle, uv) * faktor; }`;
 
+// Anzeige. art: 0 Tinte, 1 Strömung als Farbe (Richtung = Farbton, Tempo = Sättigung),
+// 2 bis 4: Strömungslinien mit Line Integral Convolution (LIC, Cabral und Leedom 1993):
+//   Jeder Pixel läuft ein Stück die Stromlinie entlang, vorwärts und rückwärts, und mittelt dabei ein Rauschen.
+//   Pixel auf derselben Stromlinie sehen fast dasselbe Rauschen und werden gleich hell, quer dazu wechselt es:
+//   es entstehen Striche genau in Strömungsrichtung, wie Eisenfeilspäne am Magneten.
+//   Die Gewichte entlang der Linie sind eine wandernde Welle (Forssell 1995): so fließen die Striche sichtbar.
+//   Der Schritt entlang der Linie: Mittelpunktsregel (erst einen halben Schritt, dort die Richtung neu messen).
+//   (2: Linien allein, 3: Linien in der Tinte, 4: Linien mit der Richtung als Farbe)
 const ANZEIGE = `${KOPF}
 uniform sampler2D tinte;
 uniform sampler2D geschw;
 uniform vec3 grund;
 uniform float art;
 uniform float staerke;
+uniform vec2 bildGroesse;
+uniform float laenge, koernung, zeit;
 vec3 farbton(float h) {
   return clamp(abs(fract(h + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
 }
+float rauschen(vec2 p) {
+  vec2 q = floor(p * bildGroesse / koernung);
+  return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453);
+}
+float lic(vec2 start) {
+  float summe = rauschen(start);
+  float gewicht = 1.0;
+  for (int r = -1; r <= 1; r += 2) {
+    vec2 p = start;
+    for (int i = 1; i <= 60; i++) {
+      if (float(i) > laenge) break;
+      vec2 v = texture(geschw, p).xy;
+      if (dot(v, v) < 1e-6) break;
+      vec2 m = texture(geschw, p + normalize(v) * float(r) * 0.5 / bildGroesse).xy;
+      if (dot(m, m) < 1e-6) break;
+      p += normalize(m) * float(r) / bildGroesse;
+      float w = 0.5 + 0.5 * cos(3.14159 * float(i * r) / laenge - zeit * 4.0);
+      summe += rauschen(p) * w;
+      gewicht += w;
+    }
+  }
+  // gemittelt wird das Rauschen grau: Kontrast wieder hochziehen (mit der Wurzel der Zahl der Proben)
+  return clamp((summe / gewicht - 0.5) * sqrt(gewicht) * 0.9 + 0.5, 0.0, 1.0);
+}
 void main() {
-  if (art > 0.5) {
-    vec2 v = texture(geschw, uv).xy;
-    float tempo = 1.0 - exp(-length(v) * staerke * 0.01);
-    farbe = vec4(mix(grund, farbton(atan(v.y, v.x) / 6.2831853 + 0.5), tempo), 1.0);
+  vec2 v = texture(geschw, uv).xy;
+  float tempo = 1.0 - exp(-length(v) * staerke * 0.01);
+  vec3 richtung = farbton(atan(v.y, v.x) / 6.2831853 + 0.5);
+  if (art > 0.5 && art < 1.5) {
+    farbe = vec4(mix(grund, richtung, tempo), 1.0);
     return;
   }
   vec4 t = texture(tinte, uv);
   // Menge a deckt den Grund ab (1 − e^(−a), sanft gegen 1), die Farbe ist rgb / a
   float deckt = 1.0 - exp(-max(t.a, 0.0) * staerke);
   vec3 f = clamp(t.rgb / max(t.a, 1e-4), 0.0, 1.0);
-  farbe = vec4(mix(grund, f, deckt), 1.0);
+  vec3 tinteBild = mix(grund, f, deckt);
+  if (art < 0.5) {
+    farbe = vec4(tinteBild, 1.0);
+    return;
+  }
+  float l = lic(uv);
+  float sichtbar = smoothstep(0.0, 0.15, length(v) * 0.05); // wo es steht, gibt es keine Linien
+  if (art < 2.5) farbe = vec4(mix(grund, vec3(l), sichtbar * (0.25 + 0.75 * tempo)), 1.0);
+  else if (art < 3.5) farbe = vec4(tinteBild * mix(1.0, 0.35 + 1.1 * l, sichtbar * deckt), 1.0);
+  else farbe = vec4(mix(grund, richtung * (0.25 + 0.95 * l), sichtbar * (0.3 + 0.7 * tempo)), 1.0);
 }`;
 
 export async function erstelleFluid(canvas) {
@@ -311,9 +355,11 @@ export async function erstelleFluid(canvas) {
     lauf(P.advektion, tinte[0], { geschw: geschw[0], quelle: tinte[1] }, { dt: w.dt, verlust: w.verblassen });
   }
 
-  // a: { grund [r, g, b], art (0 Tinte, 1 Geschwindigkeit), staerke }
+  // a: { grund [r, g, b], art (0 Tinte, 1 Geschwindigkeit, 2 bis 4 Linien), staerke, laenge, koernung, zeit }
   function zeige(a) {
-    lauf(P.anzeige, null, { tinte: tinte[0], geschw: geschw[0] }, { grund: a.grund, art: a.art, staerke: a.staerke });
+    gl.useProgram(P.anzeige.p);
+    gl.uniform2f(P.anzeige.orte.bildGroesse, tb, th);
+    lauf(P.anzeige, null, { tinte: tinte[0], geschw: geschw[0] }, { grund: a.grund, art: a.art, staerke: a.staerke, laenge: a.laenge ?? 20, koernung: a.koernung ?? 1, zeit: a.zeit ?? 0 });
   }
 
   // ein Bild als Tinte (füllend), z. B. ein Foto, das dann zerfließt
