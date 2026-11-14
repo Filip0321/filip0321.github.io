@@ -25,6 +25,8 @@ import { ladeVerlauf } from "/lib/verlauf.js";
 import { VOLLBILD, ZWEI_D, DREI_D, SCHAERFE } from "./shader.js";
 import { flug, vorn } from "./kamera.js";
 import { richteLampenEin, stelleLampeAb, lampenFuerShader, wechsleWelt } from "./lampen.js";
+import { fraktalPunkte, fraktalNetz, alsPly } from "./splats.js";
+import { alsGlb, alsObj } from "/lib/volumen/netz.js";
 
 const bild = hole("feld"); // "feld": so heißt das Bild, das /lib/effekt-schicht.js mit Effekten überzieht
 const stapel = hole("stapel");
@@ -149,6 +151,7 @@ let stand = 0; // zählt Änderungen an den Reglern (für die Fahrt: Einstellung
 const { einstellung, setze } = richteReglerEin({
   beiAenderung: () => stand++,
   extra: {
+    pixel: () => stellePixel(),
     skala: () => neueSkala(),
     farbe1: () => neueSkala(),
     farbe2: () => neueSkala(),
@@ -215,6 +218,7 @@ function neueSkala() {
 }
 neueSkala();
 stelleFormat();
+queueMicrotask(() => stellePixel()); // (stellePixel steht weiter unten; erst nach dem ersten Durchlauf aufrufen)
 
 // ---------- Abstand zur Oberfläche auf der CPU (für das Tempo der Kamera und den Boden) ----------
 // dieselben Formeln wie im Shader; nah an der Oberfläche fliegt man langsamer, sonst kommt man nie hinein
@@ -224,15 +228,20 @@ function abstand(p) {
   return b ? Math.min(abstandFraktal(p), Math.max(0, punkt(p, b.normale) - b.hoehe)) : abstandFraktal(p);
 }
 
+// spur: wie im Shader (spur, „orbit trap“): wie nah der Punkt beim Rechnen der Mitte kam; daraus die Farbe.
+// abstandFraktal setzt sie nebenbei (für den Export von Punkten und Netzen in den Farben des Bildes).
+let spur = 0;
 function abstandFraktal(p) {
   if (einstellung.welt === "mandelbulb") {
     let [x, y, z] = p;
     let dr = 1;
     let r = 0;
     const n = einstellung.potenz;
+    spur = 1e9;
     for (let i = 0; i < 10; i++) {
       r = Math.hypot(x, y, z);
       if (r > 2) break;
+      spur = Math.min(spur, r);
       const th = Math.acos(Math.max(-1, Math.min(1, z / r))) * n;
       const ph = Math.atan2(y, x) * n;
       dr = r ** (n - 1) * n * dr + 1;
@@ -246,28 +255,33 @@ function abstandFraktal(p) {
     let [x, y, z] = p;
     let w = 1;
     const fold = (a) => Math.max(-1, Math.min(1, a)) * 2 - a;
+    spur = 1e9;
     for (let i = 0; i < 14; i++) {
       x = fold(x);
       y = fold(y);
       z = fold(z);
+      spur = Math.min(spur, x * x + y * y + z * z);
       const f = Math.min(1, Math.max(0.25 / (x * x + y * y + z * z), 0.25)) / 0.25;
       x = x * f * sk + p[0];
       y = y * f * sk + p[1];
       z = z * f * sk + p[2];
       w = w * f * Math.abs(sk) + 1;
     }
+    spur = Math.sqrt(spur) * 0.8;
     return Math.max(0, (Math.hypot(x, y, z) - Math.abs(sk - 1)) / Math.abs(w));
   }
   if (einstellung.welt === "sierpinski") {
     let [x, y, z] = p;
     const c = Math.cos(einstellung.drehung * Math.PI / 180);
     const s = Math.sin(einstellung.drehung * Math.PI / 180);
+    spur = 0;
     for (let n = 0; n < 12; n++) {
       if (x + y < 0) [x, y] = [-y, -x];
       if (x + z < 0) [x, z] = [-z, -x];
       if (y + z < 0) [z, y] = [-y, -z];
       [x, y] = [c * x + s * y, -s * x + c * y];
       [x, y, z] = [x * 2 - 1, y * 2 - 1, z * 2 - 1];
+      if (n < 6) spur += (x > y ? 1 : 0) / 2 ** (n + 1);
     }
     return Math.max(0, (Math.hypot(x, y, z) - 1.5) * 2 ** -12);
   }
@@ -276,12 +290,15 @@ function abstandFraktal(p) {
     let z = [p[0], p[1], p[2], 0];
     let dz2 = 1;
     let z2 = z[0] ** 2 + z[1] ** 2 + z[2] ** 2;
+    spur = 1e9;
     for (let i = 0; i < 12; i++) {
       dz2 *= 4 * z2;
       z = [z[0] * z[0] - z[1] * z[1] - z[2] * z[2] - z[3] * z[3] + c[0], 2 * z[0] * z[1] + c[1], 2 * z[0] * z[2] + c[2], 2 * z[0] * z[3] + c[3]];
       z2 = z[0] ** 2 + z[1] ** 2 + z[2] ** 2 + z[3] ** 2;
+      spur = Math.min(spur, z2);
       if (z2 > 16) break;
     }
+    spur = Math.sqrt(spur);
     return Math.max(0, 0.25 * Math.sqrt(z2 / dz2) * Math.log(z2));
   }
   if (einstellung.welt === "kleinian") {
@@ -633,6 +650,22 @@ let vorher = performance.now();
 let lampeRichtung = [0, 0, -1];
 let rechnetGross = false; // während „Groß rechnen“ steht die Anzeige
 
+// Wie groß in der Anzeige gerechnet wird. Mit „Pixel“ (größer als 1): grob, jeder gerechnete Pixel n × n
+// Bildschirmpunkte groß, scharf vergrößert (CSS image-rendering: pixelated, sonst würde der Browser weich
+// verwischen). Sonst die „Auflösung“.
+function vorschauGroesse() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const px = Number(einstellung.pixel ?? 1);
+  const f = px > 1 ? 1 / px : einstellung.aufloesung;
+  return [Math.max(2, Math.round(bild.clientWidth * dpr * f)), Math.max(2, Math.round(bild.clientHeight * dpr * f))];
+}
+function stellePixel() {
+  const scharf = Number(einstellung.pixel ?? 1) > 1;
+  bild.style.imageRendering = scharf ? "pixelated" : "";
+  const schicht = hole("effekte");
+  if (schicht) schicht.style.imageRendering = scharf ? "pixelated" : "";
+}
+
 function takt(jetzt) {
   requestAnimationFrame(takt);
   if (rechnetGross) return;
@@ -648,14 +681,14 @@ function takt(jetzt) {
     const t = (jetzt - abspielen.start) / 1000;
     const zeit = zeigeProbe(Math.min(t, fahrt.dauer));
     if (einstellung.schaerfe) stelleFokus(dt);
-    zeichne(Math.round(bild.clientWidth * dpr * einstellung.aufloesung), Math.round(bild.clientHeight * dpr * einstellung.aufloesung), zeit * 1000, false);
+    zeichne(...vorschauGroesse(), zeit * 1000, false);
     if (t > fahrt.dauer) stoppeAbspielen();
     return;
   }
   if (einstellung.dimension === "3d") lampeRichtung = bewege(dt, jetzt / 1000);
   if (einstellung.schaerfe) stelleFokus(dt);
   if (aufnahme) merkeProbe(jetzt);
-  zeichne(Math.round(bild.clientWidth * dpr * einstellung.aufloesung), Math.round(bild.clientHeight * dpr * einstellung.aufloesung), jetzt, false);
+  zeichne(...vorschauGroesse(), jetzt, false);
 }
 
 // fein: für „Groß rechnen“ genauer treffen und mehr Schritte erlauben (die Vorschau spart da)
@@ -950,14 +983,31 @@ let startZeit = 0;
 let renderZiel = null; // { breite, ss } während des Renderns, sonst null
 function zeigeVideoBild(t, vorschau = false) {
   const zeit = fahrt ? zeigeProbe(Math.min(t, fahrt.dauer)) : startZeit + t; // ohne Fahrt: stehen, die Zeit läuft
-  const b = renderZiel && !vorschau ? renderZiel.breite * renderZiel.ss : Math.min(1280, bild.width * 2);
+  const px = Number(einstellung.pixel ?? 1);
+  // Pixel: grob rechnen (Breite durch n, aufgerundet), beim Vergrößern scharf; sonst mal Supersampling
+  const b = renderZiel && !vorschau ? (px > 1 ? Math.ceil(renderZiel.breite / px) : renderZiel.breite * renderZiel.ss) : px > 1 ? Math.ceil(Math.min(1280, bild.clientWidth * 2) / px) : Math.min(1280, bild.width * 2);
   const h = Math.round((b * bild.clientHeight) / bild.clientWidth / 2) * 2;
   if (einstellung.schaerfe) stelleFokus(1 / 30); // der Fokus zieht Bild für Bild nach, wie beim Fliegen
   zeichne(b, h, zeit * 1000, true);
 }
 // das gerechnete (große) Bild auf die Breite des Videos verkleinern
 const videoKlein = document.createElement("canvas");
+// Pixel: jeder gerechnete Pixel wird genau n × n groß (ohne Glätten, „nächster Nachbar“); was über die
+// Videobreite hinausragt (aufgerundet), wird abgeschnitten. So sind alle Pixel gleich groß und die Kanten scharf.
+function scharfVergroessert(quelle, breite, ziel) {
+  const px = Number(einstellung.pixel ?? 1);
+  const h = Math.round((breite * quelle.height) / quelle.width / 2) * 2;
+  if (ziel.width !== breite || ziel.height !== h) {
+    ziel.width = breite;
+    ziel.height = h;
+  }
+  const c = ziel.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  c.drawImage(quelle, 0, 0, quelle.width * px, quelle.height * px);
+  return ziel;
+}
 function aufVideobreite(quelle) {
+  if (renderZiel && Number(einstellung.pixel ?? 1) > 1) return scharfVergroessert(quelle, renderZiel.breite, videoKlein);
   if (!renderZiel || renderZiel.ss === 1) return quelle;
   const b = renderZiel.breite;
   const h = Math.round((b * quelle.height) / quelle.width);
@@ -1028,6 +1078,7 @@ const grossFenster = erstelleExportDialog({
 let grossBreite = 1920;
 const klein = document.createElement("canvas");
 function verkleinert(quelle) {
+  if (Number(einstellung.pixel ?? 1) > 1) return scharfVergroessert(quelle, grossBreite, klein);
   // vom Supersampling auf die Exportbreite (das Verkleinern mittelt die vier Strahlen pro Pixel)
   const h = Math.round((grossBreite * quelle.height) / quelle.width);
   if (klein.width !== grossBreite || klein.height !== h) {
@@ -1049,8 +1100,12 @@ hole("gross").addEventListener("click", async () => {
     grossBreite = Number(einstellung.exportBreite);
     const h = Math.round((grossBreite * bild.clientHeight) / bild.clientWidth);
     const max = gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0];
-    const ss = grossBreite * 2 <= max ? 2 : 1;
-    zeichne(grossBreite * ss, h * ss, performance.now(), true);
+    const px = Number(einstellung.pixel ?? 1);
+    if (px > 1) zeichne(Math.ceil(grossBreite / px), Math.ceil(h / px), performance.now(), true); // grob, scharf vergrößert
+    else {
+      const ss = grossBreite * 2 <= max ? 2 : 1;
+      zeichne(grossBreite * ss, h * ss, performance.now(), true);
+    }
     gl.finish();
     hole("info").textContent = "";
     const einst = await grossFenster.oeffne({ art: "bild", ueberschrift: "Groß gerechnet: speichern" });
@@ -1073,3 +1128,64 @@ setInterval(() => {
 richteLampenEin(hole("lampenListe"), () => {}, () => (ENDLICH.includes(einstellung.welt) ? groesse() * 2.5 : WELTEN[einstellung.welt].gross ? 3 : 1));
 wechsleWelt(einstellung.welt);
 hole("lampeAbstellen").addEventListener("click", lampeHierAbstellen);
+
+// ---------- Punkte und Gaussian Splats (nur Welten, die aufhören) ----------
+// splats.js: Gitter über den Würfel, Zellen nahe der Oberfläche (aus derselben Abstandsfunktion wie die Kamera)
+function zeigeSplatKnopf() {
+  const geht = einstellung.dimension === "3d" && ENDLICH.includes(einstellung.welt);
+  hole("splatExport").disabled = !geht;
+  hole("splatInfo").textContent = geht ? "" : "Nur für 3D-Fraktale, die aufhören (Mandelbulb, Mandelbox, Sierpinski, Quaternion-Julia).";
+}
+for (const id of ["dimension", "welt"]) document.querySelector(`[data-wert="${id}"]`)?.addEventListener("change", zeigeSplatKnopf);
+for (const id of ["dimension", "welt"]) document.querySelector(`[data-wert="${id}"]`)?.addEventListener("input", zeigeSplatKnopf);
+zeigeSplatKnopf();
+hole("splatExport").addEventListener("click", async () => {
+  const info = hole("splatInfo");
+  info.textContent = "rechnet …";
+  await new Promise((r) => setTimeout(r, 30));
+  // Farben wie im Bild: Verlauf an der Stelle „Spur“ (orbit trap), 70 % gemischt mit der Grundfarbe (shader.js)
+  const anker = einstellung.skala === "eigen" ? [einstellung.farbe1, einstellung.farbe2, einstellung.farbe3].map(hexZuRgb) : skalaAnker(einstellung.skala);
+  const tabelle = farbtabelle(einstellung.umgedreht ? [...anker].reverse() : anker);
+  const grund = hexZuRgb(einstellung.grundFarbe).map((x) => x / 255);
+  const g = groesse();
+  const nachSpur = hole("splatFarbe").value === "spur";
+  const farbeBei = (p) => {
+    const t = nachSpur ? Math.min(1, Math.max(0, spur)) : Math.min(1, Math.hypot(...p) / g);
+    const i = Math.round(t * 255) * 3;
+    const v = [tabelle[i] / 255, tabelle[i + 1] / 255, tabelle[i + 2] / 255];
+    return nachSpur ? v.map((x, j) => grund[j] + (x - grund[j]) * 0.7) : v;
+  };
+  const n = Number(hole("splatGitter").value);
+  const art = hole("splatArt").value;
+  const t0 = performance.now();
+  let blob;
+  let text;
+  if (art === "glb" || art === "obj") {
+    const { netz, farben } = fraktalNetz(abstandFraktal, g, n, farbeBei);
+    if (!netz.idx.length) {
+      info.textContent = "Das Netz ist leer (das Fraktal ist bei diesen Reglern vielleicht zu fein für das Gitter).";
+      return;
+    }
+    const teile = [{ name: name(), farbe: [255, 255, 255], deckkraft: 1, netz, farben }];
+    blob = art === "glb" ? alsGlb(teile) : alsObj(teile);
+    text = `${(netz.idx.length / 3).toLocaleString("de-DE")} Dreiecke`;
+  } else {
+    const punkte = fraktalPunkte(abstandFraktal, g, n, farbeBei);
+    const anzahl = punkte.pos.length / 3;
+    if (!anzahl) {
+      info.textContent = "Keine Punkte gefunden (das Fraktal ist bei diesen Reglern vielleicht leer).";
+      return;
+    }
+    blob = alsPly(punkte, art === "gaussian", { groesse: Number(hole("splatGroesse").value), deckkraft: 0.9 });
+    text = `${anzahl.toLocaleString("de-DE")} Punkte`;
+  }
+  const endung = { gaussian: "-gaussian-splats.ply", punkte: "-punkte.ply", glb: "-netz.glb", obj: "-netz.obj" }[art];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name()}${endung}`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+  info.textContent = `${text}, ${(blob.size / 1e6).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB, in ${((performance.now() - t0) / 1000).toFixed(1)} s: ${a.download}`;
+});
