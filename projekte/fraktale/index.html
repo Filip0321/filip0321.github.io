@@ -80,6 +80,19 @@
             <input type="range" data-wert="aufloesung" min="0.25" max="2" step="0.05" value="0.75">
             <output></output>
           </label>
+          <!-- Pixel: grob rechnen und scharf vergrößern (nächster Nachbar), in der Anzeige und beim Export -->
+          <label>Pixel (scharf vergrößert)
+            <select data-wert="pixel">
+              <option value="1" selected>aus</option>
+              <option value="2">2 × 2</option>
+              <option value="3">3 × 3</option>
+              <option value="4">4 × 4</option>
+              <option value="6">6 × 6</option>
+              <option value="8">8 × 8</option>
+              <option value="12">12 × 12</option>
+              <option value="16">16 × 16</option>
+            </select>
+          </label>
 
           <!-- 2D: ziehen verschiebt, Rad zoomt zum Zeiger -->
           <label data-nur="dimension=2d">Art
@@ -351,7 +364,37 @@
           </label>
         </div>
         <p class="hinweis" id="fahrtInfo">Keine Fahrt gemerkt.</p>
-        <p class="hinweis">Die Größe des Videos stellst du im Export-Fenster ein („Größe“: Full HD, 4K …); genau so groß wird gerechnet, mal Supersampling. „Wie es ist“ heißt: so groß wie die Anzeige. „Qualität“ im Fenster gibt dem Video mehr Bitrate, das brauchen feine Fraktale. „Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. Für ein ruckelfreies Video: „Fahrt aufnehmen“ (oder R), fliegen, Stopp, dann „Video rendern“. „Fahrt glätten“ nimmt das Zucken der Maus heraus (mehr Sekunden = ruhiger, aber Kurven werden weiter); mit „Fahrt ansehen“ prüfst du es vorher. Jedes Bild wird einzeln gerechnet, mit Lampe, Wackeln, Reglern und dem Klang der Höhle (wenn er an ist). Ohne Fahrt bleibt die Kamera stehen. „Live aufnehmen“ nimmt jetzt den Klang mit, ruckelt aber, wenn der Rechner nicht hinterherkommt.</p>
+        <h3 class="gruppe">Punkte, Gaussian Splats und Netz</h3>
+        <div class="steuerung">
+          <label>Art
+            <select id="splatArt">
+              <option value="gaussian">Gaussian Splats (.ply)</option>
+              <option value="punkte">Punktwolke (.ply)</option>
+              <option value="glb">Netz, Objekt (.glb)</option>
+              <option value="obj">Netz, Objekt (.obj)</option>
+            </select>
+          </label>
+          <label>Farbe
+            <select id="splatFarbe">
+              <option value="spur">wie im Bild (Farbverlauf nach der Spur)</option>
+              <option value="mitte">Farbverlauf nach Abstand zur Mitte</option>
+            </select>
+          </label>
+          <label>Gitter
+            <select id="splatGitter">
+              <option value="128">128³ (schnell)</option>
+              <option value="192" selected>192³</option>
+              <option value="256">256³</option>
+              <option value="384">384³ (lange, viele Punkte)</option>
+            </select>
+          </label>
+          <label>Splat-Größe
+            <input type="range" id="splatGroesse" min="0.4" max="2" step="0.05" value="0.9">
+          </label>
+          <button type="button" id="splatExport">speichern</button>
+        </div>
+        <p class="hinweis" id="splatInfo" aria-live="polite"></p>
+        <p class="hinweis">Die Größe des Videos stellst du im Export-Fenster ein („Größe“: Full HD, 4K …); genau so groß wird gerechnet, mal Supersampling. „Wie es ist“ heißt: so groß wie die Anzeige. „Qualität“ im Fenster gibt dem Video mehr Bitrate, das brauchen feine Fraktale. „Groß rechnen“ rechnet das Bild neu: in Exportgröße, genauer und mit vier Strahlen pro Pixel. Für ein ruckelfreies Video: „Fahrt aufnehmen“ (oder R), fliegen, Stopp, dann „Video rendern“. „Fahrt glätten“ nimmt das Zucken der Maus heraus (mehr Sekunden = ruhiger, aber Kurven werden weiter); mit „Fahrt ansehen“ prüfst du es vorher. Jedes Bild wird einzeln gerechnet, mit Lampe, Wackeln, Reglern und dem Klang der Höhle (wenn er an ist). Ohne Fahrt bleibt die Kamera stehen. „Live aufnehmen“ nimmt jetzt den Klang mit, ruckelt aber, wenn der Rechner nicht hinterherkommt. „Pixel“ (bei der Ansicht): grob rechnen und jeden Pixel scharf vergrößern, in der Anzeige, im Video und bei „Groß rechnen“ (dann ohne Supersampling: die Kanten sollen ja hart sein). Punkte, Splats und Netz: nur für 3D-Fraktale, die aufhören; die Oberfläche wird auf einem Gitter abgetastet, in denselben Farben wie im Bild (Verlauf nach der „Spur“, mit der Grundfarbe gemischt). Das PLY trägt die Farbe doppelt: für Splat-Programme (f_dc) und als red/green/blue, die der normale PLY-Import in Blender als Farbattribut liest. Das Netz (GLB, OBJ) hat eine Farbe je Eckpunkt; in Blender: im Material „Color Attribute“ an „Base Color“ hängen.</p>
       </details>
     </div>
   </main>
@@ -366,3 +409,5 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+
+

@@ -47,7 +47,7 @@
       <details class="abschnitt" open data-teil="daten">
         <summary>Daten</summary>
         <div class="steuerung">
-          <label class="datei-knopf">Datei öffnen <input type="file" id="datei" multiple accept=".nrrd,.nhdr,.raw,.gz,.dcm"></label>
+          <label class="datei-knopf">Datei öffnen <input type="file" id="datei" multiple accept=".nrrd,.nhdr,.raw,.raw.gz,.dcm,.nii,.nii.gz,.hdr,.hdr.gz,.img,.img.gz,.mha,.mhd"></label>
           <label class="datei-knopf">DICOM-Ordner öffnen <input type="file" id="ordner" webkitdirectory multiple></label>
           <button type="button" id="test">Testkörper (Kopf)</button>
           <button type="button" id="bulb">Mandelbulb</button>
@@ -64,7 +64,7 @@
           <label>y <input type="number" id="abstandY" min="0.01" step="0.01" value="1"></label>
           <label>z <input type="number" id="abstandZ" min="0.01" step="0.01" value="1"></label>
         </div>
-        <p class="hinweis">Geht: DICOM (ein Ordner mit einer Datei pro Schicht, ungepackt), .nrrd (roh oder gzip), .nhdr zusammen mit seiner Datendatei (beide auswählen), .raw mit Größe und Typ im Namen wie bei Open SciVis (name_512x512x240_int16.raw). Die Daten bleiben auf deinem Gerät, nichts wird hochgeladen.</p>
+        <p class="hinweis">Geht: DICOM (ein Ordner mit einer Datei pro Schicht, ungepackt), NIfTI-1/2 (.nii, .nii.gz oder .hdr + .img), MetaImage (.mha oder .mhd + .raw), NRRD (.nrrd oder .nhdr + Datendatei) und RAW mit Größe und Typ im Namen (z. B. kopf_256x256x128_uint8.raw). Bei 4D-NIfTI wird das erste Zeitvolumen geladen. Komprimierte DICOM-Dateien, RGB-/Vektorvolumen und 4D-Zeitreihen-Animationen werden nicht unterstützt. Die Daten bleiben auf deinem Gerät, nichts wird hochgeladen.</p>
       </details>
 
       <details class="abschnitt" open>
@@ -88,13 +88,24 @@
           </label>
           <label data-nur="art=schlieren">Stärke <input type="range" data-wert="schlierenStaerke" min="0.05" max="10" step="0.05" value="1.5"><output></output></label>
           <label data-nur="art=schlieren">Messer (°) <input type="range" data-wert="messerWinkel" min="0" max="180" step="1" value="0"><output></output></label>
-          <label>Gewebe
+          <label>Vorlage
             <select data-wert="gewebe">
-              <option value="knochen" data-nur-ct>Knochen</option>
-              <option value="haut" data-nur-ct>Haut</option>
-              <option value="gefaesse" data-nur-ct>Gefäße und Organe (Kontrastmittel)</option>
-              <option value="lunge" data-nur-ct>Lunge</option>
-              <option value="eigen">eigene Kurve</option>
+              <optgroup label="CT (Hounsfield)">
+                <option value="knochen" data-nur-ct>Knochen</option>
+                <option value="haut" data-nur-ct>Haut</option>
+                <option value="weichteile" data-nur-ct>Weichteile, Muskeln, Organe</option>
+                <option value="gehirn" data-nur-ct>Gehirn</option>
+                <option value="gefaesse" data-nur-ct>Gefäße und Organe (Kontrastmittel)</option>
+                <option value="lunge" data-nur-ct>Lunge</option>
+              </optgroup>
+              <optgroup label="MRT und alles andere (aus dem Histogramm)">
+                <option value="mrtAussen">Oberfläche (Haut)</option>
+                <option value="mrtGewebe">mittlere Helligkeiten (Gewebe)</option>
+                <option value="mrtHell">helle Stellen (Fett, Gefäße)</option>
+                <option value="regenbogen">Regenbogen (erkunden)</option>
+                <option value="rampe">Rampe: hell = deckend (wie früher „eigene Kurve“)</option>
+              </optgroup>
+              <option value="eigen">eigene (von Hand)</option>
             </select>
           </label>
           <label data-nur="art=oberflaeche">Schwelle <input type="range" data-wert="schwelle" min="-1000" max="3000" step="1" value="300"><output></output></label>
@@ -103,22 +114,27 @@
           <label data-nur="art=volumen">Licht <input type="range" data-wert="licht" min="0" max="1" step="0.05" value="0.8"><output></output></label>
           <label>Schrittweite (Voxel) <input type="range" data-wert="schritt" min="0.25" max="3" step="0.05" value="0.7"><output></output></label>
         </div>
-        <h3 class="gruppe">Fenster und eigene Kurve</h3>
+        <h3 class="gruppe">Kurve</h3>
+        <canvas id="kurve" class="vol-kurve" aria-label="Kurve: Wert waagerecht, Deckkraft senkrecht"></canvas>
+        <div class="steuerung">
+          <label>Farben
+            <select data-wert="kurvenFarbe">
+              <option value="punkte">die der Punkte</option>
+              <option value="glut">Glut</option>
+              <option value="eis">Eis</option>
+              <option value="viridis">Viridis</option>
+              <option value="grau">Grau</option>
+            </select>
+          </label>
+          <label data-nur="kurvenFarbe=punkte">Farbe des gewählten Punkts <input type="color" id="kurveFarbe" value="#ffffff"></label>
+          <button type="button" id="kurveGanz">ganzer Wertebereich</button>
+        </div>
+        <p class="hinweis">Grau: wie oft jeder Wert vorkommt (logarithmisch; jeder Berg ist eine Art Gewebe oder Material). Darüber die Kurve: waagerecht der Wert, senkrecht die Deckkraft. Punkt ziehen verschiebt ihn, Klick daneben setzt einen neuen, Doppelklick oder Rechtsklick löscht ihn. Farbe: Punkt anklicken, dann das Farbfeld; oder unter „Farben“ eine Skala (Glut, Eis, Viridis, Grau) über die ganze Kurve legen, die Punkte bestimmen dann nur noch die Deckkraft. Mausrad zoomt. Bei CT sind die Werte Hounsfield-Einheiten: Luft −1000, Fett um −100, Wasser 0, Hirnwasser 0 bis 15, Gehirn 20 bis 45, Muskeln 40 bis 80, Kontrastmittel 150 bis 300, Knochen ab 300. Das Gehirn liegt im CT im selben Bereich wie die Muskeln außen am Schädel: mit der Vorlage „Gehirn“ leuchten beide. Nur das Gehirn: ein Segment (unten) mit einem Klick hinein.</p>
+        <h3 class="gruppe">Fenster der Schnitte (und MIP)</h3>
         <div class="steuerung">
           <label>von <input type="range" data-wert="von" min="-1000" max="3000" step="1" value="-200"><output></output></label>
           <label>bis <input type="range" data-wert="bis" min="-1000" max="3000" step="1" value="1200"><output></output></label>
-          <label data-nur="gewebe=eigen">Farben
-            <select data-wert="skala">
-              <option value="glut">Glut</option>
-              <option value="grau">Grau</option>
-              <option value="eis">Eis</option>
-              <option value="viridis">Viridis</option>
-            </select>
-          </label>
-          <label data-nur="gewebe=eigen">Deckkraft <input type="range" data-wert="deckkraft" min="0.01" max="1" step="0.01" value="0.5"><output></output></label>
-          <label data-nur="gewebe=eigen">Kurve <input type="range" data-wert="gamma" min="0.3" max="6" step="0.1" value="2"><output></output></label>
         </div>
-        <p class="hinweis">„von“ und „bis“ gelten immer für die Schnitte (Graustufen) und bei „eigene Kurve“ auch für das Volumen. Bei CT sind die Werte Hounsfield-Einheiten: Luft −1000, Fett um −100, Wasser 0, Weichteile 20 bis 80, Blut mit Kontrastmittel 150 bis 300, Knochen ab 300.</p>
       </details>
 
       <details class="abschnitt" open id="schnitteAbschnitt">
@@ -152,15 +168,54 @@
               <option value="zurueckholen">Pinsel: zurückholen</option>
               <option value="stueckBehalten">Klick: nur dieses Stück behalten</option>
               <option value="stueckWeg">Klick: dieses Stück ausblenden</option>
+              <option value="segKlick">Segment: Klick füllt Zusammenhängendes</option>
+              <option value="segMalen">Segment: Pinsel malt</option>
+              <option value="segRadieren">Segment: Pinsel radiert</option>
             </select>
           </label>
           <label data-nur="werkzeug=stueckBehalten,stueckWeg">Grenze <input type="range" data-wert="grenze" min="-1000" max="3000" step="1" value="200"><output></output></label>
-          <label data-nur="werkzeug=radieren,zurueckholen">Pinsel <input type="range" data-wert="pinsel" min="0.005" max="0.2" step="0.005" value="0.03"><output></output></label>
-          <label data-nur="werkzeug=radieren,zurueckholen"><input type="checkbox" data-wert="durchAlle"> durch alle Schichten</label>
+          <label data-nur="werkzeug=radieren,zurueckholen,segMalen,segRadieren">Pinsel <input type="range" data-wert="pinsel" min="0.005" max="0.2" step="0.005" value="0.03"><output></output></label>
+          <label data-nur="werkzeug=radieren,zurueckholen,segMalen,segRadieren"><input type="checkbox" data-wert="durchAlle"> durch alle Schichten</label>
           <button type="button" id="rueckgaengig">rückgängig</button>
           <button type="button" id="allesZeigen">alles wieder zeigen</button>
         </div>
         <p class="hinweis">Die Schere schneidet durch die ganze Tiefe, so wie man gerade schaut: erst drehen, bis das Störende frei vor einem liegt (die Liege des CT, eine Hand vor dem Gesicht), dann Umriss ziehen. Der Pinsel malt in einem Schnitt eine Kugel weg, mit „durch alle Schichten“ einen Zylinder. „Stück“: ein Klick in einen Schnitt nimmt alles, was dort über der Grenze liegt und damit zusammenhängt (bei CT ab 200 etwa Knochen und Kontrastmittel), und behält nur das oder blendet genau das aus (die Liege). Hängt etwas über eine dünne Brücke zusammen, erst mit der Schere oder dem Pinsel trennen. Was ausgeblendet ist, zeigen die Schnitte rötlich. Nur Werte ausblenden (z. B. alles unter Knochen) geht über das Gewebe oder „von“.</p>
+      </details>
+
+      <details class="abschnitt" open id="segmentAbschnitt">
+        <summary>Segmente</summary>
+        <div class="steuerung">
+          <label>Zeigen
+            <select data-wert="segAnzeige">
+              <option value="2">die Kurve nur in den Segmenten</option>
+              <option value="1">die Kurve überall, Segmente eingefärbt</option>
+              <option value="3">Segmente als feste Körper</option>
+              <option value="0">nur die Kurve (Segmente aus)</option>
+            </select>
+          </label>
+          <label data-nur="segAnzeige=1,2">Einfärben <input type="range" data-wert="segTint" min="0" max="1" step="0.05" value="0.6"><output></output></label>
+          <button type="button" id="segNeu">neues Segment</button>
+          <label>
+            <select id="segVorlage"><option value="">Vorlage …</option></select>
+          </label>
+        </div>
+        <ul class="seg-liste" id="segListe"></ul>
+        <div class="steuerung" id="segAktiv" hidden>
+          <label>Name <input type="text" id="segName"></label>
+          <label>Farbe <input type="color" id="segFarbe"></label>
+          <label>Deckkraft <input type="range" id="segDeckkraft" min="0.02" max="1" step="0.01" value="0.9"></label>
+          <label>Bereich von <input type="number" id="segVon" step="any" value="15"></label>
+          <label>bis <input type="number" id="segBis" step="any" value="55"></label>
+          <button type="button" id="segAusKurve">Bereich aus der Kurve</button>
+          <button type="button" id="segSchwelle">ganzen Bereich füllen</button>
+          <button type="button" id="segGlaetten">glätten</button>
+          <button type="button" id="segLeeren">leeren</button>
+          <button type="button" id="segLoeschen">löschen</button>
+          <button type="button" id="segRueck">rückgängig</button>
+          <label><input type="checkbox" id="segNurLeere" checked> andere Segmente nicht überschreiben</label>
+        </div>
+        <p class="hinweis" id="segInfo" aria-live="polite"></p>
+        <p class="hinweis">Wie der „Segment Editor“ in 3D Slicer: ein Segment ist ein Teil des Volumens mit eigener Farbe (Gehirn, Schädel, Gefäße). Am besten so: Vorlage wählen (setzt Name, Farbe, Bereich), unter „Ausblenden“ das Werkzeug „Segment: Klick füllt Zusammenhängendes“ nehmen und in einen Schnitt klicken, mitten hinein. Gefüllt wird alles im Bereich, was mit der Stelle zusammenhängt: beim Gehirn hält der Schädel die Füllung auf, die Muskeln außen bleiben draußen. Läuft es doch hinaus (durch das Hinterhauptsloch, die Augenhöhlen), rückgängig, mit „Segment: Pinsel radiert“ oder dem Ausblenden-Pinsel die Brücke durchtrennen, noch einmal klicken. „glätten“ schließt kleine Löcher. Die Menge steht in ml neben dem Namen (mit Voxelgröße in mm). „Die Kurve nur in den Segmenten“: das Volumen sieht aus wie mit der Kurve allein (durchscheinend, mit allem Innenleben), nur ist alles außerhalb der Segmente weg; „Einfärben“ mischt die Farbe des Segments hinein (0: nur ausschneiden). „Deckkraft“ eines Segments macht es durchsichtiger. Die Form der Segmente wird geglättet (weiche Maske), darum keine Würfeltreppe; nach dem Malen erscheint sie nach einem kurzen Moment. Im Export wird jedes Segment ein eigenes Objekt in seiner Farbe.</p>
       </details>
 
       <details class="abschnitt">
@@ -238,7 +293,71 @@
       </details>
 
       <details class="abschnitt" open>
-        <summary>Export</summary>
+        <summary>3D-Export</summary>
+        <h3 class="gruppe">Netz (Oberfläche aus Dreiecken)</h3>
+        <div class="steuerung">
+          <label>Aus
+            <select id="netzQuelle">
+              <option value="segmente">den sichtbaren Segmenten (je eins ein Objekt, in seiner Farbe)</option>
+              <option value="schwelle">einer Schwelle (wie „Oberfläche“)</option>
+            </select>
+          </label>
+          <label data-netz="schwelle">Schwelle <input type="number" id="netzSchwelle" step="any" value="300"></label>
+          <label>Feinheit
+            <select id="netzFaktor">
+              <option value="1">volle Auflösung (groß)</option>
+              <option value="2" selected>jede 2. Zelle</option>
+              <option value="3">jede 3. Zelle</option>
+              <option value="4">jede 4. Zelle (klein)</option>
+            </select>
+          </label>
+          <label>Größe
+            <select id="netzGroesse">
+              <option value="eins">längste Seite 1 Einheit</option>
+              <option value="echt">echte Größe (GLB in Metern, OBJ in Millimetern)</option>
+            </select>
+          </label>
+          <button type="button" id="netzGlb">GLB speichern</button>
+          <button type="button" id="netzObj">OBJ speichern</button>
+        </div>
+        <p class="hinweis" id="netzStatus" aria-live="polite"></p>
+        <h3 class="gruppe">Punktwolke und Gaussian Splats</h3>
+        <div class="steuerung">
+          <label>Exportart
+            <select id="punktArt">
+              <option value="punkte">Punktwolke (.ply)</option>
+              <option value="gaussian">Gaussian Splats (.ply)</option>
+            </select>
+          </label>
+          <label>Farbe und Auswahl
+            <select id="punktQuelle">
+              <option value="kurve">wie im Bild: Kurve (und Segmente)</option>
+              <option value="schwelle">grau, ab einem Messwert</option>
+            </select>
+          </label>
+          <label data-punkt="schwelle">Messwert mindestens <output id="punktSchwelleWert">0</output>
+            <input type="range" id="punktSchwelle" min="0" max="1" step="0.01" value="0.5">
+          </label>
+          <label data-punkt="kurve">Deckkraft mindestens <input type="range" id="punktMindest" min="0.005" max="0.5" step="0.005" value="0.03"></label>
+          <label>Schrittweite (Voxel)
+            <input type="range" id="punktSchritt" min="1" max="12" step="1" value="2">
+          </label>
+          <label class="punkt-gauss-option" hidden>Gaussian-Größe
+            <input type="range" id="gaussGroesse" min="0.2" max="2" step="0.05" value="0.8">
+          </label>
+          <label class="punkt-gauss-option" hidden>Deckkraft (Faktor)
+            <input type="range" id="gaussDeckkraft" min="0.1" max="1" step="0.01" value="1">
+          </label>
+        </div>
+        <p class="hinweis" id="punktStatus" aria-live="polite">Erst ein Volumen laden.</p>
+        <div class="steuerung">
+          <button type="button" id="punktExport" disabled>PLY exportieren</button>
+        </div>
+        <p class="hinweis">Netz: geschlossene Oberflächen (Surface Nets), mit Normalen; GLB ist eine einzige Datei mit Farben je Objekt, die Blender (Datei → Import → glTF), three.js, Godot und der Windows-3D-Viewer direkt öffnen. OBJ trägt die Farbe je Eckpunkt (Blender ab 3.x: als Farbattribut). „volle Auflösung“ kann bei großen Scans Millionen Dreiecke ergeben. Punkte und Splats: „wie im Bild“ nimmt Farbe und Deckkraft aus der Kurve und den Segmenten, also genau das, was man sieht; durchsichtige Voxel fallen weg. Die Ausblendmaske, Voxelgröße und Ausrichtung gelten überall. Splats: ein Voxel wird eine kleine Gaußglocke (Graphdeco-Format, SH-Grad 0), keine aus Fotos trainierte Rekonstruktion.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Bild- und Videoexport</summary>
         <div class="steuerung export"></div>
       </details>
     </div>
@@ -255,3 +374,5 @@
   <script type="module" src="/lib/effekt-schicht.js"></script>
 </body>
 </html>
+
+
