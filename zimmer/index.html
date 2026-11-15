@@ -25,6 +25,18 @@
     <div id="dinge" class="zimmer-dinge"></div> <!-- die Links über den Gegenständen baut js/dinge.js aus zimmer.json -->
     <svg id="grundriss" class="zimmer-grundriss" hidden></svg> <!-- Ecken in der Draufsicht: js/grundriss.js -->
     <div id="blende" class="zimmer-blende"></div> <!-- blendet bei der Kamerafahrt ab -->
+
+    <!-- Zeigen: Text zu einem Gegenstand (js/dinge.js füllt ihn aus zimmer.json) -->
+    <section id="erklaerung" class="zimmer-erklaerung" hidden aria-live="polite">
+      <h2></h2>
+      <p></p>
+      <div class="steuerung">
+        <a class="zimmer-oeffnen" href="#">öffnen →</a>
+        <button type="button">zurück</button>
+      </div>
+    </section>
+
+    <button type="button" id="neigung" class="zimmer-neigung" aria-pressed="false" hidden>Neigung an</button>
     <p id="meldung" class="zimmer-meldung" hidden></p>
 
     <!-- Bearbeiten: ?bearbeiten an die Adresse hängen oder B drücken -->
@@ -64,6 +76,9 @@
         <label>Name <input type="text" id="ding-name"></label>
         <label>Link <input type="text" id="ding-link"></label>
         <label>Größe (Radius) <input type="number" id="ding-radius" min="0.01" step="0.01"></label>
+        <label>Text (leer: der Klick führt gleich zum Link) <textarea id="ding-text" rows="4"></textarea></label>
+        <label>Bogen beim Zeigen (Grad, 360: ganz herum) <input type="number" id="ding-bogen" min="0" max="360" step="5"></label>
+        <label>Abstand beim Zeigen (× Größe) <input type="number" id="ding-nah" min="1" max="20" step="0.1"></label>
         <button type="button" id="ding-loeschen">löschen</button>
       </div>
       <div class="steuerung">

@@ -14,6 +14,7 @@ export const z = {
   rund: null, // Rundblick: steht im Mittelpunkt
   oben: null, // Draufsicht für den Grundriss
   draufsicht: false,
+  zeig: null, // „Zeigen“: kreist um einen Gegenstand, solange sein Text zu sehen ist (dinge.js)
 
   dinge: [], // { name, link, lage, radius, element }
   hervor: null, // Gegenstand unter der Maus
@@ -33,6 +34,7 @@ export const art = () => z.einst?.art ?? "parallax";
 
 export function aktiveKamera() {
   if (z.draufsicht) return z.oben;
+  if (z.zeig) return z.zeig;
   return art() === "rundblick" && z.rund ? z.rund : z.kamera;
 }
 

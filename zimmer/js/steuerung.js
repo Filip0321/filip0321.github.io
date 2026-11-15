@@ -2,16 +2,31 @@
 //
 //   parallax   Maus oder Kippen schiebt den Blick ein wenig zur Seite (gleitet nach, sonst zuckt es)
 //   rundblick  ziehen dreht den Blick („anfassen und wegschieben“: nach rechts ziehen dreht nach links), Mausrad
-//              zoomt über das Sichtfeld; am Handy dreht man sich mit dem Handy selbst (Kompass und Neigung).
+//              zoomt über das Sichtfeld; am Handy dreht man sich mit dem Handy selbst.
 //              Rührt sich eine Weile niemand, dreht sich der Blick langsam von allein (rundblick.drehen, Grad/s).
 //   frei       ziehen dreht um das Ziel, Umschalt oder rechte Maustaste verschiebt, Mausrad: näher, weiter
 //   Draufsicht ziehen verschiebt, Mausrad zoomt; Klicks gehen an den Grundriss (grundriss.js)
+//   Zeigen     (ein Gegenstand mit Text ist offen, dinge.js) ziehen kreist um ihn, ein Klick daneben schließt
 //
 // Winkel: die Kamera schaut entgegen „vorn“ = (sin g · cos n, sin n, cos g · cos n). Größere Gier dreht den Blick
 // nach links, größerer Nick nach unten.
+//
+// ---------- Die Lage des Handys ----------
+// Der Browser meldet drei Winkel (deviceorientation): alpha um die senkrechte Achse, beta vor und zurück, gamma zur
+// Seite. Zusammen beschreiben sie eine Drehung R = Rz(alpha) · Rx(beta) · Ry(gamma) von den Achsen des Handys
+// (x rechts, y oben am Bildschirm, z aus dem Bildschirm heraus) zu den Achsen der Erde (x Osten, y Norden, z oben).
+// Einzeln sind die Winkel unbrauchbar, sobald das Handy aufrecht steht (beta nahe 90°): dort können alpha und gamma
+// gleichzeitig um 180° springen, ohne dass sich das Handy bewegt hat („Gimbal Lock“: zwei Drehachsen fallen
+// zusammen). Genau das war das Umklappen bei 180°.
+// Die Drehung als Ganzes springt aber nie. Darum wird aus allen drei Winkeln die Richtung gerechnet, in die die
+// Kamera hinten aus dem Handy schaut, f = R · (0, 0, −1):
+//   f = (−cos α · sin γ − sin α · sin β · cos γ,  −sin α · sin γ + cos α · sin β · cos γ,  −cos β · cos γ)
+// Daraus Himmelsrichtung h = atan2(fx, fy) und Höhe p = asin(fz). Weitergegeben wird nur, wie sich beide seit der
+// letzten Meldung geändert haben; so lässt sich das Kippen mit Ziehen mischen.
+// Nur fast senkrecht nach oben oder unten ist die Himmelsrichtung unbestimmt; dort wird sie nicht verändert.
 
 import { z, neu, art, aktiveKamera } from "./zustand.js";
-import { fahrtLaeuft } from "./dinge.js";
+import { fahrtLaeuft, zeigtGerade, zeigenBeenden, zeigenAngefasst } from "./dinge.js";
 
 const parallaxZiel = { gier: 0, nick: 0 }; // wohin die Parallaxe ausweichen will
 let ziehen = null;
@@ -25,7 +40,7 @@ const c = z.canvas;
 
 c.addEventListener("pointermove", (ev) => {
   if (!z.kamera || fahrtLaeuft()) return;
-  if (!z.draufsicht && art() === "parallax" && ev.pointerType === "mouse") {
+  if (!z.draufsicht && !z.zeig && art() === "parallax" && ev.pointerType === "mouse") {
     const r = c.getBoundingClientRect();
     const st = z.einst.parallax ?? 0.12;
     parallaxZiel.gier = -((ev.clientX - r.left) / r.width - 0.5) * 2 * st;
@@ -44,13 +59,14 @@ c.addEventListener("pointermove", (ev) => {
     const m = k.ansicht;
     const s = (k.abstand / k.fokus) * skala;
     for (let i = 0; i < 3; i++) k.ziel[i] += -dx * s * m[4 * i] + dy * s * m[4 * i + 1];
+  } else if (z.zeig || art() === "frei") {
+    k.gier -= dx * 0.005;
+    k.nick = Math.max(-1.5, Math.min(1.5, k.nick + dy * 0.005));
+    zeigenAngefasst();
   } else if (art() === "rundblick") {
     // so drehen, dass der Punkt unter dem Finger mitgeht: ein Pixel ist 1 / Brennweite Bogenmaß
     k.gier += (dx * skala) / k.fokus;
     k.nick = Math.max(-1.4, Math.min(1.4, k.nick - (dy * skala) / k.fokus));
-  } else if (art() === "frei") {
-    k.gier -= dx * 0.005;
-    k.nick = Math.max(-1.5, Math.min(1.5, k.nick + dy * 0.005));
   }
   neu();
 });
@@ -59,68 +75,119 @@ c.addEventListener("pointerdown", (ev) => {
   if (!z.kamera || fahrtLaeuft()) return;
   eingabe();
   if (z.abfangen?.(ev)) return; // Bearbeiten: Gegenstand setzen, Ecke setzen …
-  if (!z.draufsicht && art() === "parallax") return;
+  if (!z.draufsicht && !z.zeig && art() === "parallax") return;
   c.setPointerCapture(ev.pointerId);
   ziehen = { x: ev.clientX, y: ev.clientY, weg: 0, schieben: ev.shiftKey || ev.button === 2 };
 });
 const loslassen = (ev) => {
-  // kaum bewegt: das war ein Klick (die Draufsicht setzt dann eine Ecke)
-  if (ziehen && ziehen.weg < 5 && z.draufsicht) z.klickOben?.(ev);
+  // kaum bewegt: das war ein Klick (die Draufsicht setzt dann eine Ecke, beim Zeigen geht es zurück)
+  if (ziehen && ziehen.weg < 5) {
+    if (z.draufsicht) z.klickOben?.(ev);
+    else if (zeigtGerade()) zeigenBeenden();
+  }
   ziehen = null;
 };
 c.addEventListener("pointerup", loslassen);
 c.addEventListener("pointercancel", () => (ziehen = null));
-c.addEventListener("contextmenu", (ev) => (z.draufsicht || art() !== "parallax") && ev.preventDefault());
+c.addEventListener("contextmenu", (ev) => (z.draufsicht || z.zeig || art() !== "parallax") && ev.preventDefault());
 
 c.addEventListener("wheel", (ev) => {
-  if (!z.kamera || fahrtLaeuft() || (!z.draufsicht && art() === "parallax")) return;
+  if (!z.kamera || fahrtLaeuft() || (!z.draufsicht && !z.zeig && art() === "parallax")) return;
   ev.preventDefault();
   eingabe();
   const k = aktiveKamera();
   const f = Math.exp(ev.deltaY * 0.001);
-  if (!z.draufsicht && art() === "rundblick") k.sichtfeld = Math.max(20, Math.min(110, k.sichtfeld * f));
+  if (!z.draufsicht && !z.zeig && art() === "rundblick") k.sichtfeld = Math.max(20, Math.min(110, k.sichtfeld * f));
   else k.abstand = Math.max(0.05, k.abstand * f);
+  if (z.zeig) zeigenAngefasst();
   neu();
 }, { passive: false });
 
-// ---------- Handy-Lage ----------
-// alpha: Drehung um die senkrechte Achse (Kompass), beta: vor und zurück kippen (90° = Handy aufrecht),
-// gamma: seitlich kippen. Gerechnet wird immer relativ zur Lage beim ersten Messwert.
-let lageStart = null;
-let rundStart = null;
+// ---------- Handy-Lage (Theorie oben) ----------
+const knopf = document.getElementById("neigung");
+let neigungAn = false;
+let letzte = null; // { h, p } der letzten Meldung
+let start = null; // { h, p } beim Einschalten (für die Parallaxe)
+
+function blickAusLage(alpha, beta, gamma) {
+  const r = Math.PI / 180;
+  const [ca, sa, cb, sb, cg, sg] = [Math.cos(alpha * r), Math.sin(alpha * r), Math.cos(beta * r), Math.sin(beta * r), Math.cos(gamma * r), Math.sin(gamma * r)];
+  const f = [-ca * sg - sa * sb * cg, -sa * sg + ca * sb * cg, -cb * cg];
+  return { h: Math.atan2(f[0], f[1]), p: Math.asin(Math.max(-1, Math.min(1, f[2]))), steil: Math.abs(f[2]) > 0.95 };
+}
+const winkelDifferenz = (a, b) => {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+};
+
 window.addEventListener("deviceorientation", (ev) => {
-  if (ev.beta == null || !z.kamera || z.draufsicht || fahrtLaeuft()) return;
-  const grad = Math.PI / 180;
+  if (!neigungAn || ev.alpha == null || ev.beta == null || !z.kamera || z.draufsicht || fahrtLaeuft()) return;
+  const jetzt = blickAusLage(ev.alpha, ev.beta, ev.gamma ?? 0);
+  if (!letzte) {
+    letzte = start = jetzt;
+    return;
+  }
+  const dh = jetzt.steil || letzte.steil ? 0 : winkelDifferenz(jetzt.h, letzte.h);
+  const dp = jetzt.p - letzte.p;
+  if (!jetzt.steil) letzte = jetzt;
+  else letzte = { ...letzte, p: jetzt.p };
+  if (z.zeig) return;
   if (art() === "parallax") {
-    lageStart ??= { beta: ev.beta, gamma: ev.gamma };
+    // Ausweichen relativ zur Lage beim Einschalten; ±25° drehen oder kippen = ganz ausweichen
     const st = z.einst.parallax ?? 0.12;
-    const k = (w) => Math.max(-1, Math.min(1, w / 25)); // ±25° kippen = ganz ausweichen
-    parallaxZiel.gier = -k(ev.gamma - lageStart.gamma) * st;
-    parallaxZiel.nick = k(ev.beta - lageStart.beta) * st * 0.6;
-  } else if (art() === "rundblick" && z.rund && ev.alpha != null) {
-    // durchs Handy ins Zimmer schauen: nach links drehen dreht den Blick nach links, nach hinten kippen nach oben
-    if (!rundStart) rundStart = { alpha: ev.alpha, beta: ev.beta, gier: z.rund.gier, nick: z.rund.nick };
-    let da = ev.alpha - rundStart.alpha;
-    if (da > 180) da -= 360;
-    if (da < -180) da += 360;
-    z.rund.gier = rundStart.gier + da * grad;
-    z.rund.nick = Math.max(-1.4, Math.min(1.4, rundStart.nick - (ev.beta - rundStart.beta) * grad));
+    const k = (w) => Math.max(-1, Math.min(1, w / 0.44));
+    parallaxZiel.gier = k(-winkelDifferenz(letzte.h, start.h)) * st;
+    parallaxZiel.nick = -k(letzte.p - start.p) * st * 0.6;
+  } else if (art() === "rundblick" && z.rund) {
+    // durchs Handy ins Zimmer schauen: nach links drehen (h wird kleiner) dreht den Blick nach links (Gier größer),
+    // nach hinten kippen (p größer) schaut nach oben (Nick kleiner)
+    z.rund.gier -= dh;
+    z.rund.nick = Math.max(-1.4, Math.min(1.4, z.rund.nick - dp));
     eingabe();
     neu();
   }
 });
-// iOS fragt um Erlaubnis, und nur nach einer Berührung
-window.addEventListener("pointerdown", async () => {
-  if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+
+// an und aus: der Knopf ist auch die Erlaubnis-Abfrage für iOS (die geht nur in einem echten Tippen, nur über HTTPS)
+async function setzeNeigung(an) {
+  if (an && typeof DeviceOrientationEvent?.requestPermission === "function") {
     try {
-      await DeviceOrientationEvent.requestPermission();
-    } catch {}
+      if ((await DeviceOrientationEvent.requestPermission()) !== "granted") an = false;
+    } catch {
+      an = false;
+    }
   }
-}, { once: true });
+  neigungAn = an;
+  letzte = start = null;
+  if (!an) parallaxZiel.gier = parallaxZiel.nick = 0;
+  knopf.textContent = an ? "Neigung aus" : "Neigung an";
+  knopf.setAttribute("aria-pressed", String(an));
+  try {
+    localStorage.setItem("zimmer-neigung", an ? "an" : "aus");
+  } catch {}
+  neu();
+}
+
+// nur auf Geräten mit Lagesensor und Fingerbedienung zeigen
+export function richteNeigungEin() {
+  const handy = "DeviceOrientationEvent" in window && matchMedia("(pointer: coarse)").matches;
+  knopf.hidden = !handy || z.einst.neigung === false;
+  if (knopf.hidden) return;
+  knopf.addEventListener("click", () => setzeNeigung(!neigungAn));
+  let gespeichert = null;
+  try {
+    gespeichert = localStorage.getItem("zimmer-neigung");
+  } catch {}
+  // iOS: ohne Tippen keine Erlaubnis, darum startet es dort immer aus
+  const brauchtErlaubnis = typeof DeviceOrientationEvent?.requestPermission === "function";
+  setzeNeigung(!brauchtErlaubnis && (gespeichert ? gespeichert === "an" : true));
+}
 
 // ---------- in jedem Bild ----------
 export function schritt(dt, jetzt) {
-  if (fahrtLaeuft()) return;
+  if (fahrtLaeuft() || z.zeig) return;
   // Parallaxe gleitet nach
   if (art() === "parallax" && !z.draufsicht) {
     const k = z.kamera;
@@ -137,7 +204,6 @@ export function schritt(dt, jetzt) {
     // sanft anlaufen statt ruckartig: in den ersten 3 Sekunden langsam schneller
     const anlauf = Math.min(1, (jetzt - z.letzteEingabe - PAUSE) / 3000);
     z.rund.gier += ((drehen * Math.PI) / 180) * dt * anlauf;
-    rundStart = null; // die Handy-Lage beginnt danach von der neuen Richtung aus
     neu();
   }
 }
@@ -146,5 +212,5 @@ export function schritt(dt, jetzt) {
 export function parallaxNull() {
   parallaxZiel.gier = parallaxZiel.nick = 0;
   if (z.kamera) z.kamera.extraGier = z.kamera.extraNick = 0;
-  rundStart = null;
+  letzte = start = null;
 }

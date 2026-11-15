@@ -2,16 +2,28 @@
 // Strg+Klick gehen wie bei jedem Link), so groß, wie seine Kugel gerade auf dem Bildschirm erscheint. Unter der Maus
 // leuchtet er im Bild auf (zeichnen.js).
 //
-// Kamerafahrt: ein einfacher Klick führt nicht sofort weg. Erst dreht oder fährt die Kamera zum Gegenstand und das
-// Bild blendet ab, dann öffnet sich die Seite. Bewegt wird mit „ease in out“ (langsam los, schnell, langsam an):
-//   e(t) = t < ½ ? 4t³ : 1 − (−2t + 2)³ / 2
-// Wer im System „weniger Bewegung“ eingestellt hat, bekommt keine Fahrt, nur den Link.
+// Ein Gegenstand ohne Text: Klick → Kamerafahrt hin, abblenden, Seite öffnen.
+// Ein Gegenstand mit Text: erster Klick → „Zeigen“: die Kamera fliegt zum Gegenstand und kreist um ihn (oder
+//   schwenkt in einem Bogen hin und her), daneben steht der Text. Zweiter Klick auf den Gegenstand (oder „öffnen“)
+//   → Seite. Klick daneben, Esc oder „zurück“ → zurück zum Blick davor.
+//
+// Fliegen heißt hier: die fünf Zahlen der Kamera (Ziel, Abstand, Gier, Nick, Sichtfeld) gleiten vom Anfang zum Ziel,
+// mit „ease in out“ (langsam los, schnell, langsam an):  e(t) = t < ½ ? 4t³ : 1 − (−2t + 2)³ / 2
+// Das geht auch vom Rundblick aus: dort ist der Abstand 0 und das Ziel das Auge. Wächst der Abstand, rückt das Auge
+// vom Ziel weg, und das Ziel wandert zum Gegenstand: die Kamera tritt aus dem Mittelpunkt heraus und fliegt hin.
+//
+// Kreisen um die ganze Rückseite zeigt, was der Scan nie gesehen hat (dort ist der Scan leer oder verschmiert).
+// Darum schwenkt die Kamera standardmäßig nur in einem Bogen (bogen, Grad; 360 oder mehr: ganz herum).
+// Wer im System „weniger Bewegung“ eingestellt hat, bekommt keine Fahrt und kein Kreisen, nur Text und Link.
 
 import { z, neu, art, aktiveKamera } from "./zustand.js";
+import { erstelleKamera } from "./kamera.js";
 
 const blende = document.getElementById("blende");
+const tafel = document.getElementById("erklaerung");
 const wenigBewegung = matchMedia("(prefers-reduced-motion: reduce)");
-let fahrt = null;
+let fahrt = null; // { k, vorher, nachher, start, dauer, danach }
+let gezeigt = null; // { ding, mitteGier, start, vorher (Kamera, zu der es zurückgeht) }
 
 export function baueDinge() {
   z.ebene.replaceChildren();
@@ -27,7 +39,7 @@ export function baueDinge() {
       neu();
     };
     const aus = () => {
-      if (z.hervor === ding) z.hervor = null;
+      if (z.hervor === ding && gezeigt?.ding !== ding) z.hervor = null;
       neu();
     };
     a.addEventListener("pointerenter", an);
@@ -42,9 +54,11 @@ export function baueDinge() {
         return;
       }
       // Strg, Umschalt, Mittelklick …: wie ein normaler Link (neuer Tab, neues Fenster)
-      if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button !== 0 || wenigBewegung.matches) return;
+      if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
       ev.preventDefault();
-      starteFahrt(ding);
+      if (fahrt) return;
+      if (ding.text && gezeigt?.ding !== ding) zeigeDing(ding);
+      else oeffne(ding);
     });
     z.ebene.append(a);
     return ding;
@@ -67,59 +81,159 @@ export function platziereDinge(k) {
     d.element.style.transform = `translate(${p.x * faktor - r}px, ${p.y * faktor - r}px)`;
     d.element.style.width = d.element.style.height = `${2 * r}px`;
     d.element.classList.toggle("gewaehlt", d === z.gewaehlt);
+    d.element.classList.toggle("gezeigt", d === gezeigt?.ding);
   }
 }
 
-// ---------- Kamerafahrt ----------
-const DAUER = 900; // ms
+// ---------- Kamera: Zahlen lesen, schreiben, mischen ----------
 const sanft = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-function starteFahrt(ding) {
-  const k = aktiveKamera();
-  const vorher = { ziel: [...k.ziel], gier: k.gier, nick: k.nick, abstand: k.abstand, sichtfeld: k.sichtfeld, extraGier: k.extraGier, extraNick: k.extraNick };
-  let nachher;
-  if (art() === "rundblick") {
-    // stehen bleiben, hindrehen und heranzoomen (das Sichtfeld enger, bis der Gegenstand gut die Hälfte füllt)
-    const r = k.richtungZu(ding.lage);
-    let gier = r.gier;
-    while (gier - k.gier > Math.PI) gier -= 2 * Math.PI; // den kürzeren Weg herum
-    while (gier - k.gier < -Math.PI) gier += 2 * Math.PI;
-    const eng = (2 * Math.atan(ding.radius / 0.55 / r.abstand) * 180) / Math.PI;
-    nachher = { ...vorher, gier, nick: r.nick, extraGier: 0, extraNick: 0, sichtfeld: Math.max(12, Math.min(k.sichtfeld, eng)) };
-  } else {
-    // hinfahren: das Ziel auf den Gegenstand, nah heran
-    nachher = { ...vorher, ziel: [...ding.lage], abstand: Math.max(0.3, ding.radius * 3), extraGier: 0, extraNick: 0 };
-  }
-  fahrt = { k, vorher, nachher, start: performance.now(), link: ding.link, ding };
-  z.hervor = ding;
+function zustandVon(k) {
+  return { ziel: [...k.ziel], gier: k.gier + k.extraGier, nick: k.nick + k.extraNick, abstand: k.abstand, sichtfeld: k.sichtfeld };
+}
+
+function fliege(k, nachher, dauer, danach) {
+  const vorher = zustandVon(k);
+  k.extraGier = k.extraNick = 0;
+  // Gier auf dem kürzeren Weg herum
+  let g = nachher.gier;
+  while (g - vorher.gier > Math.PI) g -= 2 * Math.PI;
+  while (g - vorher.gier < -Math.PI) g += 2 * Math.PI;
+  fahrt = { k, vorher, nachher: { ...nachher, gier: g }, start: performance.now(), dauer: wenigBewegung.matches ? 1 : dauer, danach };
   neu();
 }
 
-// in jedem Bild aus main.js: Kamera zwischen vorher und nachher, gegen Ende abblenden, dann zur Seite
+// in jedem Bild aus main.js: laufende Fahrt weiter, sonst beim Zeigen kreisen
 export function fahrtSchritt(jetzt) {
-  if (!fahrt) return;
-  const t = Math.min(1, (jetzt - fahrt.start) / DAUER);
-  const e = sanft(t);
-  const { k, vorher: a, nachher: b } = fahrt;
-  const misch = (x, y) => x + (y - x) * e;
-  k.ziel = a.ziel.map((v, i) => misch(v, b.ziel[i]));
-  for (const n of ["gier", "nick", "abstand", "sichtfeld", "extraGier", "extraNick"]) k[n] = misch(a[n], b[n]);
-  if (t > 0.6) blende.classList.add("an");
-  neu();
-  if (t >= 1 && !fahrt.weg) {
-    fahrt.weg = true;
-    location.href = fahrt.link;
+  if (fahrt) {
+    const t = Math.min(1, (jetzt - fahrt.start) / fahrt.dauer);
+    const e = sanft(t);
+    const { k, vorher: a, nachher: b } = fahrt;
+    const misch = (x, y) => x + (y - x) * e;
+    k.ziel = a.ziel.map((v, i) => misch(v, b.ziel[i]));
+    for (const n of ["gier", "nick", "abstand", "sichtfeld"]) k[n] = misch(a[n], b[n]);
+    neu();
+    if (t >= 1) {
+      const danach = fahrt.danach;
+      fahrt = null;
+      danach?.();
+    }
+    return;
   }
+  if (gezeigt && !wenigBewegung.matches && jetzt > gezeigt.ruheBis) {
+    // kreisen: im Bogen hin und her (Sinus: an den Enden langsam), ab 360° einfach weiter
+    const bogen = ((gezeigt.ding.bogen ?? 50) * Math.PI) / 180;
+    const t = (jetzt - gezeigt.start) / 1000;
+    if (bogen >= 2 * Math.PI - 1e-6) z.zeig.gier = gezeigt.mitteGier + t * 0.25;
+    else {
+      const periode = Math.max(6, (bogen * 180) / Math.PI / 5); // Sekunden für einmal hin und zurück (50° → 10 s)
+      z.zeig.gier = gezeigt.mitteGier + (bogen / 2) * Math.sin((2 * Math.PI * t) / periode);
+    }
+    neu();
+  }
+}
+
+// ---------- Zeigen ----------
+function zeigeDing(ding) {
+  const von = aktiveKamera();
+  const vorher = gezeigt ? gezeigt.vorher : { kamera: von, zustand: zustandVon(von) };
+  // von der Seite, auf der man gerade steht: Richtung vom Gegenstand zum Auge
+  von.rechne(z.canvas.width, z.canvas.height);
+  const d = [0, 1, 2].map((i) => von.auge[i] - ding.lage[i]);
+  const l = Math.hypot(...d) || 1;
+  const gier = Math.atan2(d[0], d[2]);
+  const nick = Math.max(-0.3, Math.min(0.7, Math.asin(d[1] / l) + 0.15)); // etwas von oben
+  // die Zeig-Kamera fängt genau da an, wo die bisherige Kamera steht, und fliegt dann zum Gegenstand
+  const s = zustandVon(von);
+  z.zeig = erstelleKamera({ ziel: s.ziel, gier: s.gier, nick: s.nick, abstand: s.abstand, sichtfeld: s.sichtfeld });
+  const abstand = Math.max(0.35, ding.radius * (ding.nah ?? 3.2));
+  gezeigt = { ding, mitteGier: gier, start: Infinity, ruheBis: 0, vorher };
+  z.hervor = ding;
+  fliege(z.zeig, { ziel: [...ding.lage], gier, nick, abstand, sichtfeld: 50 }, 1200, () => {
+    gezeigt.start = performance.now();
+  });
+  zeigeTafel(ding);
+}
+
+function zeigeTafel(ding) {
+  tafel.querySelector("h2").textContent = ding.name;
+  tafel.querySelector("p").textContent = ding.text;
+  const link = tafel.querySelector("a");
+  link.href = ding.link;
+  tafel.hidden = false;
+  // erst nach dem Neuzeichnen einblenden, sonst springt die Übergangs-Animation nicht an
+  requestAnimationFrame(() => tafel.classList.add("an"));
+}
+
+export function zeigenBeenden() {
+  if (!gezeigt || fahrt) return;
+  const { kamera, zustand } = gezeigt.vorher;
+  tafel.classList.remove("an");
+  setTimeout(() => {
+    if (!tafel.classList.contains("an")) tafel.hidden = true; // erst nach dem Ausblenden ganz weg
+  }, 300);
+  const ding = gezeigt.ding;
+  gezeigt = null;
+  if (z.hervor === ding) z.hervor = null;
+  fliege(z.zeig, zustand, 1000, () => {
+    z.zeig = null;
+    // in „gier“ steckt das Ausweichen der Parallaxe schon drin: darum das Ausweichen auf 0
+    Object.assign(kamera, { ...zustand, ziel: [...zustand.ziel], extraGier: 0, extraNick: 0 });
+    neu();
+  });
+}
+export const zeigtGerade = () => !!gezeigt;
+
+// beim Zeigen: der Nutzer dreht selbst; das Kreisen setzt ein paar Sekunden aus und macht dann von dort weiter
+export function zeigenAngefasst() {
+  if (!gezeigt) return;
+  gezeigt.ruheBis = performance.now() + 4000;
+  gezeigt.mitteGier = z.zeig.gier;
+  gezeigt.start = performance.now() + 4000;
+}
+
+// ---------- Öffnen: hinfahren (oder vom Zeigen aus näher heran), abblenden, Seite ----------
+function oeffne(ding) {
+  const k = aktiveKamera();
+  const s = zustandVon(k);
+  let nachher;
+  if (gezeigt) {
+    nachher = { ...s, abstand: Math.max(0.15, s.abstand * 0.45) };
+  } else if (art() === "rundblick") {
+    // stehen bleiben, hindrehen und heranzoomen (das Sichtfeld enger, bis der Gegenstand gut die Hälfte füllt)
+    const r = k.richtungZu(ding.lage);
+    const eng = (2 * Math.atan(ding.radius / 0.55 / r.abstand) * 180) / Math.PI;
+    nachher = { ...s, gier: r.gier, nick: r.nick, sichtfeld: Math.max(12, Math.min(k.sichtfeld, eng)) };
+  } else {
+    nachher = { ...s, ziel: [...ding.lage], abstand: Math.max(0.3, ding.radius * 3) };
+  }
+  z.hervor = ding;
+  setTimeout(() => blende.classList.add("an"), wenigBewegung.matches ? 0 : 500);
+  fliege(k, nachher, 900, () => (location.href = ding.link));
+  rueckweg = { k, zustand: s };
 }
 
 // Zurück-Knopf: der Browser zeigt die Seite oft aus dem Speicher, genau wie sie war (abgeblendet, nah dran).
 // Dann alles zurück auf vorher.
-window.addEventListener("pageshow", () => {
-  if (!fahrt) return;
-  Object.assign(fahrt.k, { ...fahrt.vorher, ziel: [...fahrt.vorher.ziel] });
+let rueckweg = null;
+window.addEventListener("pageshow", (ev) => {
+  if (!ev.persisted || !rueckweg) return;
   fahrt = null;
+  Object.assign(rueckweg.k, { ...rueckweg.zustand, ziel: [...rueckweg.zustand.ziel] });
+  rueckweg = null;
   blende.classList.remove("an");
   neu();
 });
 
 export const fahrtLaeuft = () => !!fahrt;
+
+// Tafel: „zurück“ und Esc
+tafel.querySelector("button").addEventListener("click", zeigenBeenden);
+tafel.querySelector("a").addEventListener("click", (ev) => {
+  if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0 || !gezeigt) return;
+  ev.preventDefault();
+  oeffne(gezeigt.ding);
+});
+window.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") zeigenBeenden();
+});

@@ -11,7 +11,13 @@
 //   ablage    was die Agenten in diesem Schritt ablegen, als Ganzzahl (atomicAdd geht nur mit Ganzzahlen;
 //             darum mal 1000 und beim Verteilen wieder durch 1000: „Festkomma“)
 //   futter    Helligkeit des Fotos je Pixel (0 bis 1); riecht für die Agenten wie Spur, verteilt sich aber nicht
+//   spektrum  64 Zahlen (0 bis 1): wie laut jedes Frequenzband der Musik gerade ist
 // Ein Schritt: 1. Agenten (riechen, drehen, gehen, ablegen)  2. Spur (verteilen, verfallen, Ablage und Futter dazu)
+//
+// „Spektrum formt“: jeder Agent gehört fest zu einem der 64 Frequenzbänder (Nummer mod 64; die Agenten liegen
+// ohnehin zufällig verstreut, also ist jedes Band überall vertreten). Ist sein Band laut, läuft er schneller, legt
+// mehr Spur und riecht weiter; ist es still, kriecht er und legt kaum etwas. So wachsen bei Bass andere Adern als bei
+// hohen Tönen: das Netz zeichnet nicht die Lautstärke nach, sondern welche Frequenzen gerade klingen.
 // Anzeigen: ein Bild-Shader liest die Spur und färbt sie über eine Farbtabelle.
 
 const PARAMS = `
@@ -31,7 +37,7 @@ struct Params {
   rand: f32,           // 0: herumlaufen (Torus), 1: abprallen
   helligkeit: f32,
   gamma: f32,
-  frei: f32,
+  form: f32,           // „Spektrum formt“: 0 aus, 1 ganz
   pinsel: vec4f,       // x, y (Pixel), Radius (Pixel), Stärke (+ lockt, − vertreibt)
 }
 @group(0) @binding(0) var<uniform> p: Params;
@@ -53,6 +59,7 @@ const AGENTEN = `${PARAMS}${ZUFALL}
 @group(0) @binding(2) var<storage, read> spur: array<f32>;
 @group(0) @binding(3) var<storage, read_write> ablage: array<atomic<u32>>;
 @group(0) @binding(4) var<storage, read> futter: array<f32>;
+@group(0) @binding(5) var<storage, read> spektrum: array<f32, 64>;
 
 // die Spur an einer Stelle (mit Herumlaufen an den Rändern), dazu das Futter
 fn riechen(q: vec2f) -> f32 {
@@ -73,10 +80,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var a = agenten[i];
   var pos = a.xy;
   var w = a.z;
+  // Spektrum: Lautstärke des eigenen Bands; bei form = 0 wirkt alles wie ohne Musik (Faktor 1)
+  let laut = spektrum[i % 64u];
+  let tempo = mix(1.0, 0.25 + 1.75 * laut, p.form);
+  let menge = mix(1.0, 2.0 * laut, p.form);
+  let weite = mix(1.0, 0.6 + 0.8 * laut, p.form);
+  let fuehler = p.sensorAbstand * weite;
   // 1. riechen: drei Fühler vorn, links vorn, rechts vorn
-  let vorn = riechen(pos + p.sensorAbstand * vec2f(cos(w), sin(w)));
-  let links = riechen(pos + p.sensorAbstand * vec2f(cos(w + p.sensorWinkel), sin(w + p.sensorWinkel)));
-  let rechts = riechen(pos + p.sensorAbstand * vec2f(cos(w - p.sensorWinkel), sin(w - p.sensorWinkel)));
+  let vorn = riechen(pos + fuehler * vec2f(cos(w), sin(w)));
+  let links = riechen(pos + fuehler * vec2f(cos(w + p.sensorWinkel), sin(w + p.sensorWinkel)));
+  let rechts = riechen(pos + fuehler * vec2f(cos(w - p.sensorWinkel), sin(w - p.sensorWinkel)));
   // 2. drehen (Jeff Jones): vorn am stärksten → geradeaus; vorn am schwächsten → zufällig links oder rechts;
   //    sonst zur stärkeren Seite
   let z = zufall(i, p.bild);
@@ -89,7 +102,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     w -= p.drehWinkel;
   }
   // 3. gehen
-  pos += p.schritt * vec2f(cos(w), sin(w));
+  pos += p.schritt * tempo * vec2f(cos(w), sin(w));
   let b = f32(p.breite);
   let h = f32(p.hoehe);
   if (p.rand > 0.5) {
@@ -103,7 +116,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   }
   // 4. ablegen (Festkomma, damit viele Agenten gleichzeitig in dieselbe Zelle addieren können)
   let zelle = u32(pos.x) + u32(pos.y) * p.breite;
-  atomicAdd(&ablage[zelle], u32(p.ablage * 1000.0));
+  atomicAdd(&ablage[zelle], u32(p.ablage * menge * 1000.0));
   agenten[i] = vec4f(pos, w, a.w);
 }`;
 
@@ -181,6 +194,8 @@ export async function erstelleGpu(canvas) {
   const K = GPUBufferUsage.COPY_DST;
   const paramsPuffer = geraet.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | K });
   const tabellePuffer = geraet.createBuffer({ size: 256 * 16, usage: S | K });
+  const spektrumPuffer = geraet.createBuffer({ size: 64 * 4, usage: S | K });
+  const spektrumWerte = new Float32Array(64);
 
   const modul = (code) => geraet.createShaderModule({ code });
   const agentenPipe = geraet.createComputePipeline({ layout: "auto", compute: { module: modul(AGENTEN), entryPoint: "main" } });
@@ -203,7 +218,7 @@ export async function erstelleGpu(canvas) {
     const eintraege = (pipe, puffer) =>
       geraet.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: puffer.map((buffer, binding) => ({ binding, resource: { buffer } })) });
     gruppen = [0, 1].map((k) => ({
-      agenten: eintraege(agentenPipe, [paramsPuffer, agenten, spur[k], ablage, futter]),
+      agenten: eintraege(agentenPipe, [paramsPuffer, agenten, spur[k], ablage, futter, spektrumPuffer]),
       spur: eintraege(spurPipe, [paramsPuffer, spur[k], spur[1 - k], ablage]),
       anzeige: eintraege(anzeigePipe, [paramsPuffer, spur[k], tabellePuffer]),
     }));
@@ -255,6 +270,7 @@ export async function erstelleGpu(canvas) {
     f[12] = w.rand;
     f[13] = w.helligkeit;
     f[14] = w.gamma;
+    f[15] = w.form ?? 0;
     f.set(w.pinsel, 16); // vec4 beginnt bei Byte 64 (muss durch 16 teilbar sein)
     geraet.queue.writeBuffer(paramsPuffer, 0, d);
   }
@@ -262,6 +278,11 @@ export async function erstelleGpu(canvas) {
   // n Schritte, dann anzeigen. Jeder Schritt bekommt seine eigenen Parameter (der Zähler für den Zufall), darum
   // ein eigener Auftrag pro Schritt: writeBuffer gilt erst für die Aufträge, die danach abgeschickt werden
   function schritte(n, w) {
+    // Spektrum (0 bis 255 aus audioreaktiv.js) einmal für alle Schritte dieses Bilds
+    if (w.spektrum) {
+      for (let i = 0; i < 64; i++) spektrumWerte[i] = w.spektrum[i] / 255;
+      geraet.queue.writeBuffer(spektrumPuffer, 0, spektrumWerte);
+    }
     for (let s = 0; s < n; s++) {
       schreibeParams(s === 0 ? w : { ...w, pinsel: [0, 0, 0, 0] });
       const auftrag = geraet.createCommandEncoder();
@@ -338,3 +359,5 @@ export async function erstelleGpu(canvas) {
   }
   return { statistik, neu, setzeFutter, setzeTabelle, schritte, zeige, merke, warte: () => geraet.queue.onSubmittedWorkDone() };
 }
+
+

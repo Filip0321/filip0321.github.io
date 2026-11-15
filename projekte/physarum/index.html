@@ -159,11 +159,11 @@
         </div>
         <audio id="musik-spieler" controls></audio>
         <div class="steuerung" id="musik-baender"></div>
-        <!-- „Spektrum formt“ braucht audioreaktiv.js; hier formt es (noch) nichts -->
-        <div class="steuerung" hidden>
-          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        <!-- „Spektrum formt“: jeder Agent hört auf eines von 64 Frequenzbändern (js/gpu.js) -->
+        <div class="steuerung">
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0.6"><output></output></label>
         </div>
-        <p class="hinweis">Jedes Signal kann etwas bewegen: Tempo, wie weit die Fühler reichen (gröbere oder feinere Adern), wie viel Spur gelegt wird. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
+        <p class="hinweis">Jedes Signal kann etwas bewegen: Tempo, wie weit die Fühler reichen (gröbere oder feinere Adern), wie viel Spur gelegt wird. „Spektrum formt“ teilt die Agenten auf 64 Frequenzbänder auf: wessen Band gerade klingt, der läuft, legt Spur und riecht weiter, die anderen kriechen. So wächst bei Bass ein anderes Netz als bei hohen Tönen. „Video rendern“ geht mit einer Musikdatei; sie ist dann der Ton des Videos.</p>
         <p class="hinweis" id="musik-meldung"></p>
       </details>      <details class="abschnitt">
         <summary>Effekte</summary>
@@ -190,3 +190,5 @@
   <script type="module" src="/lib/effekt-schicht.js"></script>
 </body>
 </html>
+
+

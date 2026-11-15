@@ -178,3 +178,66 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
 .zimmer-blende.an {
   opacity: 1;
 }
+
+/* Zeigen: der Text zu einem Gegenstand; am Rechner links unten, am Handy unten über die ganze Breite */
+.zimmer-erklaerung {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: 45vh;
+  overflow: auto;
+  padding: 0.8rem 1rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.zimmer-erklaerung.an {
+  opacity: 1;
+  transform: none;
+}
+
+.zimmer-erklaerung h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.2em;
+}
+
+.zimmer-erklaerung p {
+  white-space: pre-line; /* Zeilenumbrüche aus dem Text bleiben */
+  margin: 0 0 0.8rem;
+}
+
+.zimmer-ding.gezeigt {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Neigung an und aus (nur am Handy sichtbar) */
+.zimmer-neigung {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+}
+
+.zimmer-neigung[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--text);
+}
+
+/* „öffnen“ sieht aus wie die Knöpfe daneben (Regel 3: darüber Farben tauschen) */
+.zimmer-oeffnen {
+  display: inline-block;
+  padding: 0.3em 0.8em;
+  border: 1px solid currentColor;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.zimmer-oeffnen:hover,
+.zimmer-oeffnen:focus-visible {
+  color: var(--bg);
+  background: var(--text);
+}

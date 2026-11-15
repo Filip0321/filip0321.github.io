@@ -11,7 +11,16 @@ const hole = (id) => document.getElementById(id);
 const leiste = hole("leiste");
 const blickArt = hole("leiste-art");
 const liste = hole("leiste-liste");
-const felder = { name: hole("ding-name"), link: hole("ding-link"), radius: hole("ding-radius") };
+const felder = {
+  name: hole("ding-name"),
+  link: hole("ding-link"),
+  radius: hole("ding-radius"),
+  text: hole("ding-text"),
+  bogen: hole("ding-bogen"),
+  nah: hole("ding-nah"),
+};
+const ZAHLEN = ["radius", "bogen", "nah"];
+const STANDARD = { radius: 0.3, bogen: 50, nah: 3.2, text: "" };
 let setztGerade = false;
 
 export function richteLeisteEin() {
@@ -56,8 +65,11 @@ export function richteLeisteEin() {
       const d = z.gewaehlt;
       if (!d) return;
       const i = z.dinge.indexOf(d);
-      const neuerWert = { ...z.einst.dinge[i], [name]: name === "radius" ? Number(feld.value) : feld.value };
+      const wert = ZAHLEN.includes(name) ? Number(feld.value) : feld.value;
+      const neuerWert = { ...z.einst.dinge[i], [name]: wert };
+      if (name === "text" && !wert) delete neuerWert.text; // leerer Text: kein Zeigen, gleich zum Link
       z.einst.dinge[i] = neuerWert;
+      if (name === "text" && !wert) delete d.text;
       Object.assign(d, neuerWert);
       d.element.href = neuerWert.link;
       d.element.firstChild.textContent = neuerWert.name;
@@ -106,9 +118,7 @@ z.zeigeListe = zeigeListe;
 
 function waehle(d) {
   z.gewaehlt = d;
-  felder.name.value = d?.name ?? "";
-  felder.link.value = d?.link ?? "";
-  felder.radius.value = d?.radius ?? 0.3;
+  for (const [name, feld] of Object.entries(felder)) feld.value = d?.[name] ?? STANDARD[name] ?? "";
   zeigeListe();
   neu();
 }

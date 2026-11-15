@@ -194,6 +194,28 @@ HTML dazu:
   }
 }
 
+/* hochkant (Handy, Tablet hochkant), also immer dann, wenn die Werkbank nicht zweispaltig ist:
+   das Bild bleibt oben stehen, die Regler scrollen darunter durch. Damit für die Regler noch Platz bleibt,
+   ist das Bild höchstens 48 % des Bildschirms hoch (Breite = Höhe · Verhältnis).
+   Wer das auf einer Seite nicht will: class="feld-rahmen nicht-kleben" */
+@media (orientation: portrait), (max-width: 39.99rem) {
+  .werkbank .feld-rahmen:not(.nicht-kleben) {
+    position: sticky;
+    top: 0;
+    z-index: 1; /* über den Reglern, die darunter durchlaufen */
+    background: var(--bg); /* sonst scheinen die Regler durch */
+    padding-block: 0.5rem;
+    margin-inline: -1.5rem; /* bis an den Rand (.seite hat 1,5rem Innenabstand), damit links und rechts nichts durchscheint */
+    padding-inline: 1.5rem;
+  }
+
+  .werkbank .feld-rahmen:not(.nicht-kleben) .feld-stapel {
+    width: min(100%, calc(48vh * var(--verhaeltnis)));
+    width: min(100%, calc(48dvh * var(--verhaeltnis)));
+    margin-inline: auto;
+  }
+}
+
 /* Gemeinsame Formatwahl für Visualisierungen ohne eigenes Format-Menü. */
 .feld-stapel.format-einstellbar {
   aspect-ratio: var(--format);
@@ -207,3 +229,5 @@ HTML dazu:
     width: min(100%, calc((100dvh - 4rem) * var(--verhaeltnis)));
   }
 }
+
+

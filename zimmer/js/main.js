@@ -5,7 +5,7 @@
 //   sortieren.js    nach Tiefe sortieren (Web Worker)
 //   kamera.js       eine Kamera (kreisen, Rundblick, Draufsicht)
 //   steuerung.js    Maus, Finger, Mausrad und Handy-Lage → Kamera; Rundblick dreht sich von allein
-//   dinge.js        die Links über den Gegenständen, Kamerafahrt beim Klick
+//   dinge.js        die Links über den Gegenständen, Zeigen (Kreisen + Text), Kamerafahrt beim Klick
 //   grundriss.js    Grundriss in der Draufsicht, Mittelpunkt, Zuschneiden
 //   bearbeiten.js   die Leiste (?bearbeiten oder Taste B)
 //   platzhalter.js  ein Zimmer aus Kästen, solange es keinen Scan gibt
@@ -16,7 +16,7 @@ import { ladeSplats, dreheSzene } from "./laden.js";
 import { erstelleZeichner } from "./zeichnen.js";
 import { erstelleKamera } from "./kamera.js";
 import { platzhalterZimmer, PLATZHALTER } from "./platzhalter.js";
-import { schritt } from "./steuerung.js";
+import { schritt, richteNeigungEin } from "./steuerung.js";
 import { baueDinge, platziereDinge, fahrtSchritt } from "./dinge.js";
 import { wendeGrundrissAn, baueRundKamera, zeichneGrundriss, schnitthoehe } from "./grundriss.js";
 import { richteLeisteEin } from "./bearbeiten.js";
@@ -132,5 +132,8 @@ function schleife(jetzt) {
 requestAnimationFrame(schleife);
 
 start()
-  .then(richteLeisteEin)
+  .then(() => {
+    richteNeigungEin();
+    richteLeisteEin();
+  })
   .catch((fehler) => zeige(fehler.message));

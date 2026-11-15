@@ -188,6 +188,10 @@ function werte() {
     rand: e.rand === "abprallen" ? 1 : 0,
     helligkeit: e.helligkeit,
     gamma: e.gamma,
+    // „Spektrum formt“ (gpu.js): nur, wenn Musik da ist (live oder beim Export aus der Datei), sonst wäre das
+    // Spektrum still und alle Agenten würden kriechen
+    form: musik.laeuft() || (exportLaeuft && musik.tonFuerExport()) ? musik.spektrumStaerke() : 0,
+    spektrum: musik.spektrum,
     pinsel: pinsel ? [pinsel.x, pinsel.y, (e.pinselGroesse / 100) * Math.min(b, h), e.pinselArt === "lockt" ? e.pinselStaerke : -e.pinselStaerke] : [0, 0, 0, 0],
   };
 }
@@ -242,3 +246,5 @@ richteExportEin({
 
 neu();
 requestAnimationFrame(schleife);
+
+
