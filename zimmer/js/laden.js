@@ -1,5 +1,6 @@
-// Gaussian Splats laden: .ply (wie es 3DGS, Postshot, Scaniverse, Polycam, SuperSplat … schreiben) und .splat
-// (das kurze Format von antimatter15: 32 Bytes pro Splat), dazu einfache Punktwolken (.ply nur mit x y z und Farbe).
+// Gaussian Splats laden: .ply (wie es 3DGS, Postshot, Scaniverse, Polycam, SuperSplat … schreiben), .splat
+// (das kurze Format von antimatter15: 32 Bytes pro Splat), .spz (Niantic, Scaniverse: gepackt, etwa ein Zehntel
+// einer .ply) und einfache Punktwolken (.ply nur mit x y z und Farbe).
 //
 // Ein Gaussian Splat ist ein unscharfer, gedrehter Ellipsoid-Fleck: Mitte (x, y, z), drei Radien (scale), eine
 // Drehung (Quaternion rot), eine Farbe und eine Deckkraft. Eine Szene sind Hunderttausende davon, so gelegt
@@ -16,14 +17,20 @@
 // wie der Fleck im Raum ausgedehnt ist. Die rechnen wir hier einmal aus.
 // Ergebnis: { anzahl, lage: Float32Array(3n), kov: Float32Array(6n) (xx xy xz yy yz zz), farbe: Uint8Array(4n) }
 
+import { decompress as zstdEntpacken } from "./fremd/fzstd.mjs";
+
 const C0 = 0.28209479177387814; // Kugelflächenfunktion Y₀₀ = 1 / (2 √π)
 
 const TYPEN = { char: 1, uchar: 1, int8: 1, uint8: 1, short: 2, ushort: 2, int16: 2, uint16: 2, int: 4, uint: 4, int32: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
 
 export async function ladeSplats(quelle) {
   const puffer = quelle instanceof ArrayBuffer ? quelle : await (await fetch(quelle)).arrayBuffer();
-  const anfang = new TextDecoder().decode(new Uint8Array(puffer, 0, Math.min(puffer.byteLength, 4)));
-  return anfang === "ply\n" || anfang.startsWith("ply") ? ausPly(puffer) : ausSplat(puffer);
+  const b = new Uint8Array(puffer, 0, Math.min(puffer.byteLength, 4));
+  const anfang = new TextDecoder().decode(b);
+  if (anfang.startsWith("ply")) return ausPly(puffer);
+  // SPZ: Version 1 bis 3 ist ganz mit gzip gepackt (fängt mit 1f 8b an), Version 4 fängt mit „NGSP“ an
+  if ((b[0] === 0x1f && b[1] === 0x8b) || anfang === "NGSP") return ausSpz(puffer);
+  return ausSplat(puffer);
 }
 
 function ausPly(puffer) {
@@ -133,6 +140,105 @@ function ausSplat(puffer) {
     kovarianz(s, q, kov, 6 * i);
   }
   return { anzahl, lage, kov, farbe };
+}
+
+// .spz (https://github.com/nianticlabs/spz, MIT): alle Werte auf 8 bis 24 Bit gerundet und nach Art sortiert
+// (erst alle Lagen, dann alle Deckkräfte …), dann gepackt. Gleichartige Werte hintereinander lassen sich viel besser
+// packen als Splat für Splat gemischt; daher kommt der größte Teil der Ersparnis.
+//   Lage      je Achse 24 Bit Festkomma mit Vorzeichen: Wert / 2^Nachkommabits (meist 12: 0,25 mm Schritte)
+//   Deckkraft 8 Bit, schon nach der Sigmoid-Funktion (0 bis 255 = 0 bis 1)
+//   Farbe     8 Bit je Kanal: f_dc = (Byte / 255 − 0,5) / 0,15
+//   Radien    8 Bit je Achse: Logarithmus des Radius = Byte / 16 − 10
+//   Drehung   Version 2: x, y, z je 8 Bit (Byte / 127,5 − 1), w aus |q| = 1
+//             ab Version 3: „kleinste drei“: die größte Komponente wird weggelassen (2 Bit sagen, welche), die
+//             anderen drei mit Vorzeichen und 9 Bit; sie sind höchstens 1/√2, darum reicht der kleine Bereich
+//   Glanz     (Kugelflächenfunktionen höherer Ordnung) lassen wir weg
+// Version 1 bis 3: ein 16-Byte-Kopf, dann alle Felder hintereinander, das Ganze gzip-gepackt (entpackt der Browser).
+// Version 4: 32-Byte-Kopf, ein Inhaltsverzeichnis, jedes Feld einzeln mit Zstandard gepackt (fremd/fzstd.mjs).
+// SPZ speichert in „RUB“ (x rechts, y oben, z nach hinten, wie OpenGL), PLY aus dem Training in „RDF“ (y unten,
+// z nach vorn). Damit eine .spz genauso liegt wie die .ply derselben Szene (und dieselbe „drehung“ in zimmer.json
+// passt), wird sie wie die Bibliothek beim Umwandeln nach PLY um 180° um x gedreht.
+async function ausSpz(puffer) {
+  const roh = new Uint8Array(puffer);
+  let kopf, felder;
+  if (roh[0] === 0x1f && roh[1] === 0x8b) {
+    const d = new Uint8Array(await new Response(new Blob([roh]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+    const v = new DataView(d.buffer);
+    kopf = { version: v.getUint32(4, true), anzahl: v.getUint32(8, true), sh: d[12], bits: d[13] };
+    if (v.getUint32(0, true) !== 0x5053474e) throw new Error("Keine gültige SPZ-Datei.");
+    // Felder in fester Reihenfolge hintereinander
+    const n = kopf.anzahl;
+    const groessen = [n * (kopf.version === 1 ? 6 : 9), n, 3 * n, 3 * n, n * (kopf.version >= 3 ? 4 : 3)];
+    felder = [];
+    let o = 16;
+    for (const g of groessen) {
+      felder.push(d.subarray(o, o + g));
+      o += g;
+    }
+  } else {
+    const v = new DataView(puffer);
+    kopf = { version: v.getUint32(4, true), anzahl: v.getUint32(8, true), sh: roh[12], bits: roh[13] };
+    const stroeme = roh[15], toc = v.getUint32(16, true);
+    // Inhaltsverzeichnis: je Feld gepackte und entpackte Größe (64 Bit; hier reichen 53 Bit sicher aus)
+    let o = toc + stroeme * 16;
+    felder = [];
+    for (let i = 0; i < Math.min(stroeme, 5); i++) {
+      const gepackt = Number(v.getBigUint64(toc + 16 * i, true));
+      felder.push(zstdEntpacken(roh.subarray(o, o + gepackt)));
+      o += gepackt;
+    }
+  }
+  if (kopf.version === 1) throw new Error("SPZ Version 1 (nie veröffentlicht) geht nicht.");
+  const [pos, deck, farb, rad, rot] = felder;
+  const n = kopf.anzahl;
+  const lage = new Float32Array(n * 3);
+  const kov = new Float32Array(n * 6);
+  const farbe = new Uint8Array(n * 4);
+  const teiler = 1 / (1 << kopf.bits);
+  const s = [0, 0, 0], q = [1, 0, 0, 0];
+  const WURZEL_HALB = Math.SQRT1_2;
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 3; k++) {
+      const j = 9 * i + 3 * k;
+      let w = pos[j] | (pos[j + 1] << 8) | (pos[j + 2] << 16);
+      if (w & 0x800000) w |= 0xff000000; // Vorzeichen von 24 auf 32 Bit
+      lage[3 * i + k] = w * teiler;
+      const dc = (farb[3 * i + k] / 255 - 0.5) / 0.15;
+      farbe[4 * i + k] = Math.max(0, Math.min(255, Math.round((0.5 + C0 * dc) * 255)));
+      s[k] = Math.exp(rad[3 * i + k] / 16 - 10);
+    }
+    farbe[4 * i + 3] = deck[i];
+    // Drehung: in SPZ als (x, y, z, w); kovarianz() will (w, x, y, z)
+    const xyzw = [0, 0, 0, 0];
+    if (kopf.version >= 3) {
+      let c = rot[4 * i] | (rot[4 * i + 1] << 8) | (rot[4 * i + 2] << 16) | (rot[4 * i + 3] << 24);
+      const groesste = c >>> 30;
+      let summe = 0;
+      for (let k = 3; k >= 0; k--) {
+        if (k === groesste) continue;
+        const betrag = c & 511, minus = (c >>> 9) & 1;
+        c >>>= 10;
+        xyzw[k] = ((WURZEL_HALB * betrag) / 511) * (minus ? -1 : 1);
+        summe += xyzw[k] * xyzw[k];
+      }
+      xyzw[groesste] = Math.sqrt(Math.max(0, 1 - summe));
+    } else {
+      let summe = 0;
+      for (let k = 0; k < 3; k++) {
+        xyzw[k] = rot[3 * i + k] / 127.5 - 1;
+        summe += xyzw[k] * xyzw[k];
+      }
+      xyzw[3] = Math.sqrt(Math.max(0, 1 - summe));
+    }
+    q[0] = xyzw[3];
+    q[1] = xyzw[0];
+    q[2] = xyzw[1];
+    q[3] = xyzw[2];
+    kovarianz(s, q, kov, 6 * i);
+  }
+  const szene = { anzahl: n, lage, kov, farbe };
+  dreheSzene(szene, [180, 0, 0]); // RUB → RDF, wie eine .ply derselben Szene
+  return szene;
 }
 
 // Σ = M Mᵀ mit M = R · S (R aus der Quaternion, S = diag(Radien))

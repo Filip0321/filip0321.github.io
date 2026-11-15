@@ -1,0 +1,192 @@
+// Die Leiste zum Bearbeiten (?bearbeiten an der Adresse oder Taste B): Scan öffnen, drehen, Blickart, Startblick,
+// Gegenstände setzen und benennen, Grundriss (grundriss.js), am Ende die fertige zimmer.json kopieren.
+
+import { z, neu, art, aktiveKamera, runde, zeige, bildpunkt } from "./zustand.js";
+import { ladeSplats, dreheSzene } from "./laden.js";
+import { baueDinge } from "./dinge.js";
+import { parallaxNull } from "./steuerung.js";
+import { wendeGrundrissAn, baueRundKamera, richteGrundrissEin, setzeDraufsicht } from "./grundriss.js";
+
+const hole = (id) => document.getElementById(id);
+const leiste = hole("leiste");
+const blickArt = hole("leiste-art");
+const liste = hole("leiste-liste");
+const felder = { name: hole("ding-name"), link: hole("ding-link"), radius: hole("ding-radius") };
+let setztGerade = false;
+
+export function richteLeisteEin() {
+  zeigeLeiste();
+  richteGrundrissEin();
+  window.addEventListener("keydown", (ev) => {
+    if (ev.target.closest?.("input, textarea, select")) return;
+    if (ev.key === "b" || ev.key === "B") {
+      z.bearbeiten = !z.bearbeiten;
+      if (!z.bearbeiten && z.draufsicht) setzeDraufsicht(false);
+      zeigeLeiste();
+    }
+  });
+
+  // Blickart: gilt sofort und kommt so in die zimmer.json
+  blickArt.addEventListener("change", () => {
+    z.einst.art = blickArt.value;
+    parallaxNull();
+    if (art() === "rundblick" && !z.einst.grundriss?.punkte?.length)
+      zeige("Rundblick: ohne Grundriss steht man in der Mitte des Scans. Unter „Grundriss“ lässt sich das Zimmer einzeichnen.", 6000);
+    neu();
+  });
+
+  hole("ansicht-merken").addEventListener("click", () => {
+    if (art() === "rundblick") {
+      const k = z.rund;
+      z.einst.rundblick = { ...z.einst.rundblick, gier: runde(k.gier), nick: runde(k.nick), sichtfeld: runde(k.sichtfeld) };
+      zeige("Startrichtung für den Rundblick übernommen.", 2500);
+    } else {
+      const k = z.kamera;
+      z.einst.kamera = { ziel: k.ziel.map(runde), gier: runde(k.gier), nick: runde(k.nick), abstand: runde(k.abstand), sichtfeld: k.sichtfeld };
+      zeige("Startblick übernommen.", 2500);
+    }
+  });
+
+  hole("drehen-x").addEventListener("click", () => drehe([90, 0, 0]));
+  hole("drehen-y").addEventListener("click", () => drehe([0, 90, 0]));
+  hole("drehen-z").addEventListener("click", () => drehe([0, 0, 90]));
+
+  for (const [name, feld] of Object.entries(felder)) {
+    feld.addEventListener("input", () => {
+      const d = z.gewaehlt;
+      if (!d) return;
+      const i = z.dinge.indexOf(d);
+      const neuerWert = { ...z.einst.dinge[i], [name]: name === "radius" ? Number(feld.value) : feld.value };
+      z.einst.dinge[i] = neuerWert;
+      Object.assign(d, neuerWert);
+      d.element.href = neuerWert.link;
+      d.element.firstChild.textContent = neuerWert.name;
+      zeigeListe();
+      neu();
+    });
+  }
+
+  hole("ding-setzen").addEventListener("click", (ev) => {
+    setztGerade = !setztGerade;
+    ev.target.classList.toggle("aktiv", setztGerade);
+    z.ebene.classList.toggle("durchlaessig", setztGerade);
+    zeige(setztGerade ? "Klick ins Bild: dort kommt ein neuer Gegenstand hin." : "");
+  });
+  hole("ding-loeschen").addEventListener("click", () => {
+    if (!z.gewaehlt) return;
+    z.einst.dinge.splice(z.dinge.indexOf(z.gewaehlt), 1);
+    z.gewaehlt = null;
+    baueDinge();
+  });
+
+  hole("json").addEventListener("click", kopiereJson);
+  hole("datei").addEventListener("change", oeffneDatei);
+}
+
+function zeigeLeiste() {
+  leiste.hidden = !z.bearbeiten;
+  if (z.bearbeiten) blickArt.value = art();
+  neu();
+}
+
+// ---------- Gegenstände ----------
+function zeigeListe() {
+  liste.replaceChildren(...z.dinge.map((d) => {
+    const li = document.createElement("li");
+    const k = document.createElement("button");
+    k.type = "button";
+    k.textContent = d.name || "(ohne Namen)";
+    k.classList.toggle("aktiv", d === z.gewaehlt);
+    k.addEventListener("click", () => waehle(d));
+    li.append(k);
+    return li;
+  }));
+}
+z.zeigeListe = zeigeListe;
+
+function waehle(d) {
+  z.gewaehlt = d;
+  felder.name.value = d?.name ?? "";
+  felder.link.value = d?.link ?? "";
+  felder.radius.value = d?.radius ?? 0.3;
+  zeigeListe();
+  neu();
+}
+z.waehle = waehle;
+
+// Klick ins Bild beim Setzen: den vordersten (genügend deckenden) Splat unter der Maus suchen
+z.abfangen = (ev) => {
+  if (!z.bearbeiten || !setztGerade || z.draufsicht) return false;
+  const k = aktiveKamera();
+  const [px, py] = bildpunkt(ev);
+  const { anfang, richtung } = k.strahl(px, py, z.canvas.width, z.canvas.height);
+  const { lage, farbe, anzahl } = z.szene;
+  let besterT = Infinity;
+  const winkel = 6 / k.fokus; // etwa 6 Pixel Spielraum
+  for (let i = 0; i < anzahl; i++) {
+    if (farbe[4 * i + 3] < 80) continue;
+    const v = [lage[3 * i] - anfang[0], lage[3 * i + 1] - anfang[1], lage[3 * i + 2] - anfang[2]];
+    const t = v[0] * richtung[0] + v[1] * richtung[1] + v[2] * richtung[2];
+    if (t <= 0.05 || t >= besterT) continue;
+    const quer = Math.hypot(v[0] - t * richtung[0], v[1] - t * richtung[1], v[2] - t * richtung[2]);
+    if (quer < t * winkel) besterT = t;
+  }
+  if (!isFinite(besterT)) {
+    zeige("Dort ist nichts.", 2000);
+    return true;
+  }
+  const p = [0, 1, 2].map((i) => anfang[i] + richtung[i] * besterT);
+  (z.einst.dinge ??= []).push({ name: "neu", link: "/projekte/", lage: p, radius: runde(Math.max(0.05, besterT * 0.08)) });
+  baueDinge();
+  waehle(z.dinge.at(-1));
+  setztGerade = false;
+  hole("ding-setzen").classList.remove("aktiv");
+  z.ebene.classList.remove("durchlaessig");
+  zeige("");
+  return true;
+};
+
+// ---------- Drehen ----------
+function drehe(w) {
+  // die Szene ist schon gedreht; nur die neue Drehung anwenden und als weiteren Schritt merken (Drehungen lassen
+  // sich nicht einfach Achse für Achse addieren: 90° um x, dann 90° um y ist etwas anderes als umgekehrt)
+  dreheSzene(z.roh, w);
+  const alt = z.einst.drehung ?? [0, 0, 0];
+  z.einst.drehung = [...(Array.isArray(alt[0]) ? alt : [alt]), w];
+  if (z.einst.grundriss?.punkte?.length) zeige("Achtung: der Grundriss passt nach dem Drehen nicht mehr, bitte neu zeichnen.", 5000);
+  wendeGrundrissAn();
+  baueRundKamera();
+}
+
+// ---------- Datei öffnen, JSON kopieren ----------
+async function oeffneDatei(ev) {
+  const datei = ev.target.files[0];
+  if (!datei) return;
+  zeige(`lädt ${datei.name} …`);
+  try {
+    const s = await ladeSplats(await datei.arrayBuffer());
+    if (!z.einst.splats) z.einst.dinge = []; // die Gegenstände des Platzhalters passen nicht in einen echten Scan
+    z.einst.splats = datei.name;
+    z.einst.drehung = [0, 0, 0];
+    z.einst.kamera = null; // neu ausrichten (setzeSzene schaut sich die Ausdehnung an)
+    z.einst.grundriss = null;
+    z.setzeSzene(s);
+    zeige(`${s.anzahl.toLocaleString("de")} Splats.`, 3000);
+  } catch (fehler) {
+    zeige(fehler.message);
+  }
+}
+
+async function kopiereJson() {
+  const e = z.einst;
+  const text = JSON.stringify({ ...e, dinge: (e.dinge ?? []).map(({ element, ...d }) => ({ ...d, lage: d.lage.map(runde) })) }, null, 2);
+  try {
+    await navigator.clipboard.writeText(text);
+    zeige("zimmer.json ist in der Zwischenablage.", 3000);
+  } catch {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = "zimmer.json";
+    a.click();
+  }
+}

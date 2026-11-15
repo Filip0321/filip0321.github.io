@@ -27,6 +27,7 @@ uniform vec2 fokus;    // Brennweite in Pixeln (fx, fy)
 uniform vec2 groesse;  // Bildschirm in Pixeln
 uniform vec4 hervor;   // Mitte und Radius eines Gegenstands, der leuchten soll (w = 0: keiner)
 uniform float leuchten;
+uniform float schnitt;  // Draufsicht: alles über dieser Höhe weglassen (die Decke)
 in vec2 ecke;          // −3 … 3
 in uint nummer;
 out vec4 farbe;
@@ -42,7 +43,7 @@ void main() {
   vec4 clip = projektion * kam;
   float rand = 1.2 * clip.w;
   // hinter der Kamera oder weit außerhalb: weg (alle vier Ecken an dieselbe Stelle, nichts wird gemalt)
-  if (kam.z > -0.05 || clip.x < -rand || clip.x > rand || clip.y < -rand || clip.y > rand) {
+  if (p.y > schnitt || kam.z > -0.05 || clip.x < -rand || clip.x > rand || clip.y < -rand || clip.y > rand) {
     gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
     return;
   }
@@ -99,7 +100,7 @@ export function erstelleZeichner(canvas) {
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const ort = (n) => gl.getUniformLocation(p, n);
-  const u = { daten: ort("daten"), ansicht: ort("ansicht"), projektion: ort("projektion"), fokus: ort("fokus"), groesse: ort("groesse"), hervor: ort("hervor"), leuchten: ort("leuchten") };
+  const u = { daten: ort("daten"), ansicht: ort("ansicht"), projektion: ort("projektion"), fokus: ort("fokus"), groesse: ort("groesse"), hervor: ort("hervor"), leuchten: ort("leuchten"), schnitt: ort("schnitt") };
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -153,7 +154,7 @@ export function erstelleZeichner(canvas) {
   }
 
   // k: Kamera aus kamera.js; hintergrund [r, g, b]; hervor [x, y, z, radius] oder null
-  function zeichne(k, hintergrund, hervor = null, leuchten = 0.3) {
+  function zeichne(k, hintergrund, hervor = null, leuchten = 0.3, schnitt = 1e9) {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(hintergrund[0], hintergrund[1], hintergrund[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -169,6 +170,7 @@ export function erstelleZeichner(canvas) {
     gl.uniform2f(u.groesse, canvas.width, canvas.height);
     gl.uniform4fv(u.hervor, hervor ?? [0, 0, 0, 0]);
     gl.uniform1f(u.leuchten, leuchten);
+    gl.uniform1f(u.schnitt, schnitt);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

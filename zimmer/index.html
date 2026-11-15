@@ -22,16 +22,19 @@
   <main class="zimmer-buehne">
     <h1 class="nur-vorleser">Filip Winkler: Zimmer</h1>
     <canvas id="zimmer" aria-label="Ein Zimmer. Die Gegenstände darin sind Links."></canvas>
-    <div id="dinge" class="zimmer-dinge"></div> <!-- die Links über den Gegenständen baut js/main.js aus zimmer.json -->
+    <div id="dinge" class="zimmer-dinge"></div> <!-- die Links über den Gegenständen baut js/dinge.js aus zimmer.json -->
+    <svg id="grundriss" class="zimmer-grundriss" hidden></svg> <!-- Ecken in der Draufsicht: js/grundriss.js -->
+    <div id="blende" class="zimmer-blende"></div> <!-- blendet bei der Kamerafahrt ab -->
     <p id="meldung" class="zimmer-meldung" hidden></p>
 
     <!-- Bearbeiten: ?bearbeiten an die Adresse hängen oder B drücken -->
     <aside id="leiste" class="zimmer-leiste" hidden>
       <div class="steuerung">
-        <label class="datei-knopf">Scan öffnen (.ply, .splat) <input type="file" id="datei" accept=".ply,.splat"></label>
+        <label class="datei-knopf">Scan öffnen (.ply, .splat, .spz) <input type="file" id="datei" accept=".ply,.splat,.spz"></label>
         <label>Blick
           <select id="leiste-art">
-            <option value="parallax">Parallaxe (wie die Startseite)</option>
+            <option value="parallax">Parallaxe (fester Blick, weicht der Maus aus)</option>
+            <option value="rundblick">Rundblick (im Mittelpunkt stehen und drehen)</option>
             <option value="frei">frei (ziehen, Rad, Umschalt + ziehen)</option>
           </select>
         </label>
@@ -39,7 +42,21 @@
         <button type="button" id="drehen-y">90° um y</button>
         <button type="button" id="drehen-z">90° um z</button>
         <button type="button" id="ansicht-merken">Blick als Start</button>
+        <label>Rundblick dreht sich von allein (Grad pro Sekunde, 0: nie) <input type="number" id="gr-drehen" min="0" max="30" step="0.5"></label>
       </div>
+      <h2>Grundriss</h2>
+      <div class="steuerung">
+        <button type="button" id="gr-draufsicht">Draufsicht</button>
+        <button type="button" id="gr-ecken">Ecken setzen</button>
+        <button type="button" id="gr-leeren">Grundriss löschen</button>
+        <button type="button" id="gr-mitte-auto">Mitte wieder berechnen</button>
+        <label>Schnitthöhe in der Draufsicht (über dem Boden, m) <input type="range" id="gr-schnitt" min="0.2" max="4" step="0.05"></label>
+        <label>Boden (Höhe y, wird geschätzt) <input type="number" id="gr-boden" step="0.01"></label>
+        <label>Augenhöhe über dem Boden (m) <input type="number" id="gr-auge" min="0.2" max="3" step="0.05"></label>
+        <label><input type="checkbox" id="gr-zuschneiden"> außerhalb ausblenden</label>
+        <label>Rand (m) <input type="number" id="gr-rand" min="0" max="2" step="0.05"></label>
+      </div>
+      <p class="hinweis">Draufsicht: ziehen verschiebt, Rad zoomt. Ecken der Reihe nach anklicken; ein Klick nah an einer Kante fügt dort eine Ecke ein. Ecken und das Kreuz in der Mitte lassen sich ziehen, Rechtsklick oder Doppelklick löscht eine Ecke. Das Kreuz ist der Standpunkt im Rundblick. Achtung beim Ausblenden: die Spiegelwelt liegt hinter der Wand und verschwindet mit.</p>
       <h2>Gegenstände</h2>
       <ul id="leiste-liste" class="zimmer-liste"></ul>
       <div class="steuerung">

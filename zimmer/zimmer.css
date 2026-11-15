@@ -119,3 +119,62 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   color: var(--bg);
   background: var(--text);
 }
+
+/* Draufsicht: Grundriss als SVG über dem Bild; nur Ecken und Mitte fangen die Maus, der Rest geht ans Canvas */
+.zimmer-grundriss {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  color: var(--text);
+}
+
+.zimmer-grundriss[hidden] {
+  display: none;
+}
+
+.zimmer-grundriss .flaeche {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.zimmer-grundriss .ecke {
+  fill: var(--bg);
+  stroke: currentColor;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: move;
+}
+
+.zimmer-grundriss .mitte {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: move;
+}
+
+.zimmer-grundriss .mitte circle {
+  fill: transparent;
+}
+
+.zimmer-grundriss .mitte.von-hand circle {
+  stroke-dasharray: 3 3;
+}
+
+/* Kamerafahrt: zum Schluss schwarz */
+.zimmer-blende {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s;
+}
+
+.zimmer-blende.an {
+  opacity: 1;
+}

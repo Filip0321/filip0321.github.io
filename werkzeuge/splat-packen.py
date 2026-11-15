@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gaussian-Splat-Scan fürs Web klein machen: .ply (3DGS, Postshot, Scaniverse, Polycam, SuperSplat …) → .splat
+Gaussian-Splat-Scan fürs Web klein machen: .ply (3DGS, Postshot, Scaniverse, Polycam, SuperSplat …) → .splat oder .spz
 
 Eine .ply aus dem Training hat pro Splat 62 Kommazahlen (248 Bytes): Lage, Normale, Farbe, 45 Zahlen dafür, wie sich
 die Farbe mit dem Blickwinkel ändert (f_rest, Glanz), Deckkraft, Radien, Drehung. Für eine Website ist das zu viel:
@@ -11,14 +11,19 @@ Dieses Werkzeug
   2. wirft fast durchsichtige Splats weg (--min-deckkraft) und, wenn gewünscht, alles außerhalb einer Kiste (--kiste)
   3. behält höchstens --anzahl Splats, die wichtigsten zuerst (Deckkraft × Volumen: große, deckende Flecken prägen
      das Bild, winzige, fast durchsichtige kaum)
-  4. schreibt das Format .splat (antimatter15): 32 Bytes pro Splat, die wichtigsten vorn (so kann man schon beim
-     Laden etwas sehen)
+  4. schreibt, je nach Endung der Ausgabe:
+     .splat (antimatter15): 32 Bytes pro Splat, die wichtigsten vorn
        Lage 3 × float32, Radien 3 × float32, Farbe RGBA 4 × uint8, Drehung 4 × uint8 ((q · 128) + 128, w zuerst)
+     .spz (Niantic, Version 3): alles auf 8 bis 24 Bit gerundet, nach Art sortiert und mit gzip gepackt, etwa 6 bis 8
+       Bytes pro Splat, also rund ein Viertel von .splat. Genauer erklärt in zimmer/js/laden.js. Die Datei können
+       auch andere Programme lesen (SuperSplat, die spz-Bibliothek …).
 
-Beispiel:  python3 splat-packen.py zimmer.ply zimmer.splat --anzahl 600000 --drehen 180 0 0
+Beispiel:  py splat-packen.py zimmer.ply zimmer.spz --anzahl 600000
 Braucht nur numpy.
 """
 import argparse
+import gzip
+import struct
 import sys
 
 import numpy as np
@@ -82,6 +87,52 @@ def quat_mal(a, b):
                      w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2], axis=1)
 
 
+def schreibe_splat(pfad, lage, radien, farbe, deck, quat):
+    m = len(lage)
+    aus = np.zeros(m, dtype=[("lage", "<f4", 3), ("radien", "<f4", 3), ("farbe", "u1", 4), ("quat", "u1", 4)])
+    aus["lage"] = lage
+    aus["radien"] = radien
+    aus["farbe"][:, :3] = np.clip(farbe * 255, 0, 255).round()
+    aus["farbe"][:, 3] = np.clip(deck * 255, 0, 255).round()
+    aus["quat"] = np.clip(quat * 128 + 128, 0, 255).round()
+    aus.tofile(pfad)
+
+
+def schreibe_spz(pfad, lage, radien, farbe, deck, quat):
+    """SPZ Version 3 (gzip): Kopf, dann Lagen, Deckkräfte, Farben, Radien, Drehungen; Felder wie in laden.js."""
+    m = len(lage)
+    bits = 12
+    # PLY liegt in RDF, SPZ in RUB: y und z umdrehen (180° um x). Die Quaternion dreht dabei mit: x bleibt, y und z
+    # wechseln das Vorzeichen (wie die spz-Bibliothek beim Umwandeln)
+    lage = lage * np.array([1, -1, -1])
+    q = quat * np.array([1, 1, -1, -1])  # (w, x, y, z)
+    q = np.stack([q[:, 1], q[:, 2], q[:, 3], q[:, 0]], axis=1)  # → (x, y, z, w)
+    fest = np.round(lage * (1 << bits)).astype(np.int64)
+    if np.abs(fest).max() >= 1 << 23:
+        sys.exit("Die Szene ist größer als ±2048 m: das passt nicht in SPZ mit 12 Nachkommabits.")
+    fest &= 0xFFFFFF
+    pos = np.stack([fest & 0xFF, (fest >> 8) & 0xFF, (fest >> 16) & 0xFF], axis=-1).astype(np.uint8).reshape(m, 9)
+    alpha = np.clip(np.round(deck * 255), 0, 255).astype(np.uint8)
+    dc = (farbe - 0.5) / C0
+    farb = np.clip(np.round(dc * (0.15 * 255) + 127.5), 0, 255).astype(np.uint8)
+    rad = np.clip(np.round((np.log(np.maximum(radien, 1e-12)) + 10) * 16), 0, 255).astype(np.uint8)
+    # Drehung „kleinste drei“: größte Komponente weglassen (positiv machen, q und −q sind dieselbe Drehung)
+    groesste = np.abs(q).argmax(axis=1)
+    vorz = np.where(q[np.arange(m), groesste] < 0, -1.0, 1.0)[:, None]
+    q = q * vorz
+    c = groesste.astype(np.uint64)
+    for k in range(4):
+        hier = groesste != k
+        betrag = np.round(511 * np.abs(q[:, k]) / np.sqrt(0.5)).clip(0, 511).astype(np.uint64)
+        minus = (q[:, k] < 0).astype(np.uint64)
+        c = np.where(hier, (c << np.uint64(10)) | (minus << np.uint64(9)) | betrag, c)
+    rot = np.stack([(c >> np.uint64(8 * j)) & np.uint64(0xFF) for j in range(4)], axis=1).astype(np.uint8)
+    kopf = struct.pack("<IIIBBBB", 0x5053474E, 3, m, 0, bits, 0, 0)
+    daten = kopf + pos.tobytes() + alpha.tobytes() + farb.tobytes() + rad.tobytes() + rot.tobytes()
+    with gzip.open(pfad, "wb", compresslevel=9) as f:
+        f.write(daten)
+
+
 def main():
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("eingabe")
@@ -127,14 +178,13 @@ def main():
     reihenfolge = np.argsort(-wichtig)[: min(arg.anzahl, int(behalten.sum()))]
 
     m = len(reihenfolge)
-    aus = np.zeros(m, dtype=[("lage", "<f4", 3), ("radien", "<f4", 3), ("farbe", "u1", 4), ("quat", "u1", 4)])
-    aus["lage"] = lage[reihenfolge]
-    aus["radien"] = radien[reihenfolge]
-    aus["farbe"][:, :3] = np.clip(farbe[reihenfolge] * 255, 0, 255).round()
-    aus["farbe"][:, 3] = np.clip(deck[reihenfolge] * 255, 0, 255).round()
-    aus["quat"] = np.clip(quat[reihenfolge] * 128 + 128, 0, 255).round()
-    aus.tofile(arg.ausgabe)
-    print(f"{m} Splats geschrieben: {arg.ausgabe} ({m * 32 / 1e6:.1f} MB)")
+    teile = (lage[reihenfolge], radien[reihenfolge], np.asarray(farbe)[reihenfolge], deck[reihenfolge], quat[reihenfolge])
+    if arg.ausgabe.lower().endswith(".spz"):
+        schreibe_spz(arg.ausgabe, *teile)
+    else:
+        schreibe_splat(arg.ausgabe, *teile)
+    import os
+    print(f"{m} Splats geschrieben: {arg.ausgabe} ({os.path.getsize(arg.ausgabe) / 1e6:.1f} MB)")
     if any(arg.drehen):
         print("Gedreht ist schon: in zimmer.json dann \"drehung\": [0, 0, 0]")
 

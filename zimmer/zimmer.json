@@ -2,13 +2,13 @@
   "splats": "zimmer.splat",
   "kamera": {
     "ziel": [
-      -0.717,
-      0.487,
-      0.699
+      0.5991511344909668,
+      0.903976172208786,
+      -1.9606165885925293
     ],
-    "gier": -10.235,
-    "nick": -0.07,
-    "abstand": 1.448,
+    "gier": 0,
+    "nick": -0.2,
+    "abstand": 4.99560546875,
     "sichtfeld": 60
   },
   "drehung": [
@@ -33,21 +33,73 @@
       "name": "Projekte",
       "link": "/projekte/",
       "lage": [
-        -0.459,
-        0.603,
-        1.919
+        -1.589,
+        -0.892,
+        -2.457
       ],
-      "radius": 0.17
+      "radius": 0.21
     },
     {
       "name": "Oszilloskop",
-      "link": "/projekte/oszilloskop",
+      "link": "/projekte/oszilloskop/",
       "lage": [
-        -1.533,
-        -0.185,
-        1.083
+        -0.498,
+        -1.631,
+        -3.41
       ],
-      "radius": 0.12
+      "radius": 0.09
+    },
+    {
+      "name": "Datamosh",
+      "link": "/projekte/datamosh/",
+      "lage": [
+        0.309,
+        -1.801,
+        -3.685
+      ],
+      "radius": 0.29
     }
-  ]
+  ],
+  "grundriss": {
+    "punkte": [
+      [
+        -1.668,
+        0.924
+      ],
+      [
+        1.504,
+        0.534
+      ],
+      [
+        1.88,
+        -4.532
+      ],
+      [
+        -3.103,
+        -4.359
+      ],
+      [
+        -3.535,
+        -4.514
+      ],
+      [
+        -4.089,
+        0.513
+      ]
+    ],
+    "mitte": [
+      -0.315,
+      -2.197
+    ],
+    "boden": -2.043,
+    "augenhoehe": 1.25,
+    "zuschneiden": false,
+    "rand": 0.2
+  },
+  "art": "rundblick",
+  "rundblick": {
+    "gier": 0.679,
+    "nick": 0.129,
+    "sichtfeld": 110
+  }
 }

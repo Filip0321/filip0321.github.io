@@ -6,6 +6,9 @@
 //   parallax  wie ein Blick ins Zimmer durch ein Fenster: die Kamera steht fest und weicht nur ein wenig aus, wenn
 //             sich die Maus bewegt oder das Handy gekippt wird. So sieht man die Tiefe, ohne sich zu verlaufen
 //             (das ist die Art für eine Startseite)
+//   rundblick man steht im Mittelpunkt des Zimmers und dreht sich: dieselbe Kamera, nur mit Abstand fast 0 (das
+//             Auge sitzt dann im Ziel, Gier und Nick drehen den Blick um es herum); zoomen über das Sichtfeld
+//   oben      Draufsicht für den Grundriss: senkrecht von oben, Norden (−z) ist oben im Bild
 
 export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand = 3, sichtfeld = 60 } = {}) {
   const k = {
@@ -20,11 +23,19 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
 
   // breite, hoehe: Pixel des Bildes
   k.rechne = (breite, hoehe) => {
-    const g = k.gier + k.extraGier, n = Math.max(-1.5, Math.min(1.5, k.nick + k.extraNick));
-    // Auge auf einer Kugel um das Ziel
-    const vorn = [Math.cos(n) * Math.sin(g), Math.sin(n), Math.cos(n) * Math.cos(g)]; // vom Ziel zum Auge
-    k.auge = [0, 1, 2].map((i) => k.ziel[i] + vorn[i] * k.abstand);
-    schaueAuf(k.ansicht, k.auge, k.ziel);
+    if (k.oben) {
+      // senkrecht von oben: „oben“ im Bild ist −z (bei y nach oben gibt es sonst keine eindeutige Richtung)
+      k.auge = [k.ziel[0], k.ziel[1] + k.abstand, k.ziel[2]];
+      schaueAuf(k.ansicht, k.auge, k.ziel, [0, 0, -1]);
+    } else {
+      const g = k.gier + k.extraGier, n = Math.max(-1.5, Math.min(1.5, k.nick + k.extraNick));
+      // Auge auf einer Kugel um das Ziel
+      const vorn = [Math.cos(n) * Math.sin(g), Math.sin(n), Math.cos(n) * Math.cos(g)]; // vom Ziel zum Auge
+      k.auge = [0, 1, 2].map((i) => k.ziel[i] + vorn[i] * k.abstand);
+      // Abstand fast 0 (Rundblick): Auge und Ziel fielen zusammen, die Blickrichtung wäre unbestimmt; darum
+      // schaut das Auge dann auf einen Punkt in der Gegenrichtung
+      schaueAuf(k.ansicht, k.auge, k.abstand < 1e-3 ? k.auge.map((a, i) => a - vorn[i]) : k.ziel);
+    }
     const f = 1 / Math.tan((k.sichtfeld * Math.PI) / 360);
     const nah = 0.02, fern = 1000;
     k.projektion.fill(0);
@@ -46,6 +57,13 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
     return { x: breite / 2 + (k.fokus * x) / -z, y: hoehe / 2 - (k.fokus * y) / -z, tiefe: -z };
   };
 
+  // Richtung (Gier, Nick), in die die Kamera schauen muss, damit p in der Bildmitte liegt (für Rundblick und Fahrt)
+  k.richtungZu = (p) => {
+    const d = [k.auge[0] - p[0], k.auge[1] - p[1], k.auge[2] - p[2]]; // „vorn“ zeigt vom Ziel zum Auge
+    const l = Math.hypot(...d) || 1;
+    return { gier: Math.atan2(d[0], d[2]), nick: Math.asin(d[1] / l), abstand: l };
+  };
+
   // Strahl durch ein Pixel (für das Auswählen im Bearbeiten-Modus): Anfang und Richtung in Weltkoordinaten
   k.strahl = (px, py, breite, hoehe) => {
     const m = k.ansicht;
@@ -59,11 +77,11 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
   return k;
 }
 
-// Ansichtsmatrix (Spalten zuerst) für ein Auge, das auf ein Ziel schaut, y oben
-function schaueAuf(m, auge, ziel) {
+// Ansichtsmatrix (Spalten zuerst) für ein Auge, das auf ein Ziel schaut; oben: welche Richtung im Bild oben ist
+function schaueAuf(m, auge, ziel, oben = [0, 1, 0]) {
   let z = [auge[0] - ziel[0], auge[1] - ziel[1], auge[2] - ziel[2]];
   z = norm(z);
-  let x = norm(kreuz([0, 1, 0], z));
+  let x = norm(kreuz(oben, z));
   if (!isFinite(x[0])) x = [1, 0, 0];
   const y = kreuz(z, x);
   m.set([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -punkt(x, auge), -punkt(y, auge), -punkt(z, auge), 1]);
