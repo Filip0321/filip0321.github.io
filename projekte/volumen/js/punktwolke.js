@@ -141,8 +141,8 @@ export function erstellePunktdatei(v, maske, optionen = {}) {
     return Math.log(p / (1 - p));
   };
   const logit = logitVon(deckkraft);
-  // sRGB (wie auf dem Bildschirm) → linear (so rechnen Splat-Programme mit f_dc)
-  const linear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  // f_dc ist die Farbe so, wie sie auf dem Bildschirm steht (sRGB): 3DGS trainiert direkt gegen die Fotos, ohne
+  // Umrechnung in lineare Helligkeit. (Vorher stand hier eine Umrechnung nach linear: das machte alles zu dunkel.)
   let o = header.length;
 
   laufe(v, maske, schwelle, schritt, (x, y, z, wert, _i, f) => {
@@ -164,8 +164,8 @@ export function erstellePunktdatei(v, maske, optionen = {}) {
     d.setFloat32(o, p[0], true); d.setFloat32(o + 4, p[1], true); d.setFloat32(o + 8, p[2], true);
     // Normale (nicht berechnet); Orientierung ist durch die skalierte Voxel-Gaussian beschrieben.
     d.setFloat32(o + 12, 0, true); d.setFloat32(o + 16, 0, true); d.setFloat32(o + 20, 0, true);
-    // SH-DC: RGB = 0.5 + C0 * f_dc (Farbe in linearer Helligkeit)
-    for (let k = 0; k < 3; k++) d.setFloat32(o + 24 + 4 * k, (linear(rgb[k]) - 0.5) / C0, true);
+    // SH-DC: RGB = 0.5 + C0 * f_dc (RGB wie auf dem Bildschirm, 0 bis 1)
+    for (let k = 0; k < 3; k++) d.setFloat32(o + 24 + 4 * k, (rgb[k] - 0.5) / C0, true);
     // Deckkraft: aus der Kurve (mal Faktor), sonst fest
     d.setFloat32(o + 36, f ? logitVon(f[3] * deckkraft) : logit, true);
     d.setFloat32(o + 40, logScale[0], true);

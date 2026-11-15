@@ -142,6 +142,31 @@
         <p class="hinweis">Es klingt nach einer Maschine aus Rohren, nicht nach einem Menschen: echte Sprache hat viel mehr Bewegung, als ein paar Posen pro Laut hergeben.</p>
       </details>
 
+      <details class="abschnitt">
+        <summary>Stimmen im Rauschen (EVP)</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="evp"> an</label>
+          <label><input type="checkbox" data-wert="evpMund" checked> Mund murmelt von selbst (sonst: was oben eingestellt ist oder gesprochen wird)</label>
+          <label>Silben pro Sekunde <input type="range" data-wert="evpTempo" min="1" max="10" step="0.1" value="4"><output></output></label>
+          <label>deutlich <input type="range" data-wert="evpDeutlich" min="0" max="1" step="0.01" value="0.7"><output></output></label>
+          <label>Stimme <input type="range" data-wert="evpStimme" min="0" max="2" step="0.01" value="0.5"><output></output></label>
+          <label>Rauschen <input type="range" data-wert="evpRauschen" min="0" max="2" step="0.01" value="0.6"><output></output></label>
+          <label>Brummen <input type="range" data-wert="evpBrumm" min="0" max="1" step="0.01" value="0.15"><output></output></label>
+          <label>Knistern <input type="range" data-wert="evpKnistern" min="0" max="1" step="0.01" value="0.25"><output></output></label>
+          <label>Radio <input type="range" data-wert="evpRadio" min="0" max="1" step="0.01" value="0.7"><output></output></label>
+          <label>Sendersuche <input type="range" data-wert="evpSuche" min="0" max="1" step="0.01" value="0"><output></output></label>
+          <label><input type="checkbox" data-wert="evpRueckwaerts"> rückwärts</label>
+        </div>
+        <div class="steuerung">
+          <button type="button" data-setze='{"evp": true, "evpMund": true, "stimmlippen": 0.08, "spannung": 0.3, "evpTempo": 3.5, "evpDeutlich": 0.6, "evpStimme": 0.45, "evpRauschen": 0.7, "evpBrumm": 0.25, "evpKnistern": 0.1, "evpRadio": 0.3, "evpSuche": 0, "evpRueckwaerts": false}'>Tonband (Raudive)</button>
+          <button type="button" data-setze='{"evp": true, "evpMund": true, "stimmlippen": 0.3, "spannung": 0.5, "evpTempo": 5, "evpDeutlich": 0.8, "evpStimme": 0.6, "evpRauschen": 0.9, "evpBrumm": 0.05, "evpKnistern": 0.4, "evpRadio": 1, "evpSuche": 0, "evpRueckwaerts": false}'>Radio zwischen den Sendern</button>
+          <button type="button" data-setze='{"evp": true, "evpMund": true, "stimmlippen": 1, "spannung": 0.6, "evpTempo": 6, "evpDeutlich": 0.9, "evpStimme": 1, "evpRauschen": 0.5, "evpBrumm": 0.1, "evpKnistern": 0.3, "evpRadio": 1, "evpSuche": 0.55, "evpRueckwaerts": false}'>Spirit Box</button>
+          <button type="button" data-setze='{"evp": true, "evpMund": true, "stimmlippen": 0.15, "spannung": 0.35, "evpTempo": 3, "evpDeutlich": 0.7, "evpStimme": 0.6, "evpRauschen": 0.5, "evpBrumm": 0.2, "evpKnistern": 0.15, "evpRadio": 0.5, "evpSuche": 0, "evpRueckwaerts": true}'>rückwärts</button>
+          <button type="button" data-setze='{"evp": true, "evpMund": false, "stimmlippen": 0.1, "evpStimme": 0.5, "evpRauschen": 0.8, "evpRadio": 0.6}'>eigener Text, versteckt</button>
+        </div>
+        <p class="hinweis">Seit Friedrich Jürgenson (1959) und Konstantīns Raudive (1968) hören Menschen in Rauschen Stimmen. Das Ohr erkennt Sprache an wenig: Resonanzen, die wandern (Vokale), ein Rhythmus von ein paar Silben pro Sekunde, Pausen dazwischen. Hier flüstert das Rohr zufällige Silben leise unter Rauschen; was es „sagt“, ist Zufall, was man hört, macht das Gehirn (auditive Pareidolie). Mit „eigener Text, versteckt“ spricht es den Text von oben, ebenso begraben.</p>
+      </details>
+
       <details class="abschnitt" id="musik">
         <summary>Musik</summary>
         <!-- Musik bewegt die Stimme; die Zeilen für Bass, Mitte, Höhen und Schlag baut /lib/audioreaktiv.js -->
@@ -204,3 +229,5 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+
+

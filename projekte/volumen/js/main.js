@@ -246,7 +246,7 @@ async function anfangen() {
   } else zeige(testkoerper(128));
   for (const [k, w] of Object.entries(VOR.einstellungen ?? {})) ansicht.setze(k, w);
   if (VOR.lage) ansicht.lage = VOR.lage;
-  ansicht.transfer();
+  ansicht.ladeVorlage(); // (lädt auch eine Vorlage aus den Einstellungen der Seite in die Kurve)
 }
 anfangen();
 ansicht.starte();

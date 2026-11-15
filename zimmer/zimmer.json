@@ -1,0 +1,53 @@
+{
+  "splats": "zimmer.splat",
+  "kamera": {
+    "ziel": [
+      -0.717,
+      0.487,
+      0.699
+    ],
+    "gier": -10.235,
+    "nick": -0.07,
+    "abstand": 1.448,
+    "sichtfeld": 60
+  },
+  "drehung": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      90
+    ],
+    [
+      0,
+      0,
+      90
+    ]
+  ],
+  "dinge": [
+    {
+      "name": "Projekte",
+      "link": "/projekte/",
+      "lage": [
+        -0.459,
+        0.603,
+        1.919
+      ],
+      "radius": 0.17
+    },
+    {
+      "name": "Oszilloskop",
+      "link": "/projekte/oszilloskop",
+      "lage": [
+        -1.533,
+        -0.185,
+        1.083
+      ],
+      "radius": 0.12
+    }
+  ]
+}

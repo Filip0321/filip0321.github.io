@@ -4,6 +4,7 @@
 //   laute.js           wie das Rohr für jeden Laut aussieht, Lautschrift (SAMPA) als Folge davon
 //   deutsch.js         deutscher Text → Lautschrift
 //   englisch.js        englischer Text → Lautschrift
+//   evp.js             Stimmen im Rauschen: der Mund murmelt zufällige Silben (das Rauschen dazu macht das Worklet)
 // Die Seite schickt etwa 60-mal pro Sekunde alle Werte an den Klang; der schickt zurück, wie das Rohr gerade
 // aussieht (es folgt den Zielen mit etwas Verzögerung, wie Muskeln).
 
@@ -11,6 +12,7 @@ import { geometrie, wasIstBei, zeichne } from "./bild.js";
 import { naechsterVokal, lautschriftZuFolge, zerlege, tonFuer, formantKlang } from "./laute.js";
 import { deutschZuLautschrift } from "./deutsch.js";
 import { englischZuLautschrift } from "./englisch.js";
+import { erstelleEvp } from "./evp.js";
 import { richteReglerEin } from "/lib/regler.js";
 import { richteAudioreaktivEin } from "/lib/audioreaktiv.js";
 import { alsWav } from "/projekte/databending/js/wav.js";
@@ -232,12 +234,20 @@ function folgeMusik(dt) {
   musikFrequenz = Math.exp(jetzt + (Math.log(f) - jetzt) * Math.min(1, dt * 10));
 }
 
+// ---------- EVP ----------
+const evp = erstelleEvp();
+let murmeln = null; // was der Mund beim Murmeln gerade macht (nur wenn EVP an ist und nichts gesprochen wird)
+
 // ---------- alles an den Klang ----------
 function werte(schritt) {
   const w = musik.wirkung;
-  const zunge = schritt && folge?.zunge ? folge.zunge : e;
-  const lippen = schritt ? folge.lippen : e.lippen;
-  const konsonanten = [];
+  let zunge = schritt && folge?.zunge ? folge.zunge : e;
+  let lippen = schritt ? folge.lippen : e.lippen;
+  if (murmeln) {
+    zunge = murmeln;
+    lippen = murmeln.lippen;
+  }
+  const konsonanten = murmeln ? [...murmeln.enge] : [];
   for (const f of finger.values()) if (f.art === "enge") konsonanten.push({ ort: f.ort, weite: f.weite });
   if (schritt?.enge) konsonanten.push(...schritt.enge);
   const enge = lippen < 1.5 ? [...konsonanten, { ort: 41, weite: lippen }] : konsonanten;
@@ -248,8 +258,8 @@ function werte(schritt) {
   return {
     frequenz: frequenz * (1 + 0.5 * (w.frequenz ?? 0)),
     spannung: e.spannung,
-    lautstaerke: Math.min(1.5, e.lautstaerke * (1 + (w.laut ?? 0))),
-    an: stumm ? false : schritt ? schritt.an !== false : e.dauerton || taste !== null,
+    lautstaerke: Math.min(1.5, e.lautstaerke * (1 + (w.laut ?? 0)) * (murmeln ? murmeln.laut : 1)),
+    an: stumm ? false : schritt ? schritt.an !== false : e.dauerton || taste !== null || !!murmeln,
     stimmhaft: (schritt ? schritt.stimmhaft ?? 1 : 1) * e.stimmlippen,
     vibrato: e.vibrato,
     zittern: e.zittern,
@@ -262,6 +272,14 @@ function werte(schritt) {
     art: e.klangArt,
     bits: e.bits,
     abtast: e.abtast,
+    evp: e.evp,
+    evpStimme: e.evpStimme,
+    evpRauschen: e.evpRauschen,
+    evpBrumm: e.evpBrumm,
+    evpKnistern: e.evpKnistern,
+    evpRadio: e.evpRadio,
+    evpRueckwaerts: e.evpRueckwaerts,
+    evpSuche: e.evpSuche,
     ...(e.klangArt === "formanten" ? formantKlang(zunge.zungeOrt, zungeWeite, lippen, konsonanten, velum) : {}),
   };
 }
@@ -307,6 +325,7 @@ function schleife(jetzt) {
   musik.schritt(dt);
   if (e.frequenzArt === "musik") folgeMusik(dt);
   const schritt = folgeSchritt();
+  murmeln = e.evp && e.evpMund && !folge ? evp.schritt(dt, { tempo: e.evpTempo, deutlich: e.evpDeutlich }) : null;
   const w = werte(schritt);
   if (knoten) knoten.port.postMessage(w);
   if (analyser) analyser.getFloatFrequencyData(spektrum);
@@ -350,3 +369,5 @@ function schleife(jetzt) {
 neueGroesse();
 uebersetze();
 requestAnimationFrame(schleife);
+
+

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marmorpapier - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="marmor.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Marmorpapier</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>malen</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel marmor-feld" id="stapel">
+        <canvas id="feld" width="1024" height="1024" aria-label="Farbe, die auf Wasser schwimmt"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="marmor-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Werkzeug</summary>
+        <div class="steuerung">
+          <label>Werkzeug
+            <select data-wert="werkzeug">
+              <option value="tropfen">Tropfen (klicken, ziehen tropft weiter)</option>
+              <option value="regen">Regen (klicken: viele Tropfen überall)</option>
+              <option value="stift">Stift (durch die Farbe ziehen)</option>
+              <option value="nadel">Nadel (gerade, über das ganze Blatt)</option>
+              <option value="kamm">Kamm (gerade, viele Nadeln)</option>
+              <option value="wirbel">Wirbel (klicken)</option>
+            </select>
+          </label>
+          <label data-nur="werkzeug=tropfen,regen">Tropfengröße <input type="range" data-wert="radius" min="0.005" max="0.2" step="0.001" value="0.05"><output></output></label>
+          <label data-nur="werkzeug=tropfen">Abstand beim Ziehen <input type="range" data-wert="tropfAbstand" min="0.01" max="0.2" step="0.005" value="0.05"><output></output></label>
+          <label data-nur="werkzeug=regen">Tropfen je Klick <input type="range" data-wert="regenAnzahl" min="5" max="200" step="1" value="40"><output></output></label>
+          <label data-nur="werkzeug=regen">Größen streuen <input type="range" data-wert="regenStreuung" min="0" max="1" step="0.05" value="0.6"><output></output></label>
+          <label data-nur="werkzeug=stift,nadel,kamm">Zug <input type="range" data-wert="zug" min="0.1" max="3" step="0.05" value="1"><output></output></label>
+          <label data-nur="werkzeug=stift,nadel,kamm">Spitze (klein: scharf) <input type="range" data-wert="spitze" min="0.002" max="0.1" step="0.001" value="0.015"><output></output></label>
+          <label data-nur="werkzeug=kamm">Zinkenabstand <input type="range" data-wert="zinken" min="0.02" max="0.3" step="0.005" value="0.08"><output></output></label>
+          <label data-nur="werkzeug=wirbel">Drehung <input type="range" data-wert="drehung" min="-20" max="20" step="0.1" value="6"><output></output></label>
+          <label data-nur="werkzeug=wirbel">Reichweite <input type="range" data-wert="reichweite" min="0.005" max="0.5" step="0.005" value="0.08"><output></output></label>
+        </div>
+        <div class="steuerung">
+          <button type="button" id="zurueck">Rückgängig</button>
+          <button type="button" id="leeren">Wasser leeren</button>
+          <button type="button" id="welle">Welle über alles</button>
+          <button type="button" id="kammQuer">Kamm quer</button>
+          <button type="button" id="kammLaengs">Kamm längs</button>
+        </div>
+        <p class="hinweis">Farbe schwimmt auf dem Wasser und mischt sich nicht: jeder neue Tropfen schiebt die alten zur Seite, eine Nadel zieht sie in Fäden. Gezeichnet wird rückwärts, darum bleiben alle Kanten scharf, auch nach Hunderten von Zügen und in jeder Bildgröße.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Muster</summary>
+        <div class="steuerung">
+          <label>Vorlage
+            <select id="vorlage">
+              <option value="">eine wählen …</option>
+              <option value="battal">Battal (Steinmuster)</option>
+              <option value="gelgit">Gelgit (hin und her gekämmt)</option>
+              <option value="tarak">Tarak (Federn)</option>
+              <option value="nachtigall">Bülbül yuvası (Nachtigallennest)</option>
+              <option value="wellen">Wellen</option>
+              <option value="suminagashi">Suminagashi (Ringe)</option>
+            </select>
+          </label>
+          <label>Startwert <input type="number" data-wert="saat" min="0" max="9999" step="1" value="1"></label>
+          <button type="button" id="neuWuerfeln">anderer Startwert</button>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Farben</summary>
+        <div class="steuerung">
+          <label>Palette
+            <select data-wert="palette">
+              <option value="ebru">Ebru</option>
+              <option value="suminagashi">Tusche</option>
+              <option value="ochsenblut">Ochsenblut</option>
+              <option value="meer">Meer</option>
+              <option value="herbst">Herbst</option>
+              <option value="eigen">eine Farbe</option>
+            </select>
+          </label>
+          <label data-nur="palette=eigen">Farbe <input type="color" data-wert="eigeneFarbe" value="#a8322b"></label>
+          <label>Wasser <input type="color" data-wert="wasser" value="#efe7d6"></label>
+          <label>Papier <input type="color" data-wert="papier" value="#f4ecd8"></label>
+          <label>Ränder <input type="range" data-wert="raender" min="0" max="1" step="0.01" value="0.35"><output></output></label>
+          <label>Körnung <input type="range" data-wert="koernung" min="0" max="0.6" step="0.01" value="0.12"><output></output></label>
+          <label>Papierstruktur <input type="range" data-wert="struktur" min="0" max="2" step="0.05" value="1"><output></output></label>
+          <label><input type="checkbox" data-wert="glatt" checked> Kanten glätten</label>
+          <label>Bildgröße
+            <select data-wert="bildgroesse">
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+              <option value="4096">4096 (langsam)</option>
+            </select>
+          </label>
+        </div>
+        <div class="paletten-vorschau" id="paletten-vorschau" aria-hidden="true"></div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Abspielen</summary>
+        <div class="steuerung">
+          <button type="button" id="abspielen">von vorn abspielen</button>
+          <label>Züge pro Sekunde <input type="range" data-wert="tempo" min="1" max="60" step="1" value="8"><output></output></label>
+          <button type="button" id="musterSpeichern">Muster speichern (.json)</button>
+          <label class="datei-knopf">Muster laden <input type="file" id="musterLaden" accept=".json,application/json"></label>
+        </div>
+        <p class="hinweis">Das Muster ist nur die Liste der Züge (ein paar Kilobyte). Gespeichert lässt es sich später in jeder Größe neu zeichnen oder als Video abspielen: „Video rendern“ zeigt, wie es Zug um Zug entsteht.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+  <script type="module" src="/lib/format.js"></script>
+</body>
+</html>

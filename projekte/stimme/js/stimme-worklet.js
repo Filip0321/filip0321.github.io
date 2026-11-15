@@ -25,6 +25,10 @@
 // Zischlaute: Rauschen durch einen Bandpass. Die Formanten kommen von der Seite (laute.js).
 //
 // Danach für beide: weniger Bits und eine niedrigere Abtastrate (wie ein alter Chip: SAM hatte 4 Bit).
+//
+// EVP (Stimmen im Rauschen, evp.js bewegt dafür den Mund): die Stimme leise unter Rauschen, Netzbrummen und
+// Knistern, wahlweise rückwärts, durch ein Radio (Bandpass 300 bis 3000 Hz, leicht übersteuert) oder als
+// Sendersuche (alle 50 bis 150 ms ein anderer „Sender“: mal Stimme, mal nur Rauschen in einem anderen Band).
 
 const N = 44; // Stücke im Mund-Rachen-Rohr
 const NASE = 28; // Stücke in der Nase
@@ -58,6 +62,14 @@ class Stimme extends AudioWorkletProcessor {
       rauschBand: 4000, // … um diese Frequenz
       bits: 16, // weniger: gröber (4 wie SAM)
       abtast: 48000, // Abtastrate des Chips in Hz (darunter: Treppen, Spiegelfrequenzen)
+      evp: false, // Stimmen im Rauschen (alles hier drunter gilt nur dann)
+      evpStimme: 0.5, // wie laut die Stimme unter dem Rauschen ist
+      evpRauschen: 0.5,
+      evpBrumm: 0.2,
+      evpKnistern: 0.3,
+      evpRadio: 0.7, // 0: volles Band, 1: nur 300 bis 3000 Hz wie ein altes Radio
+      evpRueckwaerts: false,
+      evpSuche: 0, // 0: aus, 1: springt ständig
     };
     this.port.onmessage = (e) => Object.assign(this.p, e.data);
     // Rohr: Durchmesser (Ziel und aktuell), Wellen nach rechts R und links L
@@ -103,6 +115,68 @@ class Stimme extends AudioWorkletProcessor {
     this.samFilter = { a: 0, b: 0 };
     this.halte = 0; // Abtastrate senken: Wert halten
     this.halteZaehler = 0;
+    // EVP
+    this.rosa = [0, 0, 0]; // drei Tiefpässe: aus weißem Rauschen ungefähr rosa (mehr Tiefe, wie Bandrauschen)
+    this.knack = 0; // Knistern: abklingender Knacks
+    this.hoch = { x: 0, y: 0 }; // Radio: Hochpass 300 Hz
+    this.tiefRadio = 0; // … und Tiefpass 3000 Hz
+    this.suche = { rest: 0, sender: 1, filter: { a: 0, b: 0 }, band: 0.2 };
+    const L = Math.round(sampleRate * 0.45); // Rückwärts: Stücke von 0,45 s
+    this.rueck = { L, schreib: new Float32Array(L), lies: new Float32Array(L), i: 0 };
+  }
+
+  // EVP: aus dem Klang der Stimme (x) wird eine Aufnahme aus dem Rauschen
+  evpSample(x, rate) {
+    const p = this.p;
+    // rückwärts: ein Stück aufnehmen, dann rückwärts abspielen, während das nächste aufgenommen wird
+    // (die Ränder jedes Stücks sanft aus- und einblenden, sonst knackt jede Naht)
+    if (p.evpRueckwaerts) {
+      const r = this.rueck;
+      r.schreib[r.i] = x;
+      const j = r.L - 1 - r.i;
+      const rand = Math.min(1, Math.min(j, r.L - 1 - j) / (0.02 * rate));
+      x = r.lies[j] * rand;
+      if (++r.i >= r.L) {
+        r.i = 0;
+        [r.schreib, r.lies] = [r.lies, r.schreib];
+      }
+    }
+    x *= p.evpStimme * 5; // × 5: Flüstern kommt sehr leise aus dem Rohr; bei 1 liegt es dann etwa so laut wie das Rauschen
+    // Sendersuche: alle 50 bis 150 ms ein neuer „Sender“; mit Wahrscheinlichkeit evpSuche ist er nicht die Stimme,
+    // sondern Rauschen durch einen Bandpass an zufälliger Stelle (wie ein anderer Sender, zu weit weg)
+    if (p.evpSuche > 0) {
+      const s = this.suche;
+      if (--s.rest <= 0) {
+        s.rest = Math.round((0.05 + Math.random() * 0.1) * rate);
+        s.sender = Math.random() < p.evpSuche ? 0 : 1;
+        s.band = 0.05 + Math.random() * 0.4;
+      }
+      if (!s.sender) x = this.bandpass(s.filter, Math.random() * 2 - 1, s.band) * 0.3 * p.evpStimme;
+    }
+    // Rauschen: ungefähr rosa (weiß plus zwei langsamere Anteile)
+    const w = Math.random() * 2 - 1;
+    this.rosa[0] += (w - this.rosa[0]) * 0.5;
+    this.rosa[1] += (w - this.rosa[1]) * 0.05;
+    this.rosa[2] += (w - this.rosa[2]) * 0.005;
+    x += (this.rosa[0] * 0.15 + this.rosa[1] * 0.8 + this.rosa[2] * 2) * 0.12 * p.evpRauschen;
+    // Netzbrummen: 50 Hz und ungerade Obertöne (so klingt eine Masseschleife)
+    const t = this.zeit;
+    x += (Math.sin(2 * Math.PI * 50 * t) + 0.5 * Math.sin(2 * Math.PI * 150 * t) + 0.25 * Math.sin(2 * Math.PI * 250 * t)) * 0.03 * p.evpBrumm;
+    // Knistern: im Mittel bis zu 40 Knackse pro Sekunde, jeder klingt in etwa 1 ms ab
+    if (Math.random() < (p.evpKnistern * 40) / rate) this.knack = (Math.random() * 2 - 1) * (0.2 + Math.random() * 0.6);
+    x += this.knack * p.evpKnistern;
+    this.knack *= 0.97;
+    // Radio: Hochpass 300 Hz, Tiefpass 3000 Hz (je einpolig), leicht übersteuert
+    if (p.evpRadio > 0) {
+      const ah = Math.exp((-2 * Math.PI * 300) / rate);
+      const h = ah * (this.hoch.y + x - this.hoch.x);
+      this.hoch.x = x;
+      this.hoch.y = h;
+      this.tiefRadio += (1 - Math.exp((-2 * Math.PI * 3000) / rate)) * (h - this.tiefRadio);
+      const radio = Math.tanh(this.tiefRadio * 3) / 3;
+      x = x + (radio * 1.6 - x) * p.evpRadio;
+    }
+    return x;
   }
 
   // SAM-Art: ein Sample aus den drei Formanten (siehe oben). laut: Stimme, hauch: Atemrauschen
@@ -296,6 +370,7 @@ class Stimme extends AudioWorkletProcessor {
         // sanfter Tiefpass bei 7 kHz: nimmt das feine Zischeln über allem weg (das Rohr hat dort ohnehin keine Formanten mehr)
         wert = (lippen + nase) * 0.125;
       }
+      if (p.evp) wert = this.evpSample(wert, rate);
       this.tief += this.tiefA * (wert - this.tief);
       let y = this.tief;
       // alter Chip: Abtastrate senken (jeden Wert eine Weile halten) und weniger Stufen (Bits)
@@ -330,3 +405,5 @@ class Stimme extends AudioWorkletProcessor {
 }
 
 registerProcessor("stimme", Stimme);
+
+

@@ -99,7 +99,7 @@ export function alsPly({ pos, farbe, zelle }, gaussian, { groesse = 0.8, deckkra
   const puffer = new ArrayBuffer(k.length + anzahl * je);
   new Uint8Array(puffer).set(k);
   const d = new DataView(puffer);
-  const linear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  // f_dc: Farbe wie auf dem Bildschirm (sRGB), nicht linear; so trainiert und zeigt 3DGS (siehe volumen/js/punktwolke.js)
   const logScale = Math.log(zelle * 0.5 * groesse);
   const p = Math.max(0.01, Math.min(0.99, deckkraft));
   const logit = Math.log(p / (1 - p));
@@ -113,7 +113,7 @@ export function alsPly({ pos, farbe, zelle }, gaussian, { groesse = 0.8, deckkra
     let c = o + 12; // wo die Bytes der Farbe hinkommen
     if (gaussian) {
       for (let j = 0; j < 3; j++) d.setFloat32(o + 12 + 4 * j, 0, true); // Normale (nicht gebraucht)
-      for (let j = 0; j < 3; j++) d.setFloat32(o + 24 + 4 * j, (linear(farbe[3 * i + j]) - 0.5) / C0, true);
+      for (let j = 0; j < 3; j++) d.setFloat32(o + 24 + 4 * j, (farbe[3 * i + j] - 0.5) / C0, true);
       d.setFloat32(o + 36, logit, true);
       for (let j = 0; j < 3; j++) d.setFloat32(o + 40 + 4 * j, logScale, true);
       d.setFloat32(o + 52, 1, true); // Drehung: keine (rot_0 ist w)

@@ -1,0 +1,44 @@
+/*
+Marmorpapier: nur was es nirgends sonst auf der Website gibt
+*/
+.marmor-feld {
+  position: relative;
+  aspect-ratio: 1;
+  width: min(100%, 80vh);
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  background: #efe7d6;
+  touch-action: none; /* ziehen malt, statt die Seite zu verschieben */
+  cursor: crosshair;
+}
+
+.marmor-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.marmor-status {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}
+
+/* die Farben der Palette als Streifen; die nächste Farbe ist umrandet */
+.paletten-vorschau {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.5rem;
+}
+
+.paletten-vorschau span {
+  width: 2rem;
+  height: 1rem;
+  border: 1px solid transparent;
+}
+
+.paletten-vorschau span.naechste {
+  border-color: currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+}
