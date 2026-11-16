@@ -37,7 +37,8 @@
         -3.235,
         -1.883
       ],
-      "radius": 0.435
+      "radius": 0.435,
+      "text": "Oszilloskop Musik machen auch ohne oszilloskop"
     },
     {
       "name": "Projekte",
@@ -48,7 +49,8 @@
         -4.009
       ],
       "radius": 0.53,
-      "nah": 5.3
+      "nah": 5.3,
+      "text": "Die übersicht aller Projekte"
     },
     {
       "name": "Something",
@@ -59,7 +61,8 @@
         -3.483
       ],
       "radius": 0.399,
-      "nah": 3.6
+      "nah": 3.6,
+      "text": "Hier hab ich noch nichts und geht erstmal auf die Projekte"
     }
   ],
   "grundriss": {
