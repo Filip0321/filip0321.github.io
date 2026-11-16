@@ -1,5 +1,5 @@
 {
-  "splats": "zimmer.splat",
+  "splats": "zimmer.spz",
   "kamera": {
     "ziel": [
       0.5991511344909668,
@@ -30,79 +30,79 @@
   ],
   "dinge": [
     {
-      "name": "Projekte",
-      "link": "/projekte/",
-      "lage": [
-        -1.589,
-        -0.892,
-        -2.457
-      ],
-      "radius": 0.21,
-      "text": "Hier kommen alle Projekte"
-    },
-    {
       "name": "Oszilloskop",
       "link": "/projekte/oszilloskop/",
       "lage": [
-        -0.498,
-        -1.631,
-        -3.41
+        3.431,
+        -3.235,
+        -1.883
       ],
-      "radius": 0.09,
-      "text": "Oszilloskop Musik"
+      "radius": 0.435
     },
     {
-      "name": "Datamosh",
-      "link": "/projekte/datamosh/",
+      "name": "Projekte",
+      "link": "/projekte/",
       "lage": [
-        0.309,
-        -1.801,
-        -3.685
+        -1.411,
+        -0.567,
+        -4.009
       ],
-      "radius": 0.29,
-      "text": "Datamosh effekte zwischen mehreren Videos und Bildern"
+      "radius": 0.53,
+      "nah": 5.3
+    },
+    {
+      "name": "Something",
+      "link": "/projekte/",
+      "lage": [
+        -3.083,
+        -1.675,
+        -3.483
+      ],
+      "radius": 0.399,
+      "nah": 3.6
     }
   ],
   "grundriss": {
     "punkte": [
       [
-        -1.668,
-        0.924
+        -5.571,
+        9.784
       ],
       [
-        1.504,
-        0.534
+        9.256,
+        2.917
       ],
       [
-        1.88,
-        -4.532
+        3.198,
+        -8.17
       ],
       [
-        -3.103,
-        -4.359
+        -7.931,
+        -3.686
       ],
       [
-        -3.535,
-        -4.514
+        -5.55,
+        3.268
       ],
       [
-        -4.089,
-        0.513
+        -7.999,
+        4.492
       ]
     ],
     "mitte": [
-      -0.315,
-      -2.197
+      0.016,
+      -0.168
     ],
-    "boden": -2.043,
-    "augenhoehe": 1.25,
+    "boden": -1.2,
+    "augenhoehe": 1.6,
     "zuschneiden": false,
-    "rand": 0.2
+    "rand": 0.2,
+    "bodenVonHand": true
   },
   "art": "rundblick",
   "rundblick": {
-    "gier": 0.679,
-    "nick": 0.129,
-    "sichtfeld": 110
+    "gier": 5.915,
+    "nick": 0.338,
+    "sichtfeld": 89.701
   }
 }
