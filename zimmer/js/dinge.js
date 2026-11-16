@@ -83,13 +83,40 @@ export function platziereDinge(k) {
     d.element.classList.toggle("gewaehlt", d === z.gewaehlt);
     d.element.classList.toggle("gezeigt", d === gezeigt?.ding);
   }
+  platziereTafel(k);
+}
+
+// Die Tafel steht neben dem Gegenstand, oben auf seiner Höhe, auf der Seite mit mehr Platz. Passt sie dort nicht hin
+// (Handy hochkant), liegt sie unten über die ganze Breite (so steht es in zimmer.css).
+const ABSTAND = 16; // CSS-Pixel zwischen Gegenstand und Tafel und zum Rand
+function platziereTafel(k) {
+  if (!gezeigt || tafel.hidden) return;
+  const faktor = z.canvas.clientWidth / z.canvas.width;
+  const p = k.aufBildschirm(gezeigt.ding.lage, z.canvas.width, z.canvas.height);
+  const B = z.canvas.clientWidth, H = z.canvas.clientHeight;
+  const breite = Math.min(416, B - 2 * ABSTAND); // 26rem
+  const unten = () => {
+    tafel.classList.remove("seitlich");
+    tafel.style.left = tafel.style.top = tafel.style.width = "";
+  };
+  if (!p) return unten();
+  const x = p.x * faktor, y = p.y * faktor;
+  const r = Math.min(((gezeigt.ding.radius * k.fokus) / p.tiefe) * faktor, Math.min(B, H) / 2);
+  const rechts = B - (x + r), links = x - r;
+  const seite = rechts >= links ? "rechts" : "links";
+  if (Math.max(rechts, links) < breite + 2 * ABSTAND) return unten();
+  tafel.classList.add("seitlich");
+  const hoehe = tafel.offsetHeight;
+  tafel.style.left = `${seite === "rechts" ? x + r + ABSTAND : x - r - ABSTAND - breite}px`;
+  tafel.style.top = `${Math.max(ABSTAND, Math.min(H - hoehe - ABSTAND, y - r))}px`; // oben bündig mit dem Gegenstand
+  tafel.style.width = `${breite}px`;
 }
 
 // ---------- Kamera: Zahlen lesen, schreiben, mischen ----------
 const sanft = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 function zustandVon(k) {
-  return { ziel: [...k.ziel], gier: k.gier + k.extraGier, nick: k.nick + k.extraNick, abstand: k.abstand, sichtfeld: k.sichtfeld };
+  return { ziel: [...k.ziel], gier: k.gier + k.extraGier, nick: k.nick + k.extraNick, abstand: k.abstand, sichtfeld: k.sichtfeld, versatzX: k.versatzX, versatzY: k.versatzY };
 }
 
 function fliege(k, nachher, dauer, danach) {
@@ -111,7 +138,7 @@ export function fahrtSchritt(jetzt) {
     const { k, vorher: a, nachher: b } = fahrt;
     const misch = (x, y) => x + (y - x) * e;
     k.ziel = a.ziel.map((v, i) => misch(v, b.ziel[i]));
-    for (const n of ["gier", "nick", "abstand", "sichtfeld"]) k[n] = misch(a[n], b[n]);
+    for (const n of ["gier", "nick", "abstand", "sichtfeld", "versatzX", "versatzY"]) k[n] = misch(a[n], b[n]);
     neu();
     if (t >= 1) {
       const danach = fahrt.danach;
@@ -146,18 +173,24 @@ function zeigeDing(ding) {
   // die Zeig-Kamera fängt genau da an, wo die bisherige Kamera steht, und fliegt dann zum Gegenstand
   const s = zustandVon(von);
   z.zeig = erstelleKamera({ ziel: s.ziel, gier: s.gier, nick: s.nick, abstand: s.abstand, sichtfeld: s.sichtfeld });
+  Object.assign(z.zeig, { versatzX: s.versatzX, versatzY: s.versatzY });
   const abstand = Math.max(0.35, ding.radius * (ding.nah ?? 3.2));
   gezeigt = { ding, mitteGier: gier, start: Infinity, ruheBis: 0, vorher };
   z.hervor = ding;
-  fliege(z.zeig, { ziel: [...ding.lage], gier, nick, abstand, sichtfeld: 50 }, 1200, () => {
+  // Platz für die Tafel: breit genug (zwei Spalten) → Gegenstand nach links, Tafel rechts daneben;
+  // sonst (hochkant) → Gegenstand nach oben, Tafel unten
+  const breit = z.canvas.clientWidth >= 2 * 416 + 64;
+  const versatz = breit ? { versatzX: -0.38, versatzY: 0 } : { versatzX: 0, versatzY: 0.3 };
+  fliege(z.zeig, { ziel: [...ding.lage], gier, nick, abstand, sichtfeld: 50, ...versatz }, 1200, () => {
     gezeigt.start = performance.now();
   });
   zeigeTafel(ding);
 }
 
 function zeigeTafel(ding) {
+  document.body.classList.add("zeigt"); // blendet z. B. den Knopf „Neigung“ aus
   tafel.querySelector("h2").textContent = ding.name;
-  tafel.querySelector("p").textContent = ding.text;
+  tafel.querySelector("p").textContent = ding.text || "(Noch kein Text: so lange führt ein Klick gleich zum Link.)";
   const link = tafel.querySelector("a");
   link.href = ding.link;
   tafel.hidden = false;
@@ -169,6 +202,7 @@ export function zeigenBeenden() {
   if (!gezeigt || fahrt) return;
   const { kamera, zustand } = gezeigt.vorher;
   tafel.classList.remove("an");
+  document.body.classList.remove("zeigt");
   setTimeout(() => {
     if (!tafel.classList.contains("an")) tafel.hidden = true; // erst nach dem Ausblenden ganz weg
   }, 300);
@@ -183,6 +217,19 @@ export function zeigenBeenden() {
   });
 }
 export const zeigtGerade = () => !!gezeigt;
+
+// Bearbeiten: „Zeigen vorführen“ (auch ohne Text), und Änderungen an Text, Bogen, Abstand gleich sehen
+z.vorfuehren = (ding) => {
+  if (!ding || fahrt) return;
+  zeigeDing(ding);
+};
+z.vorfuehrungAktualisieren = () => {
+  if (!gezeigt || fahrt) return;
+  const d = gezeigt.ding;
+  zeigeTafel(d);
+  z.zeig.abstand = Math.max(0.35, d.radius * (d.nah ?? 3.2));
+  neu();
+};
 
 // beim Zeigen: der Nutzer dreht selbst; das Kreisen setzt ein paar Sekunden aus und macht dann von dort weiter
 export function zeigenAngefasst() {
@@ -230,6 +277,12 @@ export const fahrtLaeuft = () => !!fahrt;
 // Tafel: „zurück“ und Esc
 tafel.querySelector("button").addEventListener("click", zeigenBeenden);
 tafel.querySelector("a").addEventListener("click", (ev) => {
+  if (z.bearbeiten) {
+    // beim Vorführen nicht wegspringen
+    ev.preventDefault();
+    z.zeigeMeldung?.("Im Bearbeiten-Modus öffnet sich der Link nicht. Ohne ?bearbeiten führt das hier zur Seite.", 3000);
+    return;
+  }
   if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0 || !gezeigt) return;
   ev.preventDefault();
   oeffne(gezeigt.ding);

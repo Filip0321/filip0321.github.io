@@ -6,6 +6,7 @@ import { ladeSplats, dreheSzene } from "./laden.js";
 import { baueDinge } from "./dinge.js";
 import { parallaxNull } from "./steuerung.js";
 import { wendeGrundrissAn, baueRundKamera, richteGrundrissEin, setzeDraufsicht } from "./grundriss.js";
+import { bodenNormale, schritteZuOben, groesseVon } from "./ausrichten.js";
 
 const hole = (id) => document.getElementById(id);
 const leiste = hole("leiste");
@@ -59,6 +60,22 @@ export function richteLeisteEin() {
   hole("drehen-x").addEventListener("click", () => drehe([90, 0, 0]));
   hole("drehen-y").addEventListener("click", () => drehe([0, 90, 0]));
   hole("drehen-z").addEventListener("click", () => drehe([0, 0, 90]));
+  // fein: 0,5° je Klick (ein paar Grad schief nach dem Training)
+  for (const [id, w] of [["fein-x-plus", [0.5, 0, 0]], ["fein-x-minus", [-0.5, 0, 0]], ["fein-z-plus", [0, 0, 0.5]], ["fein-z-minus", [0, 0, -0.5]]])
+    hole(id).addEventListener("click", () => drehe(w));
+  hole("boden-waagerecht").addEventListener("click", () => {
+    zeige("sucht den Boden …");
+    // erst im nächsten Bild rechnen, damit die Meldung schon zu sehen ist
+    setTimeout(() => {
+      const b = bodenNormale(z.roh, groesseVon(z.roh));
+      if (!b) return zeige("Keinen Boden gefunden (keine Ebene, die höchstens 25° schräg ist).", 4000);
+      const neigung = (Math.acos(Math.min(1, b.normale[1])) * 180) / Math.PI;
+      if (neigung < 0.05) return zeige("Der Boden ist schon waagerecht.", 3000);
+      for (const w of schritteZuOben(b.normale)) drehe(w, true);
+      const grundriss = z.einst.grundriss?.punkte?.length ? " Den Grundriss bitte prüfen (Ecken und Boden)." : "";
+      zeige(`Boden lag ${neigung.toFixed(1)}° schief, jetzt waagerecht (${Math.round(b.anteil * 100)} % der untersten Splats liegen auf der Ebene).${grundriss}`, 6000);
+    }, 30);
+  });
 
   for (const [name, feld] of Object.entries(felder)) {
     feld.addEventListener("input", () => {
@@ -74,9 +91,14 @@ export function richteLeisteEin() {
       d.element.href = neuerWert.link;
       d.element.firstChild.textContent = neuerWert.name;
       zeigeListe();
+      z.vorfuehrungAktualisieren?.();
       neu();
     });
   }
+  hole("ding-vorfuehren").addEventListener("click", () => {
+    if (!z.gewaehlt) return zeige("Erst einen Gegenstand in der Liste auswählen.", 2500);
+    z.vorfuehren(z.gewaehlt);
+  });
 
   hole("ding-setzen").addEventListener("click", (ev) => {
     setztGerade = !setztGerade;
@@ -157,13 +179,20 @@ z.abfangen = (ev) => {
 };
 
 // ---------- Drehen ----------
-function drehe(w) {
+function drehe(w, still = false) {
   // die Szene ist schon gedreht; nur die neue Drehung anwenden und als weiteren Schritt merken (Drehungen lassen
-  // sich nicht einfach Achse für Achse addieren: 90° um x, dann 90° um y ist etwas anderes als umgekehrt)
+  // sich nicht einfach Achse für Achse addieren: 90° um x, dann 90° um y ist etwas anderes als umgekehrt).
+  // Nur zwei Drehungen um DIESELBE Achse direkt nacheinander dürfen zusammen: die Winkel addieren sich.
   dreheSzene(z.roh, w);
   const alt = z.einst.drehung ?? [0, 0, 0];
-  z.einst.drehung = [...(Array.isArray(alt[0]) ? alt : [alt]), w];
-  if (z.einst.grundriss?.punkte?.length) zeige("Achtung: der Grundriss passt nach dem Drehen nicht mehr, bitte neu zeichnen.", 5000);
+  const schritte = Array.isArray(alt[0]) ? alt.map((s) => [...s]) : [alt];
+  const achse = (s) => (s.filter((v) => v !== 0).length === 1 ? s.findIndex((v) => v !== 0) : -1);
+  const letzter = schritte.at(-1);
+  if (achse(w) >= 0 && achse(letzter) === achse(w)) letzter[achse(w)] = Math.round((letzter[achse(w)] + w[achse(w)]) * 1000) / 1000;
+  else schritte.push(w.map((v) => Math.round(v * 1000) / 1000));
+  z.einst.drehung = schritte.filter((s) => s.some((v) => v !== 0));
+  if (!z.einst.drehung.length) z.einst.drehung = [0, 0, 0];
+  if (z.einst.grundriss?.punkte?.length && !still) zeige("Achtung: der Grundriss passt nach dem Drehen nicht mehr, bitte neu zeichnen.", 5000);
   wendeGrundrissAn();
   baueRundKamera();
 }

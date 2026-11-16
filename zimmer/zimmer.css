@@ -45,6 +45,7 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   color: var(--text);
   text-decoration: none;
   outline: none;
+  touch-action: none; /* zwei Finger auf einem Gegenstand zoomen das Zimmer, nicht die Seite */
 }
 
 .zimmer-ding span {
@@ -87,7 +88,7 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   padding: 0.3em 0.6em;
   border: 1px solid currentColor;
   background: var(--bg);
-  max-width: min(40rem, 80vw);
+  max-width: min(40rem, calc(100vw - 10rem)); /* rechts unten bleibt Platz für den Knopf „Neigung“ */
 }
 
 .zimmer-leiste {
@@ -195,6 +196,11 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   transition: opacity 0.3s, transform 0.3s;
 }
 
+.zimmer-erklaerung.seitlich {
+  bottom: auto; /* left, top und width setzt js/dinge.js */
+  max-height: calc(100vh - 2rem);
+}
+
 .zimmer-erklaerung.an {
   opacity: 1;
   transform: none;
@@ -215,17 +221,35 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   cursor: pointer;
 }
 
-/* Neigung an und aus (nur am Handy sichtbar) */
+/* Neigung an und aus (nur am Handy sichtbar): schlicht wie der Menü-Knopf, unten rechts, über dem Home-Balken
+   des iPhones (safe-area). Der Punkt zeigt den Zustand: ● an, ○ aus */
 .zimmer-neigung {
   position: absolute;
-  right: 1rem;
-  bottom: 1rem;
+  right: 1.5rem;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.4rem 0;
+  font: inherit;
+  font-size: 1.1rem;
+  color: var(--text);
+  background: none;
+  border: none;
+  transition: opacity 0.3s;
 }
 
-.zimmer-neigung[aria-pressed="true"] {
-  color: var(--bg);
-  background: var(--text);
+.zimmer-neigung::before {
+  content: "○ ";
 }
+
+.zimmer-neigung[aria-pressed="true"]::before {
+  content: "● ";
+}
+
+/* beim Zeigen liegt dort die Tafel */
+.zeigt .zimmer-neigung {
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 /* „öffnen“ sieht aus wie die Knöpfe daneben (Regel 3: darüber Farben tauschen) */
 .zimmer-oeffnen {

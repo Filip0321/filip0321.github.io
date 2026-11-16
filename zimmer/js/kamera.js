@@ -15,6 +15,10 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
     ziel: [...ziel], gier, nick, abstand, sichtfeld,
     // Ausweichen für die Parallaxe (wird zum Winkel addiert, nicht gespeichert)
     extraGier: 0, extraNick: 0,
+    // Bildmitte verschieben (−1 bis 1, wie die Bildschirmkoordinaten von WebGL): der Blick bleibt, nur die Stelle,
+    // an der die Blickachse auf dem Bild landet, rückt zur Seite. Wie ein Shift-Objektiv: so kann ein Gegenstand
+    // links im Bild stehen und rechts ist Platz für seinen Text, ohne dass die Kamera schräg auf ihn schaut
+    versatzX: 0, versatzY: 0,
     ansicht: new Float32Array(16),
     projektion: new Float32Array(16),
     fokus: 1,
@@ -36,15 +40,23 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
       // schaut das Auge dann auf einen Punkt in der Gegenrichtung
       schaueAuf(k.ansicht, k.auge, k.abstand < 1e-3 ? k.auge.map((a, i) => a - vorn[i]) : k.ziel);
     }
-    const f = 1 / Math.tan((k.sichtfeld * Math.PI) / 360);
+    // Sichtfeld: bisher galt es für die Höhe. Dann sieht man quer mehr, je breiter das Bild ist: ein Handy quer
+    // (etwa 2,2 : 1) zeigt waagerecht fast 120°, hochkant nur knapp 40°. Jetzt gilt es für die LANGE Seite, so
+    // als wäre das Bild 16 : 9 und das Sichtfeld seine Höhe. Ein 16:9-Bildschirm sieht damit genau aus wie vorher,
+    // und ein Handy zeigt quer und hochkant dasselbe, nur gedreht (die Brennweite hängt nur noch von der langen
+    // Seite ab).
+    const lang = Math.max(breite, hoehe);
+    k.fokus = lang / 2 / (Math.tan((k.sichtfeld * Math.PI) / 360) * (16 / 9)); // Brennweite in Pixeln
     const nah = 0.02, fern = 1000;
     k.projektion.fill(0);
-    k.projektion[0] = f / (breite / hoehe);
-    k.projektion[5] = f;
+    k.projektion[0] = (2 * k.fokus) / breite;
+    k.projektion[5] = (2 * k.fokus) / hoehe;
+    // Versatz: x_ndc = (P0·x + P8·z) / −z = P0·x / −z − P8, also P8 = −Versatz (ebenso y mit P9)
+    k.projektion[8] = -k.versatzX;
+    k.projektion[9] = -k.versatzY;
     k.projektion[10] = (fern + nah) / (nah - fern);
     k.projektion[11] = -1;
     k.projektion[14] = (2 * fern * nah) / (nah - fern);
-    k.fokus = (f * hoehe) / 2; // Brennweite in Pixeln
   };
 
   // ein Punkt der Welt auf dem Bildschirm (Pixel, y unten) oder null, wenn er hinter der Kamera liegt
@@ -54,7 +66,11 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
     const y = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13];
     const z = m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14];
     if (z > -0.05) return null;
-    return { x: breite / 2 + (k.fokus * x) / -z, y: hoehe / 2 - (k.fokus * y) / -z, tiefe: -z };
+    return {
+      x: (breite / 2) * (1 + k.versatzX) + (k.fokus * x) / -z,
+      y: (hoehe / 2) * (1 - k.versatzY) - (k.fokus * y) / -z,
+      tiefe: -z,
+    };
   };
 
   // Richtung (Gier, Nick), in die die Kamera schauen muss, damit p in der Bildmitte liegt (für Rundblick und Fahrt)
@@ -67,7 +83,7 @@ export function erstelleKamera({ ziel = [0, 0, 0], gier = 0, nick = 0, abstand =
   // Strahl durch ein Pixel (für das Auswählen im Bearbeiten-Modus): Anfang und Richtung in Weltkoordinaten
   k.strahl = (px, py, breite, hoehe) => {
     const m = k.ansicht;
-    const d = [(px - breite / 2) / k.fokus, -(py - hoehe / 2) / k.fokus, -1];
+    const d = [(px - (breite / 2) * (1 + k.versatzX)) / k.fokus, -(py - (hoehe / 2) * (1 - k.versatzY)) / k.fokus, -1];
     // Kamera → Welt: transponierte Drehung
     const r = [0, 1, 2].map((i) => m[4 * i] * d[0] + m[4 * i + 1] * d[1] + m[4 * i + 2] * d[2]);
     const l = Math.hypot(...r);

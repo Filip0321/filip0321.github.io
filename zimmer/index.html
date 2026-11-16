@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Zimmer - Filip Winkler</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/steuerung.css">
@@ -15,6 +15,7 @@
     <ul>
       <li><a href="/">Start</a></li>
       <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/zimmer/" aria-current="page">Mein Zimmer</a></li>
       <li><a href="/about/">About</a></li>
     </ul>
   </nav>
@@ -36,7 +37,7 @@
       </div>
     </section>
 
-    <button type="button" id="neigung" class="zimmer-neigung" aria-pressed="false" hidden>Neigung an</button>
+    <button type="button" id="neigung" class="zimmer-neigung" aria-pressed="false" hidden>Neigung</button>
     <p id="meldung" class="zimmer-meldung" hidden></p>
 
     <!-- Bearbeiten: ?bearbeiten an die Adresse hängen oder B drücken -->
@@ -53,6 +54,11 @@
         <button type="button" id="drehen-x">90° um x</button>
         <button type="button" id="drehen-y">90° um y</button>
         <button type="button" id="drehen-z">90° um z</button>
+        <button type="button" id="boden-waagerecht">Boden waagerecht</button>
+        <button type="button" id="fein-x-minus">x −0,5°</button>
+        <button type="button" id="fein-x-plus">x +0,5°</button>
+        <button type="button" id="fein-z-minus">z −0,5°</button>
+        <button type="button" id="fein-z-plus">z +0,5°</button>
         <button type="button" id="ansicht-merken">Blick als Start</button>
         <label>Rundblick dreht sich von allein (Grad pro Sekunde, 0: nie) <input type="number" id="gr-drehen" min="0" max="30" step="0.5"></label>
       </div>
@@ -79,6 +85,7 @@
         <label>Text (leer: der Klick führt gleich zum Link) <textarea id="ding-text" rows="4"></textarea></label>
         <label>Bogen beim Zeigen (Grad, 360: ganz herum) <input type="number" id="ding-bogen" min="0" max="360" step="5"></label>
         <label>Abstand beim Zeigen (× Größe) <input type="number" id="ding-nah" min="1" max="20" step="0.1"></label>
+        <button type="button" id="ding-vorfuehren">Zeigen vorführen</button>
         <button type="button" id="ding-loeschen">löschen</button>
       </div>
       <div class="steuerung">

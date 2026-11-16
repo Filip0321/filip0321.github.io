@@ -8,6 +8,10 @@
 //   Draufsicht ziehen verschiebt, Mausrad zoomt; Klicks gehen an den Grundriss (grundriss.js)
 //   Zeigen     (ein Gegenstand mit Text ist offen, dinge.js) ziehen kreist um ihn, ein Klick daneben schließt
 //
+// Zoomen: Mausrad oder zwei Finger (kneifen). Je nach Blickart ändert das den Abstand (frei, Zeigen, Draufsicht)
+// oder das Sichtfeld (Rundblick und Parallaxe: dort steht die Kamera fest). Beim Kneifen zählt das Verhältnis der
+// Fingerabstände: Abstand am Anfang / Abstand jetzt, mal dem Wert am Anfang. Finger auseinander = näher heran.
+//
 // Winkel: die Kamera schaut entgegen „vorn“ = (sin g · cos n, sin n, cos g · cos n). Größere Gier dreht den Blick
 // nach links, größerer Nick nach unten.
 //
@@ -38,8 +42,51 @@ function eingabe() {
 
 const c = z.canvas;
 
+// ---------- Zoomen (Mausrad und zwei Finger) ----------
+function zoomWert() {
+  const k = aktiveKamera();
+  if (z.draufsicht || z.zeig || art() === "frei") return { k, feld: "abstand", min: 0.05, max: 1000 };
+  return { k, feld: "sichtfeld", min: art() === "rundblick" ? 20 : 25, max: art() === "rundblick" ? 110 : 100 };
+}
+function zoome(k, feld, wert, min, max) {
+  k[feld] = Math.max(min, Math.min(max, wert));
+  if (z.zeig) zeigenAngefasst();
+  eingabe();
+  neu();
+}
+
+// Die Finger werden auf der ganzen Bühne gezählt, nicht nur auf dem Canvas: am Handy liegen die Kreise der
+// Gegenstände oft groß über dem Bild, und ein Finger darauf gehört sonst dem Link
+const buehne = c.parentElement;
+const finger = new Map(); // Finger auf dem Bild: id → { x, y }
+let kneifen = null;
+const fingerAbstand = () => {
+  const [a, b] = [...finger.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+};
+buehne.addEventListener("pointerdown", (ev) => {
+  if (ev.pointerType === "mouse" || ev.target.closest("aside, section, button")) return; // nicht in Leiste und Tafel
+  finger.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (finger.size === 2 && z.kamera && !fahrtLaeuft()) {
+    const zw = zoomWert();
+    kneifen = { ...zw, start: zw.k[zw.feld], d0: fingerAbstand() };
+    ziehen = null; // der erste Finger dreht nicht mehr
+  }
+}, { capture: true });
+buehne.addEventListener("pointermove", (ev) => {
+  if (!finger.has(ev.pointerId)) return;
+  finger.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (kneifen && finger.size >= 2) zoome(kneifen.k, kneifen.feld, (kneifen.start * kneifen.d0) / fingerAbstand(), kneifen.min, kneifen.max);
+}, { capture: true });
+for (const art_ of ["pointerup", "pointercancel"]) {
+  buehne.addEventListener(art_, (ev) => {
+    finger.delete(ev.pointerId);
+    if (finger.size < 2) kneifen = null;
+  }, { capture: true });
+}
+
 c.addEventListener("pointermove", (ev) => {
-  if (!z.kamera || fahrtLaeuft()) return;
+  if (!z.kamera || fahrtLaeuft() || kneifen) return;
   if (!z.draufsicht && !z.zeig && art() === "parallax" && ev.pointerType === "mouse") {
     const r = c.getBoundingClientRect();
     const st = z.einst.parallax ?? 0.12;
@@ -72,7 +119,7 @@ c.addEventListener("pointermove", (ev) => {
 });
 
 c.addEventListener("pointerdown", (ev) => {
-  if (!z.kamera || fahrtLaeuft()) return;
+  if (!z.kamera || fahrtLaeuft() || kneifen) return;
   eingabe();
   if (z.abfangen?.(ev)) return; // Bearbeiten: Gegenstand setzen, Ecke setzen …
   if (!z.draufsicht && !z.zeig && art() === "parallax") return;
@@ -92,15 +139,10 @@ c.addEventListener("pointercancel", () => (ziehen = null));
 c.addEventListener("contextmenu", (ev) => (z.draufsicht || z.zeig || art() !== "parallax") && ev.preventDefault());
 
 c.addEventListener("wheel", (ev) => {
-  if (!z.kamera || fahrtLaeuft() || (!z.draufsicht && !z.zeig && art() === "parallax")) return;
+  if (!z.kamera || fahrtLaeuft()) return;
   ev.preventDefault();
-  eingabe();
-  const k = aktiveKamera();
-  const f = Math.exp(ev.deltaY * 0.001);
-  if (!z.draufsicht && !z.zeig && art() === "rundblick") k.sichtfeld = Math.max(20, Math.min(110, k.sichtfeld * f));
-  else k.abstand = Math.max(0.05, k.abstand * f);
-  if (z.zeig) zeigenAngefasst();
-  neu();
+  const { k, feld, min, max } = zoomWert();
+  zoome(k, feld, k[feld] * Math.exp(ev.deltaY * 0.001), min, max);
 }, { passive: false });
 
 // ---------- Handy-Lage (Theorie oben) ----------
@@ -162,7 +204,7 @@ async function setzeNeigung(an) {
   neigungAn = an;
   letzte = start = null;
   if (!an) parallaxZiel.gier = parallaxZiel.nick = 0;
-  knopf.textContent = an ? "Neigung aus" : "Neigung an";
+  knopf.textContent = "Neigung"; // an oder aus zeigt der Punkt davor (zimmer.css) und aria-pressed
   knopf.setAttribute("aria-pressed", String(an));
   try {
     localStorage.setItem("zimmer-neigung", an ? "an" : "aus");

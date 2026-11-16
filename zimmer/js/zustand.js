@@ -45,6 +45,7 @@ export function hexZuRgb(hex) {
 }
 
 const meldung = document.getElementById("meldung");
+z.zeigeMeldung = (...a) => zeige(...a);
 let uhr = 0;
 export function zeige(text, dauer = 0) {
   meldung.textContent = text;

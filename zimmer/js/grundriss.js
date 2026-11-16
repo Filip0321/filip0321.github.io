@@ -142,9 +142,11 @@ export function setzeDraufsicht(an) {
     const grenzen = (a) => (a.sort((p, q) => p - q), [a[Math.floor(a.length * 0.03)], a[Math.floor(a.length * 0.97)]]);
     const [x0, x1] = grenzen(xs), [z0, z1] = grenzen(zs);
     z.oben.ziel = [(x0 + x1) / 2, boden(), (z0 + z1) / 2];
-    // halbe Bildhöhe = Abstand · tan(Sichtfeld / 2); das Zimmer soll etwa 80 % der kürzeren Bildseite füllen
-    const seiten = Math.min(1, z.canvas.width / z.canvas.height);
-    z.oben.abstand = (Math.max(x1 - x0, z1 - z0, 1) * 0.62) / seiten / Math.tan((z.oben.sichtfeld * Math.PI) / 360);
+    // die kürzere Bildseite reicht in diesem Abstand über Abstand · tan(Sichtfeld / 2) · 16/9 · kurz/lang
+    // (so rechnet kamera.js die Brennweite); das Zimmer soll etwa 80 % davon füllen
+    const kurzLang = Math.min(z.canvas.width, z.canvas.height) / Math.max(z.canvas.width, z.canvas.height);
+    const halb = Math.tan((z.oben.sichtfeld * Math.PI) / 360) * (16 / 9) * kurzLang;
+    z.oben.abstand = (Math.max(x1 - x0, z1 - z0, 1) * 0.62) / halb;
     z.oben.schonBenutzt = true;
   }
   neu();
