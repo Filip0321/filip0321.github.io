@@ -1,5 +1,5 @@
 {
-  "splats": "zimmer2.spz",
+  "splats": "zimmer_pc.spz",
   "kamera": {
     "ziel": [
       0.5991511344909668,
@@ -38,31 +38,103 @@
         -1.883
       ],
       "radius": 0.435,
-      "text": "Oszilloskop Musik machen auch ohne oszilloskop"
+      "text": "Oszilloskop Musik machen auch ohne oszilloskop",
+      "form": "kreis",
+      "kamera": "kreisen",
+      "auf": "nichts",
+      "tafel": "text",
+      "danach": "link"
     },
     {
       "name": "Projekte",
       "link": "/projekte/",
+      "form": "flaeche",
       "lage": [
-        -1.411,
-        -0.567,
-        -4.009
+        -1.343,
+        -0.613,
+        -3.871
       ],
-      "radius": 0.53,
-      "nah": 5.3,
-      "text": "Die übersicht aller Projekte"
+      "radius": 1.184,
+      "kamera": "kreisen",
+      "tafel": "knapp",
+      "auf": "nichts",
+      "danach": "seite",
+      "punkte": [
+        [
+          -0.42,
+          -0.031,
+          -4.294
+        ],
+        [
+          -0.399,
+          -1.184,
+          -4.279
+        ],
+        [
+          -2.263,
+          -1.205,
+          -3.449
+        ],
+        [
+          -2.291,
+          -0.034,
+          -3.46
+        ]
+      ],
+      "woelbung": 0.11
     },
     {
-      "name": "Something",
+      "name": "Game of Life",
+      "link": "/projekte/game-of-life/",
+      "form": "flaeche",
+      "lage": [
+        -2.947,
+        -1.656,
+        -3.406
+      ],
+      "radius": 0.251,
+      "kamera": "kreisen",
+      "tafel": "knapp",
+      "auf": "video",
+      "danach": "link",
+      "punkte": [
+        [
+          -3.141,
+          -1.523,
+          -3.318
+        ],
+        [
+          -2.768,
+          -1.526,
+          -3.507
+        ],
+        [
+          -2.76,
+          -1.79,
+          -3.503
+        ],
+        [
+          -3.12,
+          -1.785,
+          -3.296
+        ]
+      ],
+      "woelbung": -0.03
+    },
+    {
+      "name": "Posterwand",
       "link": "/projekte/",
       "lage": [
-        -3.083,
-        -1.675,
-        -3.483
+        -0.577,
+        1.114,
+        6.835
       ],
-      "radius": 0.399,
-      "nah": 3.6,
-      "text": "Hier hab ich noch nichts und geht erstmal auf die Projekte"
+      "radius": 2.37,
+      "kamera": "senkrecht",
+      "form": "kreis",
+      "auf": "nichts",
+      "tafel": "aus",
+      "danach": "link"
     }
   ],
   "grundriss": {

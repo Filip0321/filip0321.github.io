@@ -8,6 +8,9 @@
 //   dinge.js        die Links über den Gegenständen, Zeigen (Kreisen + Text), Kamerafahrt beim Klick
 //   grundriss.js    Grundriss in der Draufsicht, Mittelpunkt, Zuschneiden
 //   bearbeiten.js   die Leiste (?bearbeiten oder Taste B)
+//   gizmo.js        verschieben, drehen, skalieren im Bearbeiten-Modus (Pfeile, Ringe; G, R, S wie in Blender)
+//   picken.js       der Punkt auf der Oberfläche unter der Maus
+//   flaeche.js      Rechnen mit Flächen: Mitte, Normale, Drehen, Homographie für die Fenster
 //   platzhalter.js  ein Zimmer aus Kästen, solange es keinen Scan gibt
 // Was gezeigt wird, steht in zimmer.json.
 
@@ -17,9 +20,10 @@ import { erstelleZeichner } from "./zeichnen.js";
 import { erstelleKamera } from "./kamera.js";
 import { platzhalterZimmer, PLATZHALTER } from "./platzhalter.js";
 import { schritt, richteNeigungEin } from "./steuerung.js";
-import { baueDinge, platziereDinge, fahrtSchritt } from "./dinge.js";
+import { baueDinge, platziereDinge, fahrtSchritt, flaechenZumZeichnen, setzeMaske } from "./dinge.js";
 import { wendeGrundrissAn, baueRundKamera, zeichneGrundriss, schnitthoehe } from "./grundriss.js";
 import { richteLeisteEin } from "./bearbeiten.js";
+import { zeichneGizmo } from "./gizmo.js";
 
 let zeichner;
 try {
@@ -39,6 +43,15 @@ worker.onmessage = ({ data }) => {
 };
 
 // gezeigte Szene (z.szene) zur Grafikkarte und zum Sortieren
+// eine Seite auf einer Fläche: Maske aus den Splats davor (dinge.js), einmal zeichnen, auslesen, wieder normal zeichnen
+z.maskeRechnen = (ebene) => {
+  const k = aktiveKamera();
+  k.rechne(z.canvas.width, z.canvas.height);
+  setzeMaske(zeichner.deckungVor(k, ebene));
+  neu();
+};
+z.vergissTextur = (el) => zeichner.vergiss(el);
+
 z.beiNeuerSzene = () => {
   zeichner.setzeSzene(z.szene);
   worker.postMessage({ lage: z.szene.lage });
@@ -55,9 +68,21 @@ async function start() {
   }
   if (!z.einst.splats) z.einst = { ...PLATZHALTER, ...z.einst, splats: null };
   zeige(z.einst.splats ? "lädt das Zimmer …" : "");
-  const s = z.einst.splats ? await ladeSplats(z.einst.splats) : platzhalterZimmer();
+  const s = z.einst.splats ? await ladeSplats(splatDatei(z.einst.splats)) : platzhalterZimmer();
   setzeSzene(s);
   zeige(z.einst.splats ? "" : "Platzhalter: ein Zimmer aus Kästen, bis es einen Scan gibt (zimmer.json → \"splats\").", 6000);
+}
+
+// Zwei Fassungen desselben Scans: "splats": { "pc": "zimmer_pc.spz", "handy": "zimmer_handy.spz" } (oder nur ein
+// Dateiname). Handy heißt: Bedienung mit dem Finger und die kurze Bildschirmseite unter 900 Pixeln (ein iPad Pro
+// bekommt also die große Fassung). Zum Ausprobieren am Rechner: ?handy oder ?pc an die Adresse.
+// Beide Dateien müssen aus demselben Training (oder denselben Kamerapositionen) stammen, sonst passen Drehung,
+// Grundriss und Gegenstände nur zu einer von beiden.
+function splatDatei(s) {
+  if (typeof s === "string") return s;
+  const p = new URLSearchParams(location.search);
+  const handy = p.has("handy") || (!p.has("pc") && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 900);
+  return (handy ? s.handy : s.pc) ?? s.pc ?? s.handy;
 }
 
 // neue Szene (beim Start oder aus „Scan öffnen“)
@@ -66,6 +91,8 @@ export function setzeSzene(s) {
   dreheSzene(z.roh, z.einst.drehung ?? [0, 0, 0]);
   z.einst.kamera ??= rahmen(z.roh);
   z.kamera = erstelleKamera(z.einst.kamera);
+  z.ed = erstelleKamera(z.einst.kamera); // Bearbeiten: eigene Kamera, fängt beim Startblick an
+  z.cursor ??= [...z.ed.ziel];
   z.oben = erstelleKamera({ ...z.einst.kamera, sichtfeld: 25 });
   z.oben.oben = true;
   wendeGrundrissAn(); // setzt z.szene (zugeschnitten oder nicht) und ruft z.beiNeuerSzene
@@ -124,10 +151,18 @@ function schleife(jetzt) {
     worker.postMessage({ ansicht: letzteAnsicht });
   } else if (sortiertGerade) neu(); // gleich noch einmal, mit der neuen Reihenfolge
   const h = z.hervor;
+  // Werkzeuge zum Bearbeiten: Schnitt vor der Kamera, nur eine Kugel um die Auswahl, Röntgen
+  const w = z.bearbeiten ? z.werkzeug : {}, mitte = z.gewaehlt?.lage ?? z.cursor;
   zeichner.zeichne(k, hexZuRgb(z.einst.hintergrund ?? "#111111"), h ? [...h.lage, h.radius] : null,
-    z.einst.leuchten ?? 0.3, z.draufsicht ? schnitthoehe() : 1e9);
+    z.einst.leuchten ?? 0.3, z.draufsicht ? schnitthoehe() : 1e9, {
+      flaechen: flaechenZumZeichnen(k),
+      nah: w.nah ?? 0,
+      kugel: w.kugel && mitte ? [...mitte, w.kugel] : null,
+      roentgen: w.roentgen ?? 1,
+    });
   platziereDinge(k);
   zeichneGrundriss();
+  zeichneGizmo();
 }
 requestAnimationFrame(schleife);
 

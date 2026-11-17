@@ -8,17 +8,25 @@ ein Zimmer mit 1,5 Millionen Splats sind fast 400 MB.
 
 Dieses Werkzeug
   1. lässt den Glanz weg (f_rest; der Unterschied ist bei matten Zimmern klein)
-  2. wirft fast durchsichtige Splats weg (--min-deckkraft) und, wenn gewünscht, alles außerhalb einer Kiste (--kiste)
+  2. wirft fast durchsichtige Splats weg (--min-deckkraft, Standard 0,5 %) und, wenn gewünscht, alles außerhalb einer
+     Kiste (--kiste). Vorsicht mit höheren Werten: Brush baut Wände und Ecken aus vielen schwachen Splats übereinander.
+     Mit 5 % fiel bei deinem Zimmer die Hälfte weg, die Wände wurden durchsichtig, dahinter kamen Nebel und dunkle
+     Löcher zum Vorschein. Das ursprüngliche 3DGS räumt beim Training erst unter 0,5 % auf
   3. behält höchstens --anzahl Splats, die wichtigsten zuerst (Deckkraft × Volumen: große, deckende Flecken prägen
      das Bild, winzige, fast durchsichtige kaum)
+     Achtung: Für starkes Ausdünnen (etwa von 3,8 auf 1,5 Millionen) taugt das nicht. Es behält gerade die großen,
+     weichen Flecken und wirft die vielen kleinen weg, aus denen die Wände bestehen: Löcher, Nebel. Besser ist eine
+     Obergrenze schon beim Training (Brush: --max-splats), dann passen sich die übrigen Splats an
   4. schreibt, je nach Endung der Ausgabe:
      .splat (antimatter15): 32 Bytes pro Splat, die wichtigsten vorn
        Lage 3 × float32, Radien 3 × float32, Farbe RGBA 4 × uint8, Drehung 4 × uint8 ((q · 128) + 128, w zuerst)
-     .spz (Niantic, Version 3): alles auf 8 bis 24 Bit gerundet, nach Art sortiert und mit gzip gepackt, etwa 6 bis 8
-       Bytes pro Splat, also rund ein Viertel von .splat. Genauer erklärt in zimmer/js/laden.js. Die Datei können
-       auch andere Programme lesen (SuperSplat, die spz-Bibliothek …).
+     .spz (Niantic, Version 3): alles auf 8 bis 24 Bit gerundet, nach Art sortiert und mit gzip gepackt: 20 Bytes pro
+       Splat vor gzip (Lage 9, Deckkraft 1, Farbe 3, Radien 3, Drehung 4), danach gemessen etwa 16 bis 17, also gut
+       die Hälfte von .splat (vorher stand hier 6 bis 8, das war falsch). Genauer erklärt in zimmer/js/laden.js. Die
+       Datei können auch andere Programme lesen (SuperSplat, die spz-Bibliothek …).
 
-Beispiel:  py splat-packen.py zimmer.ply zimmer.spz --anzahl 600000
+Beispiele:  py splat-packen.py zimmer.ply zimmer_pc.spz --anzahl 4000000
+            py splat-packen.py zimmer.ply zimmer_handy.spz --anzahl 1500000
 Braucht nur numpy.
 """
 import argparse
@@ -137,8 +145,8 @@ def main():
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("eingabe")
     a.add_argument("ausgabe")
-    a.add_argument("--anzahl", type=int, default=800000, help="höchstens so viele Splats (Standard 800000, etwa 25 MB)")
-    a.add_argument("--min-deckkraft", type=float, default=0.05, help="durchsichtigere weg (0 bis 1, Standard 0,05)")
+    a.add_argument("--anzahl", type=int, default=800000, help="höchstens so viele Splats (Standard 800000, als .spz etwa 13 MB)")
+    a.add_argument("--min-deckkraft", type=float, default=0.005, help="durchsichtigere weg (0 bis 1, Standard 0,005)")
     a.add_argument("--kiste", type=float, nargs=6, metavar=("X0", "Y0", "Z0", "X1", "Y1", "Z1"),
                    help="nur Splats in dieser Kiste behalten (Koordinaten nach dem Drehen)")
     a.add_argument("--drehen", type=float, nargs=3, metavar=("X", "Y", "Z"), default=[0, 0, 0],

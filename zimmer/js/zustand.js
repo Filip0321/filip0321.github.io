@@ -11,7 +11,11 @@ export const z = {
   szene: null, // was gezeigt wird (roh, oder zugeschnitten auf den Grundriss)
 
   kamera: null, // Parallaxe und frei: kreist um ein Ziel
-  rund: null, // Rundblick: steht im Mittelpunkt
+  rund: null, // Rundblick und Herumgehen: steht im Mittelpunkt (beim Gehen wandert sie)
+  ed: null, // Bearbeiten: eigene, frei bewegliche Kamera (der Startblick der Besucher bleibt davon unberührt)
+  edAn: true, // im Bearbeiten-Modus mit der eigenen Kamera arbeiten (aus: so sehen, wie Besucher es sehen)
+  cursor: null, // Bearbeiten: 3D-Cursor wie in Blender (Ecken und Gegenstände entstehen hier, wenn nichts getroffen wird)
+  werkzeug: { nah: 0, kugel: 0, roentgen: 1 }, // Bearbeiten: Schnitt vor der Kamera, Kugel um die Auswahl, Röntgen
   oben: null, // Draufsicht für den Grundriss
   draufsicht: false,
   zeig: null, // „Zeigen“: kreist um einen Gegenstand, solange sein Text zu sehen ist (dinge.js)
@@ -29,13 +33,15 @@ export const z = {
 
 export const neu = () => (z.neu = true);
 
-// Blickart: im Bearbeiten-Modus die aus der Leiste, sonst die aus zimmer.json
-export const art = () => z.einst?.art ?? "parallax";
+// Blickart der Besucher aus zimmer.json; im Bearbeiten-Modus mit eigener Kamera immer „frei“
+export const editorKamera = () => z.bearbeiten && z.edAn && !!z.ed;
+export const art = () => (editorKamera() ? "frei" : z.einst?.art ?? "parallax");
 
 export function aktiveKamera() {
   if (z.draufsicht) return z.oben;
   if (z.zeig) return z.zeig;
-  return art() === "rundblick" && z.rund ? z.rund : z.kamera;
+  if (editorKamera()) return z.ed;
+  return (art() === "rundblick" || art() === "begehen") && z.rund ? z.rund : z.kamera;
 }
 
 export const runde = (v) => Math.round(v * 1000) / 1000;

@@ -1,12 +1,27 @@
-// Die Leiste zum Bearbeiten (?bearbeiten an der Adresse oder Taste B): Scan öffnen, drehen, Blickart, Startblick,
-// Gegenstände setzen und benennen, Grundriss (grundriss.js), am Ende die fertige zimmer.json kopieren.
+// Die Leiste zum Bearbeiten (?bearbeiten an der Adresse oder Taste B), in aufklappbaren Gruppen:
+//   Scan      öffnen, drehen, Boden waagerecht, Blickart der Besucher, Startblick
+//   Ansicht   eigene Kamera (wie in Blender), Ansichten entlang der Achsen, Schnitt, Kugel, Röntgen, 3D-Cursor
+//   Grundriss (grundriss.js)
+//   Gegenstände und Flächen: setzen, Ecken setzen, was ein Klick tut, Blick dafür
+// am Ende die fertige zimmer.json kopieren. Verschieben, drehen, skalieren mit dem Gizmo (gizmo.js).
+//
+// Wohin ein Klick ins Bild einen Punkt setzt (neuer Gegenstand, neue Ecke, 3D-Cursor), der Reihe nach:
+//   1. orthografische Ansicht (Taste 1, 3, 7): auf die Ebene durch den 3D-Cursor, senkrecht zum Blick. Man setzt also
+//      in der Ansicht von vorn x und y, die Tiefe kommt vom Cursor (so geht es auch in Blender)
+//   2. eine Fläche, deren Ecken man gerade setzt, hat schon drei Ecken: auf ihre Ebene (so wird ein Bildschirm eben)
+//   3. die nächste getroffene Oberfläche: Splats (wenn „an Splats einrasten“ an ist) oder eine andere Fläche, auch
+//      eine unsichtbare Hilfsfläche
+//   4. sonst die Ebene durch den 3D-Cursor senkrecht zum Blick. Ein Punkt entsteht also immer, auch wo kein Splat ist.
 
 import { z, neu, art, aktiveKamera, runde, zeige, bildpunkt } from "./zustand.js";
 import { ladeSplats, dreheSzene } from "./laden.js";
-import { baueDinge } from "./dinge.js";
+import { baueDinge, dingZurueck, formAktualisieren, normalisiere, quelleVon, istBildschirm } from "./dinge.js";
+import { pickePunkt } from "./picken.js";
+import { waehleEcke } from "./gizmo.js";
 import { parallaxNull } from "./steuerung.js";
 import { wendeGrundrissAn, baueRundKamera, richteGrundrissEin, setzeDraufsicht } from "./grundriss.js";
 import { bodenNormale, schritteZuOben, groesseVon } from "./ausrichten.js";
+import { mitteVon, normaleVon, strahlAufFlaeche, minus, plus, mal, punkt } from "./flaeche.js";
 
 const hole = (id) => document.getElementById(id);
 const leiste = hole("leiste");
@@ -15,14 +30,23 @@ const liste = hole("leiste-liste");
 const felder = {
   name: hole("ding-name"),
   link: hole("ding-link"),
+  form: hole("ding-form"),
   radius: hole("ding-radius"),
-  text: hole("ding-text"),
+  woelbung: hole("ding-woelbung"),
+  kamera: hole("ding-kamera"),
   bogen: hole("ding-bogen"),
   nah: hole("ding-nah"),
+  auf: hole("ding-auf"),
+  quelle: hole("ding-quelle"),
+  tafel: hole("ding-tafel"),
+  text: hole("ding-text"),
+  danach: hole("ding-danach"),
 };
-const ZAHLEN = ["radius", "bogen", "nah"];
-const STANDARD = { radius: 0.3, bogen: 50, nah: 3.2, text: "" };
-let setztGerade = false;
+const ZAHLEN = ["radius", "bogen", "nah", "woelbung"];
+const LEER_WEG = ["text", "quelle"]; // leer: gar nicht erst in die zimmer.json (dann gilt der Standard)
+const STANDARD = { radius: 0.3, bogen: 50, nah: 3.2, text: "", form: "kreis", woelbung: 0, kamera: "senkrecht", auf: "nichts", quelle: "", tafel: "text", danach: "link" };
+let setztGerade = false; // neuer Kreis-Gegenstand: nächster Klick ins Bild
+let punkteSetzen = false; // Ecken der gewählten Fläche: jeder Klick ins Bild
 
 export function richteLeisteEin() {
   zeigeLeiste();
@@ -36,23 +60,25 @@ export function richteLeisteEin() {
     }
   });
 
-  // Blickart: gilt sofort und kommt so in die zimmer.json
+  // ---------- Scan ----------
+  // Blickart der Besucher: kommt so in die zimmer.json (mit eigener Kamera sieht man sie erst, wenn man die ausschaltet)
   blickArt.addEventListener("change", () => {
     z.einst.art = blickArt.value;
     parallaxNull();
-    if (art() === "rundblick" && !z.einst.grundriss?.punkte?.length)
-      zeige("Rundblick: ohne Grundriss steht man in der Mitte des Scans. Unter „Grundriss“ lässt sich das Zimmer einzeichnen.", 6000);
+    if ((blickArt.value === "rundblick" || blickArt.value === "begehen") && !z.einst.grundriss?.punkte?.length)
+      zeige("Ohne Grundriss steht man in der Mitte des Scans (und kann beim Herumgehen überall hin). Unter „Grundriss“ lässt sich das Zimmer einzeichnen.", 6000);
     neu();
   });
 
   hole("ansicht-merken").addEventListener("click", () => {
-    if (art() === "rundblick") {
-      const k = z.rund;
+    if (z.einst.art === "rundblick" || z.einst.art === "begehen") {
+      const k = z.edAn ? z.ed : z.rund;
       z.einst.rundblick = { ...z.einst.rundblick, gier: runde(k.gier), nick: runde(k.nick), sichtfeld: runde(k.sichtfeld) };
-      zeige("Startrichtung für den Rundblick übernommen.", 2500);
+      zeige("Startrichtung für Rundblick und Herumgehen übernommen.", 2500);
     } else {
-      const k = z.kamera;
-      z.einst.kamera = { ziel: k.ziel.map(runde), gier: runde(k.gier), nick: runde(k.nick), abstand: runde(k.abstand), sichtfeld: k.sichtfeld };
+      const k = z.edAn ? z.ed : z.kamera;
+      z.einst.kamera = { ziel: k.ziel.map(runde), gier: runde(k.gier), nick: runde(k.nick), abstand: runde(k.abstand), sichtfeld: runde(k.sichtfeld) };
+      Object.assign(z.kamera, { ...z.einst.kamera, ziel: [...z.einst.kamera.ziel] });
       zeige("Startblick übernommen.", 2500);
     }
   });
@@ -77,60 +103,160 @@ export function richteLeisteEin() {
     }, 30);
   });
 
+  // ---------- Ansicht ----------
+  const eigene = hole("ed-an");
+  eigene.checked = z.edAn;
+  eigene.addEventListener("change", () => {
+    z.edAn = eigene.checked;
+    neu();
+  });
+  // Ansichten auch als Knöpfe (am Tablet gibt es keine Ziffertasten): schicken dieselbe Taste wie die Tastatur
+  for (const [id, code] of [["ed-vorn", "Digit1"], ["ed-rechts", "Digit3"], ["ed-oben", "Digit7"], ["ed-persp", "Digit5"], ["ed-fokus", "KeyF"]])
+    hole(id).addEventListener("click", () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, key: code.slice(-1).toLowerCase() }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+    });
+  for (const [id, feld] of [["ed-nah", "nah"], ["ed-kugel", "kugel"], ["ed-roentgen", "roentgen"]]) {
+    const r = hole(id);
+    r.value = z.werkzeug[feld];
+    r.addEventListener("input", () => {
+      z.werkzeug[feld] = Number(r.value);
+      neu();
+    });
+  }
+  hole("cursor-zur-auswahl").addEventListener("click", () => {
+    if (!z.gewaehlt) return zeige("Erst etwas auswählen.", 2000);
+    z.cursor = [...z.gewaehlt.lage];
+    neu();
+  });
+  hole("auswahl-zum-cursor").addEventListener("click", () => {
+    const d = z.gewaehlt;
+    if (!d || !z.cursor) return;
+    const v = minus(z.cursor, d.lage);
+    if (d.punkte) d.punkte = d.punkte.map((p) => plus(p, v));
+    d.lage = [...z.cursor];
+    formAktualisieren(d);
+    dingZurueck(d);
+    neu();
+  });
+
+  // ---------- Gegenstände ----------
   for (const [name, feld] of Object.entries(felder)) {
     feld.addEventListener("input", () => {
       const d = z.gewaehlt;
       if (!d) return;
-      const i = z.dinge.indexOf(d);
       const wert = ZAHLEN.includes(name) ? Number(feld.value) : feld.value;
-      const neuerWert = { ...z.einst.dinge[i], [name]: wert };
-      if (name === "text" && !wert) delete neuerWert.text; // leerer Text: kein Zeigen, gleich zum Link
-      z.einst.dinge[i] = neuerWert;
-      if (name === "text" && !wert) delete d.text;
-      Object.assign(d, neuerWert);
-      d.element.href = neuerWert.link;
-      d.element.firstChild.textContent = neuerWert.name;
+      if (wert === "" && LEER_WEG.includes(name)) delete d[name]; // z. B. leerer Text
+      else d[name] = wert;
+      const hatteLink = !!d.element;
+      formAktualisieren(d);
+      dingZurueck(d);
+      if (name === "link" && hatteLink !== !!d.link) {
+        // aus Hilfsfläche wird Link oder umgekehrt: die Elemente neu bauen
+        const i = z.dinge.indexOf(d);
+        baueDinge();
+        return waehle(z.dinge[i]);
+      }
+      if (d.element) {
+        d.element.href = d.link;
+        d.element.firstChild.textContent = d.name;
+      }
       zeigeListe();
+      zeigePassendeFelder();
       z.vorfuehrungAktualisieren?.();
       neu();
     });
   }
   hole("ding-vorfuehren").addEventListener("click", () => {
     if (!z.gewaehlt) return zeige("Erst einen Gegenstand in der Liste auswählen.", 2500);
+    if (!z.gewaehlt.link) return zeige("Eine Hilfsfläche ohne Link lässt sich nicht anklicken, also auch nicht vorführen.", 3000);
     z.vorfuehren(z.gewaehlt);
   });
 
   hole("ding-setzen").addEventListener("click", (ev) => {
     setztGerade = !setztGerade;
+    punkteSetzen = false;
+    hole("ding-punkte").classList.remove("aktiv");
     ev.target.classList.toggle("aktiv", setztGerade);
-    z.ebene.classList.toggle("durchlaessig", setztGerade);
+    durchlaessig(setztGerade);
     zeige(setztGerade ? "Klick ins Bild: dort kommt ein neuer Gegenstand hin." : "");
+  });
+  hole("ding-flaeche").addEventListener("click", () => {
+    // neue Fläche ohne Ecken, und gleich Ecken setzen
+    const name = `Fläche ${z.dinge.filter((d) => d.form === "flaeche").length + 1}`;
+    (z.einst.dinge ??= []).push(normalisiere({ name, link: "", form: "flaeche", lage: [...(z.cursor ?? z.ed.ziel)], radius: 0.3, kamera: "senkrecht", tafel: "knapp" }));
+    baueDinge();
+    waehle(z.dinge.at(-1));
+    setzeEcken(true);
+  });
+  hole("ding-punkte").addEventListener("click", () => setzeEcken(!punkteSetzen));
+  hole("ding-punkt-weg").addEventListener("click", () => {
+    const d = z.gewaehlt;
+    if (!d?.punkte?.length) return;
+    d.punkte.pop();
+    if (!d.punkte.length) delete d.punkte;
+    waehleEcke(null);
+    formAktualisieren(d);
+    dingZurueck(d);
+    felderAktualisieren();
+    neu();
+  });
+  hole("ding-blick").addEventListener("click", () => {
+    const d = z.gewaehlt;
+    if (!d) return zeige("Erst einen Gegenstand auswählen.", 2500);
+    const k = aktiveKamera();
+    if (k.ortho) return zeige("Bitte erst perspektivisch schauen (Taste 5): Besucher sehen das Zimmer immer mit Perspektive.", 3500);
+    d.blick = { ziel: k.ziel.map(runde), gier: runde(k.gier + k.extraGier), nick: runde(k.nick + k.extraNick), abstand: runde(k.abstand), sichtfeld: runde(k.sichtfeld) };
+    d.kamera = "blick";
+    dingZurueck(d);
+    felderAktualisieren();
+    zeige(`Blick für „${d.name}“ gespeichert; „Kamera“ steht jetzt auf „gespeicherter Blick“.`, 3000);
   });
   hole("ding-loeschen").addEventListener("click", () => {
     if (!z.gewaehlt) return;
     z.einst.dinge.splice(z.dinge.indexOf(z.gewaehlt), 1);
     z.gewaehlt = null;
     baueDinge();
+    felderAktualisieren();
   });
 
   hole("json").addEventListener("click", kopiereJson);
   hole("datei").addEventListener("change", oeffneDatei);
+  felderAktualisieren();
+}
+
+function setzeEcken(an) {
+  if (an && !z.gewaehlt) return zeige("Erst eine Fläche auswählen oder „neue Fläche“ drücken.", 2500);
+  punkteSetzen = an;
+  setztGerade = false;
+  hole("ding-setzen").classList.remove("aktiv");
+  hole("ding-punkte").classList.toggle("aktiv", an);
+  durchlaessig(an);
+  zeige(an ? "Ins Bild klicken: jeder Klick setzt eine Ecke (rundherum, der Reihe nach). Für Video, Bild oder Seite genau 4. Noch einmal auf den Knopf: fertig." : "", an ? 6000 : 0);
+}
+
+// beim Setzen gehen Klicks durch die Gegenstände und den Gizmo hindurch ins Bild
+function durchlaessig(an) {
+  z.ebene.classList.toggle("durchlaessig", an);
+  hole("gizmo").classList.toggle("durchlaessig", an);
 }
 
 function zeigeLeiste() {
   leiste.hidden = !z.bearbeiten;
-  if (z.bearbeiten) blickArt.value = art();
+  if (z.bearbeiten) blickArt.value = z.einst?.art ?? "parallax";
   neu();
 }
 
-// ---------- Gegenstände ----------
+// ---------- Gegenstände: Liste, Auswahl, Felder ----------
 function zeigeListe() {
   liste.replaceChildren(...z.dinge.map((d) => {
     const li = document.createElement("li");
     const k = document.createElement("button");
     k.type = "button";
     k.textContent = d.name || "(ohne Namen)";
+    k.title = d.link ? d.link : "Hilfsfläche (ohne Link)";
     k.classList.toggle("aktiv", d === z.gewaehlt);
+    k.classList.toggle("hilf", !d.link);
     k.addEventListener("click", () => waehle(d));
     li.append(k);
     return li;
@@ -139,42 +265,107 @@ function zeigeListe() {
 z.zeigeListe = zeigeListe;
 
 function waehle(d) {
-  z.gewaehlt = d;
-  for (const [name, feld] of Object.entries(felder)) feld.value = d?.[name] ?? STANDARD[name] ?? "";
+  z.gewaehlt = d ?? null;
+  waehleEcke(null);
+  felderAktualisieren();
   zeigeListe();
   neu();
 }
 z.waehle = waehle;
 
-// Klick ins Bild beim Setzen: den vordersten (genügend deckenden) Splat unter der Maus suchen
-z.abfangen = (ev) => {
-  if (!z.bearbeiten || !setztGerade || z.draufsicht) return false;
-  const k = aktiveKamera();
+function felderAktualisieren() {
+  const d = z.gewaehlt;
+  hole("ding-felder").toggleAttribute("hidden", !d);
+  for (const [name, feld] of Object.entries(felder)) feld.value = d?.[name] ?? STANDARD[name] ?? "";
+  if (d) felder.quelle.placeholder = quelleVon({ ...d, quelle: "" }) || "Pfad zur Datei";
+  zeigePassendeFelder();
+}
+z.felderAktualisieren = felderAktualisieren;
+
+// nur die Felder zeigen, die für Form und Verhalten gelten
+function zeigePassendeFelder() {
+  const d = z.gewaehlt;
+  if (!d) return;
+  const zeigeFeld = (id, an) => (hole(id).closest("label") ?? hole(id)).toggleAttribute("hidden", !an);
+  const flaeche = d.form === "flaeche";
+  zeigeFeld("ding-radius", !flaeche);
+  zeigeFeld("ding-woelbung", istBildschirm(d));
+  zeigeFeld("ding-punkte", flaeche);
+  zeigeFeld("ding-punkt-weg", flaeche);
+  zeigeFeld("ding-bogen", d.kamera === "kreisen");
+  zeigeFeld("ding-nah", d.kamera === "kreisen" || (d.kamera === "senkrecht" && !flaeche));
+  zeigeFeld("ding-quelle", d.auf !== "nichts");
+  zeigeFeld("ding-text", d.tafel === "text");
+  for (const id of ["ding-kamera", "ding-auf", "ding-tafel", "ding-danach", "ding-blick", "ding-vorfuehren"]) zeigeFeld(id, !!d.link);
+  const brauchtVier = d.auf !== "nichts" || d.danach === "seite";
+  const n = d.punkte?.length ?? 0;
+  hole("ding-hinweis").textContent = !d.link ? "Hilfsfläche: ohne Link nicht anklickbar. Sie hilft beim Setzen von Ecken (sie fängt Klicks) und ist beim Herumgehen eine Wand."
+    : brauchtVier && n !== 4 ? `Video, Bild und Seite brauchen eine Fläche mit genau 4 Ecken (jetzt ${flaeche ? n : "ein Kreis"}).` : "";
+}
+
+// ---------- Klick ins Bild: Punkt setzen (Regeln oben) ----------
+function punktUnterMaus(ev, bearbeitet = null) {
+  const k = aktiveKamera(), W = z.canvas.width, H = z.canvas.height;
+  k.rechne(W, H);
   const [px, py] = bildpunkt(ev);
-  const { anfang, richtung } = k.strahl(px, py, z.canvas.width, z.canvas.height);
-  const { lage, farbe, anzahl } = z.szene;
-  let besterT = Infinity;
-  const winkel = 6 / k.fokus; // etwa 6 Pixel Spielraum
-  for (let i = 0; i < anzahl; i++) {
-    if (farbe[4 * i + 3] < 80) continue;
-    const v = [lage[3 * i] - anfang[0], lage[3 * i + 1] - anfang[1], lage[3 * i + 2] - anfang[2]];
-    const t = v[0] * richtung[0] + v[1] * richtung[1] + v[2] * richtung[2];
-    if (t <= 0.05 || t >= besterT) continue;
-    const quer = Math.hypot(v[0] - t * richtung[0], v[1] - t * richtung[1], v[2] - t * richtung[2]);
-    if (quer < t * winkel) besterT = t;
+  const { anfang, richtung } = k.strahl(px, py, W, H);
+  // Schnitt des Strahls mit der Ebene durch p mit Normale n
+  const aufEbene = (p, n) => {
+    const nenner = punkt(n, richtung);
+    if (Math.abs(nenner) < 1e-9) return null;
+    const t = punkt(n, minus(p, anfang)) / nenner;
+    return t > 0 ? { punkt: plus(anfang, mal(richtung, t)), tiefe: t, wie: "Ebene" } : null;
+  };
+  const cursorEbene = () => aufEbene(z.cursor ?? k.ziel, k.achsen().vorwaerts);
+  if (k.ortho) return cursorEbene();
+  if ((bearbeitet?.punkte?.length ?? 0) >= 3) {
+    const r = aufEbene(mitteVon(bearbeitet.punkte), normaleVon(bearbeitet.punkte));
+    if (r) return { ...r, wie: "Ebene der Fläche" };
   }
-  if (!isFinite(besterT)) {
-    zeige("Dort ist nichts.", 2000);
+  let beste = hole("ed-einrasten").checked ? pickePunkt(k, px, py, z.szene, W, H) : null;
+  if (beste) beste.wie = "Splats";
+  for (const ding of z.dinge) {
+    if (ding === bearbeitet || ding.form !== "flaeche" || (ding.punkte?.length ?? 0) < 3) continue;
+    const r = strahlAufFlaeche(anfang, richtung, ding.punkte);
+    if (r && (!beste || r.tiefe < beste.tiefe)) beste = { ...r, wie: ding.name || "Fläche" };
+  }
+  return beste ?? { ...cursorEbene(), wie: "Ebene durch den Cursor" };
+}
+
+z.abfangen = (ev) => {
+  if (!z.bearbeiten || z.draufsicht) return false;
+  // Umschalt + Rechtsklick: 3D-Cursor setzen (wie in Blender)
+  if (ev.shiftKey && ev.button === 2) {
+    const r = punktUnterMaus(ev);
+    if (r?.punkt) {
+      z.cursor = r.punkt.map(runde);
+      zeige(`3D-Cursor gesetzt (${r.wie}).`, 1500);
+      neu();
+    }
     return true;
   }
-  const p = [0, 1, 2].map((i) => anfang[i] + richtung[i] * besterT);
-  (z.einst.dinge ??= []).push({ name: "neu", link: "/projekte/", lage: p, radius: runde(Math.max(0.05, besterT * 0.08)) });
+  if (ev.button !== 0 || !(setztGerade || punkteSetzen)) return false;
+  const d = punkteSetzen ? z.gewaehlt : null;
+  const r = punktUnterMaus(ev, d);
+  if (!r?.punkt) return true;
+  const p = r.punkt.map(runde);
+  if (punkteSetzen) {
+    d.form = "flaeche";
+    (d.punkte ??= []).push(p);
+    formAktualisieren(d);
+    dingZurueck(d);
+    felderAktualisieren();
+    zeige(`Ecke ${d.punkte.length} gesetzt (${r.wie}).`, 1500);
+    neu();
+    return true;
+  }
+  (z.einst.dinge ??= []).push(normalisiere({ name: "neu", link: "/projekte/", lage: p, radius: runde(Math.max(0.05, r.tiefe * 0.08)), kamera: "senkrecht" }));
   baueDinge();
   waehle(z.dinge.at(-1));
   setztGerade = false;
   hole("ding-setzen").classList.remove("aktiv");
-  z.ebene.classList.remove("durchlaessig");
-  zeige("");
+  durchlaessig(false);
+  zeige(`Gesetzt (${r.wie}).`, 1500);
   return true;
 };
 
@@ -192,7 +383,10 @@ function drehe(w, still = false) {
   else schritte.push(w.map((v) => Math.round(v * 1000) / 1000));
   z.einst.drehung = schritte.filter((s) => s.some((v) => v !== 0));
   if (!z.einst.drehung.length) z.einst.drehung = [0, 0, 0];
-  if (z.einst.grundriss?.punkte?.length && !still) zeige("Achtung: der Grundriss passt nach dem Drehen nicht mehr, bitte neu zeichnen.", 5000);
+  const nachricht = [];
+  if (z.einst.grundriss?.punkte?.length && !still) nachricht.push("der Grundriss");
+  if (z.dinge.length && !still) nachricht.push("Gegenstände und Flächen");
+  if (nachricht.length) zeige(`Achtung: ${nachricht.join(" und ")} passen nach dem Drehen nicht mehr (sie drehen nicht mit).`, 5000);
   wendeGrundrissAn();
   baueRundKamera();
 }
@@ -205,7 +399,8 @@ async function oeffneDatei(ev) {
   try {
     const s = await ladeSplats(await datei.arrayBuffer());
     if (!z.einst.splats) z.einst.dinge = []; // die Gegenstände des Platzhalters passen nicht in einen echten Scan
-    z.einst.splats = datei.name;
+    // zwei Fassungen (pc, handy) bleiben eingetragen; sonst gilt die geöffnete Datei
+    if (typeof z.einst.splats !== "object" || !z.einst.splats) z.einst.splats = datei.name;
     z.einst.drehung = [0, 0, 0];
     z.einst.kamera = null; // neu ausrichten (setzeSzene schaut sich die Ausdehnung an)
     z.einst.grundriss = null;
@@ -218,7 +413,13 @@ async function oeffneDatei(ev) {
 
 async function kopiereJson() {
   const e = z.einst;
-  const text = JSON.stringify({ ...e, dinge: (e.dinge ?? []).map(({ element, ...d }) => ({ ...d, lage: d.lage.map(runde) })) }, null, 2);
+  const dinge = (e.dinge ?? []).map(({ element, treffer, ...d }) => ({
+    ...d,
+    ...(d.lage && { lage: d.lage.map(runde) }),
+    ...(d.radius !== undefined && { radius: runde(d.radius) }),
+    ...(d.punkte && { punkte: d.punkte.map((p) => p.map(runde)) }),
+  }));
+  const text = JSON.stringify({ ...e, dinge }, null, 2);
   try {
     await navigator.clipboard.writeText(text);
     zeige("zimmer.json ist in der Zwischenablage.", 3000);

@@ -33,18 +33,26 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   pointer-events: none;
 }
 
-.zimmer-dinge.durchlaessig a {
+.zimmer-dinge.durchlaessig .treffer {
   pointer-events: none;
 }
 
+/* Der Link selbst fängt keine Maus: nur seine Klickfläche (.treffer: Kreis, oder Vieleck über clip-path) */
 .zimmer-ding {
   position: absolute;
   left: 0;
   top: 0;
-  pointer-events: auto;
+  pointer-events: none;
   color: var(--text);
   text-decoration: none;
   outline: none;
+}
+
+.zimmer-ding .treffer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: auto;
   touch-action: none; /* zwei Finger auf einem Gegenstand zoomen das Zimmer, nicht die Seite */
 }
 
@@ -71,6 +79,11 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
 .zimmer-ding:focus-visible span {
   color: var(--bg);
   background: var(--text);
+}
+
+/* beim Zeigen steht der Name auf der Tafel; am Handy bliebe das Schild sonst nach dem Tippen stehen (:hover klebt) */
+.zeigt .zimmer-ding span {
+  opacity: 0;
 }
 
 .zimmer-ding:focus-visible {
@@ -216,9 +229,197 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   margin: 0 0 0.8rem;
 }
 
-.zimmer-ding.gezeigt {
-  pointer-events: auto;
+.zimmer-ding.gezeigt .treffer {
   cursor: pointer;
+}
+
+/* ohne Text (Fenster, Stehen): nur Name und Knöpfe */
+.zimmer-erklaerung.knapp p {
+  display: none;
+}
+
+/* Fenster: Seite oder Video, per matrix3d auf die vier Ecken gelegt (js/flaeche.js). Ursprung oben links, sonst
+   rechnet transform um die Mitte des Elements */
+.zimmer-fenster {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.zimmer-fenster.an {
+  opacity: 1;
+}
+
+/* Maske aus den Splats vor der Fläche (js/dinge.js): so groß wie die Bühne */
+.zimmer-fenster {
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+}
+
+.zimmer-fenster[hidden] {
+  display: none;
+}
+
+.zimmer-fenster > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  border: none;
+  background: var(--bg);
+  object-fit: cover;
+  pointer-events: auto;
+}
+
+/* Gizmo (Bearbeiten): Farben wie in Blender, x rot, y grün, z blau */
+.zimmer-gizmo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.zimmer-gizmo[hidden] {
+  display: none;
+}
+
+.zimmer-gizmo.durchlaessig * {
+  pointer-events: none !important;
+}
+
+.zimmer-gizmo .objekt {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.zimmer-gizmo .objekt.hilf {
+  stroke-dasharray: 2 4;
+}
+
+.zimmer-gizmo .objekt.gewaehlt {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+/* breiter, unsichtbarer Rand zum Anklicken eines Umrisses */
+.zimmer-gizmo .objekt-griff {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 10;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* 3D-Cursor: rot-weißer Ring wie in Blender */
+.zimmer-gizmo .cursor circle {
+  fill: none;
+  stroke: #e5484d;
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.zimmer-gizmo .cursor circle.innen {
+  stroke: #fff;
+  stroke-dashoffset: 4;
+}
+
+.zimmer-gizmo .cursor line {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.zimmer-gizmo .umriss {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.zimmer-gizmo .ecke {
+  fill: var(--bg);
+  stroke: var(--text);
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: move;
+}
+
+.zimmer-gizmo .ecke.gewaehlt {
+  fill: var(--text);
+}
+
+.zimmer-gizmo .pfeil {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.zimmer-gizmo .pfeil line {
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+.zimmer-gizmo .pfeil circle {
+  fill: currentColor;
+}
+
+.zimmer-gizmo .pfeil text {
+  fill: #fff;
+  font-size: 11px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.zimmer-gizmo .ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  pointer-events: stroke;
+  cursor: grab;
+  opacity: 0.8;
+}
+
+.zimmer-gizmo .ring:hover {
+  stroke-width: 4;
+  opacity: 1;
+}
+
+.zimmer-gizmo .skalieren {
+  fill: var(--bg);
+  stroke: var(--text);
+  stroke-width: 2;
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+
+.zimmer-gizmo .achse-x { color: #e5484d; }
+.zimmer-gizmo .achse-y { color: #46a758; }
+.zimmer-gizmo .achse-z { color: #3e63dd; }
+
+.zimmer-leiste [hidden] {
+  display: none;
+}
+
+.zimmer-leiste details {
+  border-top: 1px solid currentColor;
+  padding: 0.4rem 0;
+}
+
+.zimmer-leiste summary {
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+}
+
+/* Hilfsflächen (ohne Link) in der Liste gestrichelt */
+.zimmer-liste .hilf {
+  border-style: dashed;
 }
 
 /* Neigung an und aus (nur am Handy sichtbar): schlicht wie der Menü-Knopf, unten rechts, über dem Home-Balken

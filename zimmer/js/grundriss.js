@@ -85,6 +85,7 @@ export function schaetzeBoden() {
 }
 
 const boden = () => z.einst.grundriss?.boden ?? z.kamera.ziel[1] - 1;
+export const bodenHoehe = boden; // für das Herumgehen (steuerung.js)
 export const schnitthoehe = () => boden() + ueberBoden;
 
 // ---------- Zuschneiden ----------

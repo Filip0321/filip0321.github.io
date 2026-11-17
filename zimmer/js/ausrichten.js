@@ -74,7 +74,7 @@ export function schritteZuOben([nx, ny, nz]) {
 // Eigenwerte und -vektoren einer symmetrischen 3 × 3-Matrix (Jacobi: so lange mit kleinen Drehungen die
 // Einträge neben der Diagonale wegdrehen, bis sie fast 0 sind; die Diagonale sind dann die Eigenwerte, die
 // gesammelten Drehungen in den Spalten die Eigenvektoren)
-function jacobi(M) {
+export function jacobi(M) {
   const A = M.slice();
   const V = [1, 0, 0, 0, 1, 0, 0, 0, 1];
   for (let runde = 0; runde < 50; runde++) {
