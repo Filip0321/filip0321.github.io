@@ -6,7 +6,8 @@
 //              Rührt sich eine Weile niemand, dreht sich der Blick langsam von allein (rundblick.drehen, Grad/s).
 //   frei       ziehen dreht um das Ziel, Umschalt oder rechte Maustaste verschiebt, Mausrad: näher, weiter
 //   begehen    wie Rundblick, aber man kann herumgehen: am Rechner W A S D oder Pfeiltasten (Q und E oder Bild ↓ ↑:
-//              in die Knie, auf die Zehen, zwischen 30 cm und 2,4 m über dem Boden), überall ein Klick auf den
+//              tiefer und höher, Umschalt schneller; Standard von 5 cm bis 4 m über dem Boden, in zimmer.json
+//              einstellbar: "hoehe": [unten, oben] in Metern über dem Boden), überall ein Klick auf den
 //              Boden (am Handy: Tippen) geht dorthin. Nur innerhalb des Grundrisses, und nicht durch Flächen hindurch
 //              (auch unsichtbare Hilfsflächen, die man im Bearbeiten-Modus als Wände oder um Möbel setzt)
 //   Bearbeiten (eigene Kamera, wie in Blender): links ziehen kreist, Mitte oder Umschalt+links verschiebt, Rad zoomt,
@@ -365,9 +366,10 @@ export function schritt(dt, jetzt) {
     } else {
       const [r, hoch, v] = tastenRichtung();
       if (hoch) {
-        // hoch und runter: nur die Augenhöhe, zwischen 30 cm und 2,4 m über dem Boden
-        const boden = bodenHoehe();
-        k.ziel[1] = Math.max(boden + 0.3, Math.min(boden + 2.4, k.ziel[1] + hoch * 0.8 * dt));
+        // hoch und runter: nur die Augenhöhe, in den Grenzen aus zimmer.json (Standard 5 cm bis 4 m über dem Boden)
+        const boden = bodenHoehe(), [unten, oben] = z.einst.hoehe ?? [-2, 6];
+        const tempo = 0.8 * (gedrueckt.has("ShiftLeft") || gedrueckt.has("ShiftRight") ? 3 : 1);
+        k.ziel[1] = Math.max(boden + unten, Math.min(boden + oben, k.ziel[1] + hoch * tempo * dt));
         eingabe();
         neu();
       }
