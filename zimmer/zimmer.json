@@ -52,7 +52,7 @@
       "lage": [
         -1.343,
         -0.613,
-        -3.871
+        -3.87
       ],
       "radius": 1.184,
       "kamera": "kreisen",
@@ -174,7 +174,7 @@
     "rand": 0.2,
     "bodenVonHand": true
   },
-  "art": "rundblick",
+  "art": "begehen",
   "rundblick": {
     "gier": 5.915,
     "nick": 0.338,

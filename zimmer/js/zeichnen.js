@@ -248,7 +248,7 @@ export function erstelleZeichner(canvas) {
   // k: Kamera aus kamera.js; hintergrund [r, g, b]; hervor [x, y, z, radius] oder null
   // extra: { flaechen: [{ dreiecke (Float32Array x y z u v), quelle (Bild/Video), ausschnitt }], nah, kugel, roentgen,
   //          ebene, maske (true: nur Splats vor der Ebene, durchsichtiger Hintergrund) }
-  function zeichne(k, hintergrund, hervor = null, leuchten = 0.3, schnitt = 1e9, extra = {}) {
+  function zeichne(k, hintergrund, hervor = null, leuchten = 0, schnitt = 1e9, extra = {}) {
     gl.viewport(0, 0, canvas.width, canvas.height);
     if (extra.maske) gl.clearColor(0, 0, 0, 0);
     else gl.clearColor(hintergrund[0], hintergrund[1], hintergrund[2], 1);

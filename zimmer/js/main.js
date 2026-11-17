@@ -154,7 +154,8 @@ function schleife(jetzt) {
   // Werkzeuge zum Bearbeiten: Schnitt vor der Kamera, nur eine Kugel um die Auswahl, Röntgen
   const w = z.bearbeiten ? z.werkzeug : {}, mitte = z.gewaehlt?.lage ?? z.cursor;
   zeichner.zeichne(k, hexZuRgb(z.einst.hintergrund ?? "#111111"), h ? [...h.lage, h.radius] : null,
-    z.einst.leuchten ?? 0.3, z.draufsicht ? schnitthoehe() : 1e9, {
+    z.einst.leuchten ?? 0, // Aufleuchten unter der Maus: aus; "leuchten": 0.3 in zimmer.json schaltet es wieder ein
+    z.draufsicht ? schnitthoehe() : 1e9, {
       flaechen: flaechenZumZeichnen(k),
       nah: w.nah ?? 0,
       kugel: w.kugel && mitte ? [...mitte, w.kugel] : null,
