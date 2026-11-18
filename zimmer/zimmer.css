@@ -252,13 +252,6 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
   opacity: 1;
 }
 
-/* Maske aus den Splats vor der Fläche (js/dinge.js): so groß wie die Bühne */
-.zimmer-fenster {
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
-}
 
 .zimmer-fenster[hidden] {
   display: none;
@@ -443,6 +436,48 @@ Zimmer: der Scan füllt das ganze Fenster, die Gegenstände sind Links darüber
 
 .zimmer-neigung[aria-pressed="true"]::before {
   content: "● ";
+}
+
+/* Regler am rechten Rand, nur am Handy (Finger): Zoom, beim Herumgehen dazu die Höhe. Senkrecht gestellt über
+   writing-mode (oben = mehr); ein breiter, unsichtbarer Griffbereich, damit er sich mit dem Daumen treffen lässt */
+.zimmer-regler {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  gap: 0.4rem;
+  align-items: center;
+  transition: opacity 0.3s;
+}
+
+@media (pointer: coarse) {
+  .zimmer-regler {
+    display: flex;
+  }
+}
+
+.zimmer-regler label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.zimmer-regler label[hidden] {
+  display: none;
+}
+
+.zimmer-regler input {
+  writing-mode: vertical-lr;
+  direction: rtl; /* oben = großer Wert */
+  height: min(40vh, 14rem);
+  width: 2rem;
+  margin: 0;
+  accent-color: var(--text);
+  touch-action: none;
 }
 
 /* beim Zeigen liegt dort die Tafel */

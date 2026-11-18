@@ -40,6 +40,10 @@
     </section>
 
     <button type="button" id="neigung" class="zimmer-neigung" aria-pressed="false" hidden>Neigung</button>
+    <div class="zimmer-regler" aria-label="Regler"> <!-- nur am Handy sichtbar (zimmer.css), js/steuerung.js -->
+      <label id="hoehe-feld" hidden>Höhe <input type="range" id="hoehe-regler" min="0" max="1" step="0.001" aria-label="Augenhöhe"></label>
+      <label>Zoom <input type="range" id="zoom-regler" min="0" max="1" step="0.001" aria-label="Zoom"></label>
+    </div>
     <p id="meldung" class="zimmer-meldung" hidden></p>
 
     <!-- Bearbeiten: ?bearbeiten an die Adresse hängen oder B drücken -->

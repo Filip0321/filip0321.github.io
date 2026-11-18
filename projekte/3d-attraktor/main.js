@@ -4,7 +4,9 @@
 import { TYPEN, PRESETS, berechnePunkte, vermesseAttraktor } from "./attraktor.js";
 import { erstelleShader } from "./shader.js";
 import { richteReglerEin } from "/lib/regler.js";
-import { endbild, sichtbaresBild, crtZuschnitt } from "/lib/effekt-schicht.js";
+import { endbild, sichtbaresBild, crtZuschnitt, halteSchichtAn } from "/lib/effekt-schicht.js";
+import { oeffneDruckDialog, speichereDruck } from "/lib/druck.js";
+import { rechneDruck3D } from "./druck.js";
 import { richteExportEin, FPS } from "/lib/export.js";
 import { hexZuRgb, skalaAnker, farbtabelle } from "/lib/farben.js";
 import { richteKarteEin } from "/lib/parameterkarte.js";
@@ -219,7 +221,15 @@ function rechne() {
 // zeichnen billig, geht bei jeder Drehung
 // ohneBoden: einmal ohne Boden und Schatten (für den Ton der Ansicht, attraktor-ton.js)
 // teil: Zwischenschritt für die Bewegungsunschärfe beim Rendern ({ nummer, von }), sonst null
+let druckLaeuft = false; // während des Drucks gehört der Canvas dem Druck (druck.js), sonst zeichnet keiner
+
 function zeichne(ohneBoden = false, teil = null) {
+  if (druckLaeuft) return;
+  shader.zeichne(zeichenWerte(ohneBoden, teil));
+}
+
+// alles, was der Shader für ein Bild braucht (auch der Druck rechnet damit)
+function zeichenWerte(ohneBoden = false, teil = null) {
   // ohne Punkte gibt es keine Vermessung, der Shader leert dann nur das Bild
   const g = groesse ?? { mitteX: 0, mitteY: 0, mitteZ: 0, mass: 1 };
   const w = musik.wirkung; // alles 0, solange keine Musik läuft
@@ -288,7 +298,7 @@ function zeichne(ohneBoden = false, teil = null) {
   const lampe = lampeAn() ? lampenLage(bodenHier) : null;
   if (lampe?.haken && einstellung.lampeZeigen) striche.push({ von: lampe.haken, bis: lampe.pos, dicke: 1 });
 
-  shader.zeichne({
+  return {
     mitteX: g.mitteX,
     mitteY: g.mitteY,
     mitteZ: g.mitteZ,
@@ -309,7 +319,7 @@ function zeichne(ohneBoden = false, teil = null) {
     kegelRichtung: lampe?.richtung ?? null,
     weitereLampen: weitereLampen(),
     teil,
-  });
+  };
 }
 
 function imRaumMitDecke() {
@@ -1219,6 +1229,57 @@ richteExportEin({
 });
 
 
+// Druck: in Papiergröße neu rechnen (druck.js, /lib/druck.js). Der Knopf kommt zu den Export-Knöpfen.
+const druckKnopf = document.createElement("button");
+druckKnopf.type = "button";
+druckKnopf.textContent = "Für den Druck rechnen";
+const druckInfo = document.createElement("p");
+druckInfo.className = "hinweis";
+document.querySelector(".export").append(druckKnopf);
+document.querySelector(".export").after(druckInfo);
+druckKnopf.addEventListener("click", async () => {
+  const papier = await oeffneDruckDialog({
+    felder: [
+      { name: "hintergrund", text: "Hintergrund", art: "farbe", wert: einstellung.hintergrund },
+      { name: "punktfarbe", text: "Punktfarbe (bei einer Farbe)", art: "farbe", wert: einstellung.punktfarbe },
+    ],
+    hinweis: "Gerechnet wird der jetzige Blick, neu in voller Größe, mit mehr und feineren Punkten (höchstens 12 Millionen). VHS, CRT und die Effekte der Sammlung kommen nicht mit. Die Anzeige steht währenddessen.",
+  });
+  if (!papier) return;
+  druckKnopf.disabled = true;
+  const werteJetzt = { ...zeichenWerte(), sichtbar: undefined, hintergrund: papier.hintergrund, punktfarbe: papier.punktfarbe };
+  druckLaeuft = true;
+  halteSchichtAn(true);
+  const t0 = performance.now();
+  try {
+    const { bild, gesamt } = await rechneDruck3D({
+      canvas, shader, werte: werteJetzt, papier, punkte: anzahl,
+      // mehr Punkte derselben Bahn laden (nicht beim Mobile: dort hängen mehrere Listen an Nummern)
+      ladeMehr: (m) => {
+        if (alsMobile() || m < 1.05 || !anzahl) return 1;
+        const mehr = berechnePunkte(typ, werte, Math.round(anzahl * m));
+        if (!mehr) return 1;
+        shader.ladePunkte(mehr);
+        return mehr.length / 3 / anzahl;
+      },
+      fortschritt: (a) => (druckInfo.textContent = `Druck: rechne … ${Math.round(a * 100)} %`),
+    });
+    druckInfo.textContent = "Druck: speichere …";
+    await speichereDruck(bild, papier, `${typ.name.toLowerCase().replace(/\s+/g, "-")}-${papier.papier}-${papier.dpi}dpi`);
+    druckInfo.textContent = `Druck: ${papier.breite} × ${papier.hoehe} Pixel, ${(gesamt / 1e6).toFixed(1)} Millionen Punkte, ${((performance.now() - t0) / 1000).toFixed(0)} s.`;
+  } catch (fehler) {
+    console.error(fehler);
+    druckInfo.textContent = `Druck ging nicht: ${fehler.message}`;
+  } finally {
+    druckLaeuft = false;
+    halteSchichtAn(false);
+    if (punkteDaten) shader.ladePunkte(punkteDaten); // wieder die eingestellten Punkte
+    passeGroesseAn();
+    zeichne();
+    druckKnopf.disabled = false;
+  }
+});
+
 // Den Attraktor hören (siehe /lib/attraktor-ton.js): die Ansicht ohne Boden und Schatten als Spektrogramm
 
 richteAttraktorTonEin({
@@ -1238,3 +1299,5 @@ richteLampenEin(hole("lampenListe"), hole("lampeDazu"), () => {
   if (weitereLampen().length && !einstellung.schatten) setze("schatten", true);
   zeichne();
 });
+
+

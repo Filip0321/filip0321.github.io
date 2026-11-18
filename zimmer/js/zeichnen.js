@@ -31,7 +31,6 @@
 //   nah       Splats näher als so viele Meter vor der Kamera weglassen (Schnitt: in einen Schrank hineinsehen)
 //   kugel     nur Splats in einer Kugel um die Auswahl zeigen (w = Radius, 0: aus)
 //   roentgen  Deckkraft aller Splats mal diesen Faktor (durchsichtig: sehen, was dahinter liegt)
-//   ebene     nur Splats VOR einer Ebene (n · p + d > 0), für die Maske über einer Seite im Fenster
 
 const BREITE = 2048;
 
@@ -49,7 +48,6 @@ uniform float ortho;    // > 0: orthografisch, Pixel pro Meter
 uniform float nah;      // Schnitt vor der Kamera (Meter)
 uniform vec4 kugel;     // nur in dieser Kugel zeigen (w = 0: aus)
 uniform float roentgen; // Faktor für die Deckkraft
-uniform vec4 ebene;     // nur vor dieser Ebene (xyz = 0: aus)
 in vec2 ecke;          // −3 … 3
 in uint nummer;
 out vec4 farbe;
@@ -66,7 +64,7 @@ void main() {
   float rand = 1.2 * clip.w;
   // hinter der Kamera oder weit außerhalb: weg (alle vier Ecken an dieselbe Stelle, nichts wird gemalt)
   bool weg = p.y > schnitt || kam.z > -0.05 || -kam.z < nah || clip.x < -rand || clip.x > rand || clip.y < -rand || clip.y > rand;
-  weg = weg || (kugel.w > 0.0 && distance(p, kugel.xyz) > kugel.w) || (dot(ebene.xyz, ebene.xyz) > 0.0 && dot(ebene.xyz, p) + ebene.w <= 0.0);
+  weg = weg || (kugel.w > 0.0 && distance(p, kugel.xyz) > kugel.w);
   if (weg) {
     gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
     return;
@@ -153,7 +151,7 @@ export function erstelleZeichner(canvas) {
   const p = programm(gl, ECKE, FLECK);
   const ort = (n) => gl.getUniformLocation(p, n);
   const u = {};
-  for (const n of ["daten", "ansicht", "projektion", "fokus", "groesse", "hervor", "leuchten", "schnitt", "ortho", "nah", "kugel", "roentgen", "ebene"]) u[n] = ort(n);
+  for (const n of ["daten", "ansicht", "projektion", "fokus", "groesse", "hervor", "leuchten", "schnitt", "ortho", "nah", "kugel", "roentgen"]) u[n] = ort(n);
   const fp = programm(gl, FL_ECKE, FL_FARBE);
   const fu = {};
   for (const n of ["ansicht", "projektion", "textur", "ausschnitt"]) fu[n] = gl.getUniformLocation(fp, n);
@@ -246,19 +244,17 @@ export function erstelleZeichner(canvas) {
   };
 
   // k: Kamera aus kamera.js; hintergrund [r, g, b]; hervor [x, y, z, radius] oder null
-  // extra: { flaechen: [{ dreiecke (Float32Array x y z u v), quelle (Bild/Video), ausschnitt }], nah, kugel, roentgen,
-  //          ebene, maske (true: nur Splats vor der Ebene, durchsichtiger Hintergrund) }
+  // extra: { flaechen: [{ dreiecke (Float32Array x y z u v), quelle (Bild/Video), ausschnitt }], nah, kugel, roentgen }
   function zeichne(k, hintergrund, hervor = null, leuchten = 0, schnitt = 1e9, extra = {}) {
     gl.viewport(0, 0, canvas.width, canvas.height);
-    if (extra.maske) gl.clearColor(0, 0, 0, 0);
-    else gl.clearColor(hintergrund[0], hintergrund[1], hintergrund[2], 1);
+    gl.clearColor(hintergrund[0], hintergrund[1], hintergrund[2], 1);
     gl.clearDepth(1);
     gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     // 1. Flächen (deckend, schreiben Tiefe)
-    if (!extra.maske) {
+    {
       gl.disable(gl.BLEND);
       gl.useProgram(fp);
       gl.bindVertexArray(flVao);
@@ -295,21 +291,10 @@ export function erstelleZeichner(canvas) {
     gl.uniform1f(u.nah, extra.nah ?? 0);
     gl.uniform4fv(u.kugel, extra.kugel ?? [0, 0, 0, 0]);
     gl.uniform1f(u.roentgen, extra.roentgen ?? 1);
-    gl.uniform4fv(u.ebene, extra.ebene ?? [0, 0, 0, 0]);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, Math.min(sortiert, anzahl));
   }
 
-  // Deckung der Splats vor einer Ebene, als Alphawerte (für die Maske über einer Seite im Fenster): einmal mit
-  // durchsichtigem Hintergrund nur diese Splats zeichnen und die Pixel auslesen. Beim Mischen mit
-  // (1, 1 − α) wird Alpha zu 1 − Π(1 − αᵢ), das ist die Deckung, unabhängig von der Reihenfolge.
-  function deckungVor(k, ebene) {
-    zeichne(k, [0, 0, 0], null, 0, 1e9, { maske: true, ebene });
-    const pixel = new Uint8Array(canvas.width * canvas.height * 4);
-    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-    return { pixel, breite: canvas.width, hoehe: canvas.height }; // Zeilen von unten nach oben
-  }
-
-  return { setzeSzene, setzeReihenfolge, zeichne, deckungVor, vergiss };
+  return { setzeSzene, setzeReihenfolge, zeichne, vergiss };
 }

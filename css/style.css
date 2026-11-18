@@ -100,6 +100,12 @@ pre {
 Menu Styles
 */
 
+/* eingebettet (iframe, script.js): kein Menü */
+.eingebettet .menu-btn,
+.eingebettet .menu {
+  display: none !important;
+}
+
 .menu-btn {
   position: fixed;
   top: 1.5rem;
@@ -249,3 +255,4 @@ Projektübersicht mit Projekten als Karten im Grid
   .karte h2 { font-size: 1rem; }
   .karte p { font-size: 0.8rem; }
 }
+

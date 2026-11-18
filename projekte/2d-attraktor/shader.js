@@ -29,6 +29,7 @@ uniform sampler2D spektrumBild; // 64 × 1: Lautstärke von tief (links) bis hoc
 uniform float spektrumStaerke;  // 0 = aus
 
 uniform float anzahl; // wie viele Punkte es insgesamt gibt
+uniform float indexVersatz; // Druck: die Punkte kommen in Stücken, dieses Stück fängt bei Punkt Nummer indexVersatz an
 out float fortschritt; // 0 beim ersten Punkt, 1 beim letzten
 
 // Punkt (in Einheiten des Attraktors) → Clip Space (−1 bis 1)
@@ -58,7 +59,7 @@ void main() {
     gl_PointSize = schattenGroesse;
   }
 
-  fortschritt = float(gl_VertexID) / anzahl;
+  fortschritt = (float(gl_VertexID) + indexVersatz) / anzahl;
   tempo = clamp(length(naechster - punkt) / schrittMass, 0.0, 1.0);
 }`;
 
@@ -309,7 +310,7 @@ export function erstelleShader(canvas) {
     return uniform;
   }
   const punktOrte = orte(punktProgramm, ["mitte", "zoom", "aufloesung", "anzahl", "punktfarbe", "faerbung", "verlauf", "schrittMass",
-                                         "punktgroesse", "weich",
+                                         "punktgroesse", "weich", "indexVersatz",
                                          "schattenModus", "schattenVersatz", "schattenGroesse", "schattenFlaeche",
                                          "vergroesserung", "zentrum", "ausdehnung", "spektrumBild", "spektrumStaerke",
                                          "verlaufVersatz"]);
@@ -340,13 +341,14 @@ export function erstelleShader(canvas) {
   }
 
   // Punkte einmal zur Grafikkarte schicken
-  function ladePunkte(daten) {
+  // festesMass: Druck lädt die Punkte in Stücken, alle sollen dasselbe Schrittmaß haben (das der Anzeige)
+  function ladePunkte(daten, festesMass = null) {
     // durch 2 teilen, damit man weiß wieviele einzelne Punkte (alle x und y)
     anzahl = daten ? daten.length / 2 : 0;
     if (!daten) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, puffer);
     gl.bufferData(gl.ARRAY_BUFFER, daten, gl.STATIC_DRAW);
-    schrittMass = typischerSchritt(daten, anzahl);
+    schrittMass = festesMass ?? typischerSchritt(daten, anzahl);
   }
 
   // Wie weit springt ein Punkt typischerweise zum nächsten? Für „Färben nach Geschwindigkeit“:
@@ -376,7 +378,13 @@ export function erstelleShader(canvas) {
                      schatten, lichtRichtung, wandAbstand, schattenWeich, schattenStaerke, schattenfarbe,
                      licht = "sonne", lampenAbstand = 0.3, zentrumX = mitteX, zentrumY = mitteY, ausdehnung = 1,
                      spektrum = null, spektrumStaerke = 0, verlaufVersatz = 0,
-                     flaeche = false, fuellRadius = 4, schwelle = 0.15, deckung = 1 }) {
+                     flaeche = false, fuellRadius = 4, schwelle = 0.15, deckung = 1,
+                     // nur für den Druck (druck.js), sonst wie bisher:
+                     pixelMass = null,  // Canvas-Pixel pro Bildschirm-Pixel (sonst aus der Canvas-Größe, dpr)
+                     ganz = null,       // { breite, hoehe } des ganzen Bildes, wenn dieser Canvas nur eine Kachel ist
+                     leeren = true,     // false: auf das schon Gezählte drauf (die Punkte kommen in Stücken)
+                     faerben = true,    // false: nur zählen, noch nicht färben (erst nach dem letzten Stück)
+                     gesamt = null, indexVersatz = 0 }) {
     // Puffer passend zur Canvas-Größe
     dichte = passenderPuffer(gl, dichte, canvas.width, canvas.height, gl.RGBA16F, gl.RGBA);
     const art = { einfarbig: 0, reihenfolge: 1, dichte: 2, tempo: 4 }[faerbung];
@@ -384,14 +392,15 @@ export function erstelleShader(canvas) {
     const [pr, pg, pb] = hexZuRgb(punktfarbe);
     // Punktgröße in Bildschirm-Pixeln: der Canvas rechnet mindestens doppelt so fein (dpr in main.js),
     // ohne das wäre Größe 8 nur 4 sichtbare Pixel groß
-    const dpr = canvas.width / Math.max(canvas.clientWidth, 1);
+    const dpr = pixelMass ?? canvas.width / Math.max(canvas.clientWidth, 1);
+    const bild = ganz ?? { breite: canvas.width, hoehe: canvas.height }; // Schatten: bezogen aufs ganze Bild
     const groesse = Math.min(Math.max(punktgroesse * dpr, kleinstePunkte), groesstePunkte);
 
     // Schatten: das Licht kommt aus lichtRichtung (Grad, 0 = von rechts, 90 = von oben),
     // also fällt der Schatten zur Gegenseite. Je weiter der Attraktor vor der Wand schwebt, desto weiter.
     // wandAbstand ist ein Anteil der kürzeren Canvas-Seite, damit der Schatten beim Zoomen gleich bleibt.
     const richtung = lichtRichtung * Math.PI / 180;
-    const versatzPixel = wandAbstand * Math.min(canvas.width, canvas.height);
+    const versatzPixel = wandAbstand * Math.min(bild.breite, bild.hoehe);
     const versatzX = -Math.cos(richtung) * versatzPixel / (canvas.width * 0.5); // Pixel → Clip Space
     const versatzY = -Math.sin(richtung) * versatzPixel / (canvas.height * 0.5);
 
@@ -415,13 +424,14 @@ export function erstelleShader(canvas) {
     // 1. Durchgang: Punkte zählen, in den Dichte-Puffer statt auf den Bildschirm
     gl.bindFramebuffer(gl.FRAMEBUFFER, dichte.fb);
     gl.clearColor(0, 0, 0, 0); // leer: noch kein Punkt gezählt
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (leeren) gl.clear(gl.COLOR_BUFFER_BIT);
     if (anzahl > 0) {
       gl.useProgram(punktProgramm);
       gl.uniform2f(punktOrte.mitte, mitteX, mitteY);
       gl.uniform1f(punktOrte.zoom, zoom);
       gl.uniform2f(punktOrte.aufloesung, canvas.width, canvas.height);
-      gl.uniform1f(punktOrte.anzahl, anzahl);
+      gl.uniform1f(punktOrte.anzahl, gesamt ?? anzahl);
+      gl.uniform1f(punktOrte.indexVersatz, indexVersatz);
       gl.uniform3f(punktOrte.punktfarbe, pr / 255, pg / 255, pb / 255);
       gl.uniform1f(punktOrte.faerbung, art === 1 || art === 4 ? art : 0); // nur Reihenfolge und Geschwindigkeit brauchen beim Zählen Farben
       gl.uniform1f(punktOrte.schrittMass, schrittMass);
@@ -469,7 +479,7 @@ export function erstelleShader(canvas) {
       if (schatten) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, schattenPuffer.fb);
         gl.viewport(0, 0, schattenPuffer.breite, schattenPuffer.hoehe);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        if (leeren) gl.clear(gl.COLOR_BUFFER_BIT);
         gl.uniform1f(punktOrte.schattenModus, 1);
         gl.drawArrays(gl.POINTS, 0, n);
         gl.viewport(0, 0, canvas.width, canvas.height);
@@ -477,6 +487,8 @@ export function erstelleShader(canvas) {
       gl.disableVertexAttribArray(ort); // das Dreieck braucht keine Punktliste
       gl.disableVertexAttribArray(ortNaechster);
     }
+
+    if (!faerben) return; // Druck: es kommen noch Stücke
 
     // Fläche: kleinere Fassungen der Bilder (Mipmaps), jede halb so breit, jeder Pixel = Mittel aus vier.
     // Ohne Fläche wieder ohne: eine Textur, die Mipmaps lesen will, aber keine hat, liefert nur Schwarz
@@ -519,6 +531,10 @@ export function erstelleShader(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, 3); // das große Dreieck aus VERTEX_SHADER_FARBE
   }
 
-  return { setzeVerlauf, ladePunkte, zeichne };
+  // Druck (druck.js): Größen dieses Geräts und das Schrittmaß der geladenen Punkte
+  const grenzen = () => ({ viewport: gl.getParameter(gl.MAX_VIEWPORT_DIMS), textur: gl.getParameter(gl.MAX_TEXTURE_SIZE), punkt: groesstePunkte });
+  return { setzeVerlauf, ladePunkte, zeichne, grenzen, schrittMass: () => schrittMass, gl };
 }
+
+
 

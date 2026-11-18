@@ -362,6 +362,7 @@ uniform float lampe;
 uniform vec3 lichtPos;
 uniform float punkteBeleuchten; // wie stark die Lampe die Punkte selbst heller und dunkler macht
 uniform vec3 lampeBild;      // xy: wo die Lampe im Bild ist (−1 bis 1), z: 1 = zeigen
+uniform float lampenRadius;  // Radius des Lampen-Punkts in Pixeln (1,2 % der Bildhöhe; beim Druck des ganzen Bildes)
 // weitere Lampen (lampen.js): jede mit Ort, Farbe, Helligkeit, Kegel (innen, außen als Kosinus, wie oben),
 // eigenem Schatten (Kanal g, b, a der Schattentextur) und wo sie im Bild ist (z: 1 = zeigen)
 uniform int extraAnzahl;
@@ -510,13 +511,13 @@ void main() {
 
   // Lampe sichtbar: ein weicher Lichtpunkt (verdeckt nichts, liegt einfach darüber)
   if (lampeBild.z > 0.5) {
-    float r = length(pixel - (lampeBild.xy * 0.5 + 0.5) * aufloesung) / (0.012 * aufloesung.y);
+    float r = length(pixel - (lampeBild.xy * 0.5 + 0.5) * aufloesung) / lampenRadius;
     grund += vec3(1.0, 0.92, 0.75) * exp(-r * r);
   }
 
   for (int k = 0; k < 3; k++) {
     if (k >= extraAnzahl || extraBild[k].z < 0.5) continue;
-    float r = length(pixel - (extraBild[k].xy * 0.5 + 0.5) * aufloesung) / (0.012 * aufloesung.y);
+    float r = length(pixel - (extraBild[k].xy * 0.5 + 0.5) * aufloesung) / lampenRadius;
     grund += mix(vec3(1.0), extraFarbe[k], 0.6) * exp(-r * r);
   }
 
@@ -634,7 +635,7 @@ export function erstelleShader(canvas) {
                                        "schattenBild", "schattenAn", "schattenStaerke", "bodenfarbe", "wandfarbe", "schattenfarbe",
                                        "winkel", "neigung", "abstand", "brennweite", "aufloesung", "versatz", "verlaufVersatz",
                                        "umgebung", "licht", "lampe", "lichtPos", "punkteBeleuchten",
-                                       "lampeBild", "striche", "strichDicke", "strichAnzahl", "fadenfarbe",
+                                       "lampeBild", "lampenRadius", "striche", "strichDicke", "strichAnzahl", "fadenfarbe",
                                        "flaechen", "raum", "boden", "kamera", "kegelRichtung", "kegelInnen", "kegelAussen",
                                        "extraAnzahl", "extraPos", "extraFarbe", "extraStaerke", "extraRichtung", "extraKegel",
                                        "extraSchatten", "extraBild"]);
@@ -743,6 +744,8 @@ export function erstelleShader(canvas) {
                      schaerfe = false, fokus = 0.5, unschaerfe = 8,
                      teil = null, // Bewegungsunschärfe: { nummer, von } = Zwischenschritt nummer von von
                      weitereLampen = [], // lampen.js: [{ pos, richtung, farbe, staerke, kegelInnen, kegelAussen, schatten, zeigen }]
+                     pixelMass = null, // Druck (druck.js): Canvas-Pixel pro Bildschirm-Pixel, sonst aus der Canvas-Größe
+                     bildHoehe = null, // Druck: Höhe des ganzen Bildes, wenn der Canvas nur eine Kachel ist
                      sichtbar = anzahl }) {
     // Puffer passend zur Canvas-Größe; ändert sie sich, alten freigeben und neu anlegen
     if (!dichte || dichte.breite !== canvas.width || dichte.hoehe !== canvas.height) {
@@ -799,11 +802,11 @@ export function erstelleShader(canvas) {
       const b = insBild(strich.bis, blick);
       if (!a || !b || strichAnzahl === 16) continue;
       strichDaten.set([...a, ...b], strichAnzahl * 4);
-      dickeDaten[strichAnzahl] = (strich.dicke ?? 1) * (canvas.width / Math.max(canvas.clientWidth, 1)); // CSS-Pixel → Canvas-Pixel
+      dickeDaten[strichAnzahl] = (strich.dicke ?? 1) * (pixelMass ?? canvas.width / Math.max(canvas.clientWidth, 1)); // CSS-Pixel → Canvas-Pixel
       strichAnzahl++;
     }
     // Punktgröße in Bildschirm-Pixeln: der Canvas rechnet mindestens doppelt so fein (dpr in main.js)
-    const dpr = canvas.width / Math.max(canvas.clientWidth, 1);
+    const dpr = pixelMass ?? canvas.width / Math.max(canvas.clientWidth, 1);
     const groesse = Math.min(Math.max(punktgroesse * dpr, kleinstePunkte), groesstePunkte);
     gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -974,6 +977,7 @@ export function erstelleShader(canvas) {
     gl.uniform3f(farbOrte.lichtPos, ...lichtPos);
     gl.uniform1f(farbOrte.punkteBeleuchten, lampeAn ? punkteBeleuchten : 0);
     gl.uniform3f(farbOrte.lampeBild, ...(lampeImBild ?? [0, 0]), lampeImBild ? 1 : 0);
+    gl.uniform1f(farbOrte.lampenRadius, 0.012 * (bildHoehe ?? canvas.height));
     const extra = schatten ? weitereLampen.slice(0, 3) : [];
     const drei = (liste, je, leer = 0) => liste.concat(Array(3 * je).fill(leer)).slice(0, 3 * je);
     gl.uniform1i(farbOrte.extraAnzahl, extra.length);
@@ -1010,6 +1014,10 @@ export function erstelleShader(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, 3); // das große Dreieck aus VERTEX_SHADER_FARBE
   }
 
-  return { setzeVerlauf, ladePunkte, zeichne, insBild };
+  // Druck: wie groß darf ein Bild auf diesem Gerät sein, und wie groß ein Punkt
+  const grenzen = () => ({ viewport: gl.getParameter(gl.MAX_VIEWPORT_DIMS), textur: gl.getParameter(gl.MAX_TEXTURE_SIZE), punkt: groesstePunkte });
+  return { setzeVerlauf, ladePunkte, zeichne, insBild, grenzen, gl };
 }
+
+
 

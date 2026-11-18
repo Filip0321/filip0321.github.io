@@ -1,0 +1,23 @@
+/*
+Schwarm: nur was es nirgends sonst auf der Website gibt
+*/
+.schwarm-feld {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  border: 1px solid currentColor;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.schwarm-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.schwarm-status {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}

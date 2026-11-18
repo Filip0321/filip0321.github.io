@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patch-Wand - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/fenster.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="patch.css">
+  <script>
+    // XP-Fenster oder schlichte Fenster: wie auf der Startseite eingestellt (fenster.js dort)
+    try {
+      if (localStorage.getItem("fenster-stil") === "schlicht") document.documentElement.classList.add("schlicht");
+    } catch {}
+  </script>
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/zimmer/">Mein Zimmer</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite patch-seite">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Patch-Wand</h1>
+      <ul class="tags">
+        <li>ton</li>
+        <li>modular</li>
+      </ul>
+    </header>
+
+    <div id="start" class="patch-start">
+      <p>Ein modularer Synthesizer an der Wand: Oszillatoren, Filter, Hüllkurven, Sequenzer und Trommeln als Fenster, verbunden mit Kabeln. Jeder Ausgang kann an jeden Eingang, auch an Regler: so steuert ein LFO die Grenzfrequenz, ein Sequenzer die Tonhöhe.</p>
+      <button type="button" id="ton-an">Ton an</button>
+      <p class="hinweis">Kopfhörer oder leise anfangen. Am Ausgang sitzt ein Begrenzer, trotzdem kann eine Rückkopplung laut werden.</p>
+    </div>
+
+    <div id="bedienung" class="steuerung patch-leiste" hidden>
+      <label>Modul
+        <select id="hinzu-typ"></select>
+      </label>
+      <button type="button" id="hinzu">hinzufügen</button>
+      <label>Vorlage
+        <select id="vorlage"><option value="">eine wählen …</option></select>
+      </label>
+      <button type="button" id="speichern">Patch speichern</button>
+      <label class="datei-knopf">Patch laden <input type="file" id="laden" accept=".json,application/json"></label>
+      <button type="button" id="aufnahme" aria-pressed="false">Aufnehmen</button>
+      <button type="button" id="stumm" aria-pressed="false">Pause</button>
+    </div>
+    <p class="meldung" id="meldung" hidden></p>
+
+    <div class="wand" id="wand" tabindex="-1">
+      <svg class="kabel-ebene" id="kabel" aria-hidden="true"></svg>
+    </div>
+
+    <details class="abschnitt patch-hilfe">
+      <summary>So geht es</summary>
+      <ul class="hinweis-liste">
+        <li>Kabel: von einer Buchse zur anderen ziehen. Am Handy: erst die eine, dann die andere antippen.</li>
+        <li>Lösen: Doppelklick auf das Kabel (am Handy lange drücken), oder das Kabel aus dem Eingang herausziehen und ins Leere fallen lassen.</li>
+        <li>Buchsen: hohl sind Eingänge, gefüllt Ausgänge; gestrichelt ist Takt (Ereignisse: Sequenzer, Euklid → Hüllkurve, Trommeln), durchgezogen ist Ton (auch Steuerspannung).</li>
+        <li>Tonhöhe wie bei echten Modularsystemen: 1,0 pro Oktave. Der Sequenzer gibt Halbtöne / 12 aus.</li>
+        <li>Drehknöpfe: senkrecht ziehen, mit Umschalt fein, Doppelklick zurück auf den Anfang.</li>
+        <li>Der Patch merkt sich der Browser von allein; „Patch speichern“ schreibt ihn als Datei.</li>
+      </ul>
+    </details>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

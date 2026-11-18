@@ -1,0 +1,446 @@
+/*
+Patch-Wand: eine große Fläche mit Raster (wie Grid), darauf Module als Fenster, darüber die Kabel.
+Regeln der Seite: zwei Farben, Rahmen 1px, keine Rundungen (Ausnahme Drehknöpfe), Aktiv = Farben tauschen.
+*/
+
+.patch-seite {
+  max-width: none;
+}
+
+.patch-start {
+  max-width: 40rem;
+  margin: 2rem 0;
+}
+
+.patch-start #ton-an {
+  margin: 1.2rem 0;
+  font-size: 1.3rem;
+  padding: 0.5em 1.4em;
+}
+
+.patch-leiste {
+  align-items: end;
+}
+
+/* die Wand: scrollt in beide Richtungen; das Raster sind zwei sich wiederholende Linien (Regel 4: schwach) */
+.wand {
+  position: relative;
+  height: min(78vh, 60rem);
+  margin-top: 1rem;
+  overflow: auto;
+  border: 1px solid currentColor;
+  background-image:
+    linear-gradient(to right, rgba(221, 221, 221, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(221, 221, 221, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-attachment: local; /* das Raster scrollt mit */
+  overscroll-behavior: contain;
+}
+
+/* der Inhalt der Wand ist größer als der Ausschnitt: so groß wird die Fläche über ein unsichtbares Element */
+.wand::before {
+  content: "";
+  position: absolute;
+  width: 2200px;
+  height: 1500px;
+  pointer-events: none;
+}
+
+.kabel-ebene {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2200px;
+  height: 1500px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 100000; /* über allen Fenstern: Kabel hängen vor den Modulen, wie in echt */
+}
+
+.kabel {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.5;
+  stroke-linecap: square;
+  opacity: 0.85;
+}
+
+.kabel.takt {
+  stroke-dasharray: 6 5;
+}
+
+.kabel.zug {
+  opacity: 0.5;
+}
+
+/* breiter unsichtbarer Streifen zum Anfassen eines Kabels */
+.kabel-griff {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.kabel-griff:hover + .kabel,
+.kabel-griff:hover {
+  stroke: rgba(221, 221, 221, 0.25);
+}
+
+/* ---------- Module ---------- */
+.fenster.modul {
+  width: 22rem;
+}
+
+.modul .fenster-inhalt {
+  max-height: none;
+  padding: 0.7rem 0.8rem 0.9rem;
+}
+
+.modul .steuerung {
+  margin-top: 0.6rem;
+}
+
+.modul .knoepfe {
+  margin-top: 0.8rem;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 0.8rem 0.2rem;
+}
+
+/* Buchsen: links Eingänge, rechts Ausgänge */
+.buchsen {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.buchsen ul {
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.buchsen li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ausgaenge li {
+  justify-content: flex-end;
+}
+
+.buchse {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: inherit;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.buchse.takt {
+  border-style: dashed;
+}
+
+/* Ausgänge gefüllt, Eingänge hohl; ein steckendes Kabel macht auch den Eingang voll */
+.buchse.aus,
+.buchse.belegt {
+  background: var(--text);
+}
+
+.buchse.ein.belegt {
+  box-shadow: inset 0 0 0 3px var(--bg);
+}
+
+.buchse:hover,
+.buchse:focus-visible,
+.buchse.gewaehlt {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.modul select {
+  max-width: 11rem;
+}
+
+.modul-extra {
+  margin-top: 0.7rem;
+}
+
+.schirm {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Sequenzer: acht senkrechte Regler */
+.schritte {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.2rem;
+}
+
+.schritt {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.schritt input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: 6rem;
+  width: 1.4rem;
+  accent-color: var(--text);
+}
+
+.schritt button {
+  padding: 0.05em 0.35em;
+  opacity: 0.4;
+}
+
+.schritt button[aria-pressed="true"] {
+  opacity: 1;
+}
+
+/* der gerade klingende Schritt: Farben getauscht (Regel 3) */
+.schritt.jetzt {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.muster {
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  word-break: break-all;
+}
+
+.hinweis-liste {
+  margin: 0.6rem 0 0 1.2rem;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+/* ---------- Runde 17 ---------- */
+
+/* Fensterknöpfe: „kleiner“ klappt ein, „größer“ schaltet das Bild */
+.modul .fenster-knopf.einklappen,
+.modul .fenster-knopf.bild-schalter {
+  cursor: pointer;
+}
+
+.modul .fenster-knopf:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* eingeklappt: nur noch Titel und Buchsen */
+.modul.eingeklappt .fenster-inhalt > :not(.buchsen) {
+  display: none;
+}
+
+.modul.ohne-bild .modul-extra {
+  display: none;
+}
+
+/* Modulsuche: ein Feld an der Stelle des Doppelklicks */
+.modulsuche {
+  position: absolute;
+  z-index: 200000;
+  width: 16rem;
+  background: var(--bg);
+  border: 1px solid currentColor;
+  padding: 0.4rem;
+}
+
+.modulsuche input {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid currentColor;
+  padding: 0.3rem;
+}
+
+.modulsuche ul {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+}
+
+.modulsuche button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+}
+
+.modulsuche button:hover,
+.modulsuche button:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Notenraster: Namen links, dann ein Knopf pro Schritt; jede vierte Spalte mit kräftigerem Rand (Zählzeiten) */
+.notenraster {
+  display: grid;
+  grid-template-columns: 2.6em repeat(var(--spalten, 16), 1fr);
+  gap: 1px;
+  min-width: calc(2.6em + var(--spalten, 16) * 1.1rem);
+  font-size: 0.75rem;
+}
+
+.raster-name {
+  align-self: center;
+  text-align: right;
+  padding-right: 0.3em;
+  opacity: 0.8;
+}
+
+.raster-zelle {
+  height: 0.95rem;
+  padding: 0;
+  border: 1px solid rgba(221, 221, 221, 0.25);
+  background: none;
+  cursor: pointer;
+}
+
+.raster-zelle.viertel {
+  border-left-color: var(--text);
+}
+
+.raster-zelle[aria-pressed="true"] {
+  background: var(--text);
+}
+
+.raster-zelle.jetzt {
+  outline: 1px solid var(--text);
+}
+
+.raster-zelle.bindung,
+.raster-zelle.akzent {
+  border-style: dashed;
+}
+
+/* Obertöne der Wellenform: Balken zum Ziehen */
+.schirm.obertoene {
+  color: var(--text);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.reduktion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---------- Runde 18: Zoom und Gruppen ---------- */
+
+/* alles auf der Wand liegt hierin und wird mit dem Zoom vergrößert (ansicht.js); der Platzhalter macht die
+   Wand so weit scrollbar, wie das Vergrößerte groß ist */
+.wand-inhalt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2200px;
+  height: 1500px;
+  transform-origin: 0 0;
+}
+
+.wand-platz {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.zoom output {
+  min-width: 3.5em;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* ausgewählt (für „Gruppe bilden“): gestrichelter Rand */
+.modul.markiert {
+  outline: 1px dashed var(--text);
+  outline-offset: 4px;
+}
+
+.auswahl-rechteck {
+  position: absolute;
+  border: 1px dashed var(--text);
+  pointer-events: none;
+  z-index: 100001;
+}
+
+/* aufgeklappte Gruppe: ein Rahmen hinter ihren Modulen, oben eine Leiste mit Namen und Knöpfen */
+.gruppen-rahmen {
+  position: absolute;
+  border: 1px solid var(--text);
+  background: rgba(221, 221, 221, 0.03);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.gruppen-rahmen .fenster-leiste {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.gruppe-fenster .fenster-titel,
+.gruppen-rahmen .fenster-titel {
+  cursor: text;
+  outline: none;
+}
+
+.gruppe-fenster {
+  min-width: 14rem;
+  outline: 1px solid var(--text);
+  outline-offset: 3px; /* doppelter Rand: das ist ein Kasten mit Modulen darin */
+}
+
+/* unsichtbare Punkte am linken und rechten Rand: dort enden Kabel zu Buchsen, die nicht außen liegen */
+.gruppe-fenster .fenster-inhalt {
+  position: relative;
+}
+
+.gruppe-rand-ein,
+.gruppe-rand-aus {
+  position: absolute;
+  top: 1rem;
+  width: 1px;
+  height: 1px;
+}
+
+.gruppe-rand-ein {
+  left: 0;
+}
+
+.gruppe-rand-aus {
+  right: 0;
+}
+
+/* nach außen gelegt: doppelter Rand; Makro: der Name unterstrichen */
+.buchse.nach-aussen {
+  outline: 1px solid var(--text);
+  outline-offset: 2px;
+}
+
+.knoepfe label.als-makro {
+  text-decoration: underline;
+}

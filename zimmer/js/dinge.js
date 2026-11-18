@@ -32,7 +32,7 @@
 
 import { z, neu, art, aktiveKamera } from "./zustand.js";
 import { erstelleKamera } from "./kamera.js";
-import { homographie, mitteVon, radiusVon, normaleVon, ordneEcken, gitter, ausschnitt, minus, punkt, laenge, einheit } from "./flaeche.js";
+import { homographie, abbildung, mitteVon, radiusVon, normaleVon, ordneEcken, gitter, ausschnitt, minus, punkt, laenge, einheit } from "./flaeche.js";
 import { jacobi } from "./ausrichten.js";
 
 const blende = document.getElementById("blende");
@@ -426,8 +426,8 @@ export function flaechenZumZeichnen(k) {
 // Die Seite bekommt so viele CSS-Pixel, wie die Fläche auf dem Bildschirm groß ist (mindestens 320 breit): dann sieht
 // sie aus wie auf einem Gerät dieser Größe, und am Handy greift ihre Handy-Ansicht. Eine gewölbte Fläche kann eine
 // bedienbare Seite nicht annehmen (der Browser biegt keine Elemente); die Seite liegt dann flach auf den vier Ecken.
-// Was im Zimmer VOR der Fläche steht, soll die Seite verdecken: eine Maske aus den Splats vor der Fläche (main.js
-// rechnet sie mit zeichnen.js), neu, sobald die Kamera eine Weile stillsteht.
+// Sie liegt ganz vorn, über allem im Zimmer: wer sie öffnet, will sie ganz sehen (vorher deckten Splats vor der
+// Fläche sie über eine Maske ab, wie beim Video; das war beim Lesen nur im Weg).
 function oeffneSeite(d) {
   const k = z.zeig, w = z.canvas.width, h = z.canvas.height, faktor = z.canvas.clientWidth / w;
   k.rechne(w, h);
@@ -440,11 +440,24 @@ function oeffneSeite(d) {
   const el = document.createElement("iframe");
   el.src = d.link;
   el.title = d.name;
+  // Neu zeichnen lassen: nach dem Laden, nach dem Einblenden (0,4 s, zimmer.css) und, wichtig für Zen/Firefox, wenn
+  // die Schriften der Seite da sind. Das „load“-Ereignis wartet in Firefox nicht auf Webfonts; kommen sie danach,
+  // setzt Firefox die Texte mit den neuen Maßen, zeichnet die perspektivisch verzerrte Ebene aber nicht neu: die Buchstaben
+  // stehen verschoben in ihren Kästen, bis Scrollen das Neuzeichnen erzwingt (so sah es auf deinem Bild aus).
+  el.addEventListener("load", () => {
+    schaerfe(el);
+    setTimeout(() => schaerfe(el), 450);
+    try {
+      const schriften = el.contentDocument.fonts;
+      schriften.ready.then(() => schaerfe(el));
+      schriften.addEventListener("loadingdone", () => schaerfe(el)); // auch Schriften, die erst später gebraucht werden
+    } catch {}
+  });
   el.style.width = `${breite}px`;
   el.style.height = `${hoehe}px`;
   fensterEbene.replaceChildren(el);
   fensterEbene.hidden = false;
-  gezeigt.seite = { breite, hoehe, ansicht: null, uhr: 0 };
+  gezeigt.seite = { breite, hoehe };
   tafel.querySelector("a").textContent = "öffnen →";
   requestAnimationFrame(() => fensterEbene.classList.add("an"));
   neu();
@@ -454,54 +467,54 @@ function schliesseSeite() {
   fensterEbene.classList.remove("an");
   fensterEbene.hidden = true;
   fensterEbene.replaceChildren(); // iframe weg: die Seite darin hört auf zu laufen
-  fensterEbene.style.maskImage = fensterEbene.style.webkitMaskImage = "";
-  if (gezeigt?.seite) clearTimeout(gezeigt.seite.uhr);
   if (gezeigt) gezeigt.seite = null;
 }
 
-// in jedem Bild: die Seite auf die vier Ecken legen; hat sich der Blick geändert, die Maske bald neu rechnen
+// in jedem Bild: die Seite auf die vier Ecken legen (beim Zoomen bewegt sich die Kamera noch)
 function platziereSeite(k) {
   const s = gezeigt?.seite;
   if (!s || fahrt || !fensterEbene.firstChild) return;
   const w = z.canvas.width, h = z.canvas.height, faktor = z.canvas.clientWidth / w;
-  const { ecken, normale, mitte } = ordneEcken(gezeigt.ding.punkte, k.auge, k.achsen().oben);
+  const { ecken } = ordneEcken(gezeigt.ding.punkte, k.auge, k.achsen().oben);
   const schirm = ecken.map((q) => k.aufBildschirm(q, w, h));
   if (schirm.some((e) => !e)) return;
-  fensterEbene.firstChild.style.transform = homographie(s.breite, s.hoehe, schirm.map((e) => [e.x * faktor, e.y * faktor]));
-  const a = k.ansicht.join(",");
-  if (a !== s.ansicht) {
-    s.ansicht = a;
-    clearTimeout(s.uhr);
-    // Ebene 2 cm vor der Fläche: n · p − (n · m + 0,02) > 0 heißt „davor“
-    s.uhr = setTimeout(() => z.maskeRechnen?.([...normale, -(punkt(normale, mitte) + 0.02)]), 150);
-  }
+  const punkte = schirm.map((e) => [e.x * faktor, e.y * faktor]);
+  // Schärfe: Ein Browser zeichnet eine Ebene mit transform einmal als Bild (rastern) und schiebt dieses Bild dann nur
+  // noch herum; ändert sich die Größe, müsste er die ganze Seite neu rastern. Bewegt sich das Transform in jedem
+  // Bild (die Kamera kommt nie ganz zur Ruhe), tut er das irgendwann nicht mehr. Die Seite erschien klein, wuchs beim
+  // Heranfahren und blieb im klein gezeichneten Zustand hängen, bis Scrollen in ihr das Neuzeichnen erzwang.
+  // Firefox (und damit Zen) zeichnet eine Ebene mit Perspektive (matrix3d) sogar erst neu, wenn sich ihr Inhalt ändert.
+  // Darum: nur setzen, wenn sich eine Ecke wirklich bewegt (über 0,3 Pixel), und 250 ms nach der letzten Bewegung
+  // die Seite anstoßen (schaerfe), damit sie in der Größe neu gezeichnet wird, in der sie jetzt steht.
+  const el = fensterEbene.firstChild;
+  if (el.letzteEcken && punkte.every(([x, y], i) => Math.hypot(x - el.letzteEcken[i][0], y - el.letzteEcken[i][1]) < 0.3)) return;
+  el.letzteEcken = punkte;
+  // fast gerade von vorn: 2D, sonst Perspektive (flaeche.js). 40 Pixel Abweichung der vierten Ecke sind erlaubt: lieber
+  // passt der Rand der Seite ein paar Pixel nicht genau auf den Bildschirm im Zimmer, als dass die Schrift verrutscht
+  el.style.transform = abbildung(s.breite, s.hoehe, punkte, 40);
+  clearTimeout(el.ruhe);
+  el.ruhe = setTimeout(() => schaerfe(el), 250);
 }
 
-// main.js liefert die Deckung der Splats vor der Fläche (Alpha je Pixel); daraus eine Maske: sichtbar ist die Seite
-// dort, wo davor nichts deckt (Maskenalpha = 1 − Deckung). WebGL liest die Zeilen von unten nach oben, darum gespiegelt.
-export function setzeMaske({ pixel, breite, hoehe }) {
-  if (!gezeigt?.seite) return;
-  const c = document.createElement("canvas");
-  c.width = breite;
-  c.height = hoehe;
-  const g = c.getContext("2d");
-  const bild = g.createImageData(breite, hoehe);
-  let deckt = false;
-  for (let y = 0; y < hoehe; y++) {
-    const von = (hoehe - 1 - y) * breite * 4, nach = y * breite * 4;
-    for (let x = 0; x < breite; x++) {
-      const a = pixel[von + 4 * x + 3];
-      bild.data[nach + 4 * x + 3] = 255 - a;
-      if (a > 8) deckt = true;
-    }
-  }
-  if (!deckt) {
-    fensterEbene.style.maskImage = fensterEbene.style.webkitMaskImage = "";
-    return;
-  }
-  g.putImageData(bild, 0, 0);
-  const url = `url(${c.toDataURL()})`;
-  fensterEbene.style.maskImage = fensterEbene.style.webkitMaskImage = url;
+// Die Seite im iframe zum Neuzeichnen zwingen, so wie es Scrollen tut, nur unsichtbar:
+// 1. den iframe 1 Pixel breiter machen und zwei Bilder später zurück. Eine neue Breite heißt: neues Layout, alles
+//    neu gezeichnet (das hilft in jedem Browser, auch wenn die Seite gar nicht scrollen kann);
+// 2. zusätzlich 1 Pixel scrollen und zurück (gleiche Herkunft, darum darf das Zimmer in den iframe greifen).
+function schaerfe(el) {
+  if (!el.isConnected) return;
+  const breite = parseFloat(el.style.width);
+  el.style.width = `${breite + 1}px`;
+  let fenster = null;
+  try {
+    fenster = el.contentWindow;
+    fenster.scrollBy(0, 1);
+  } catch {}
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.style.width = `${breite}px`;
+    try {
+      fenster?.scrollBy(0, -1);
+    } catch {}
+  }));
 }
 
 function zeigeTafel(ding) {

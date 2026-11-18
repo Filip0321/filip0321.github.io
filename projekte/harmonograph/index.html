@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harmonograph - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="harmonograph.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/zimmer/">Mein Zimmer</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Harmonograph</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>zeichnen</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel harmonograph-feld" id="stapel">
+        <canvas id="feld" width="1024" height="1024" aria-label="Harmonograph: vier Pendel führen einen Stift"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="harmonograph-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Zeichnen</summary>
+        <div class="steuerung">
+          <button type="button" id="zufall">Zufall</button>
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="sofort">sofort fertig</button>
+          <label>Verstimmung beim Zufall <input type="range" data-wert="verstimmung" min="0" max="3" step="0.1" value="1"><output></output></label>
+        </div>
+        <div class="presets">
+          <button type="button" data-setze='{"f1":2,"f2":3.003,"f3":3,"f4":2.004,"p1":0,"p2":90,"p3":0,"p4":270,"a1":0.7,"a2":0.3,"a3":0.7,"a4":0.3}'>2 : 3</button>
+          <button type="button" data-setze='{"f1":3,"f2":1,"f3":2.002,"f4":1,"p1":90,"p2":0,"p3":0,"p4":45,"a1":0.6,"a2":0.4,"a3":0.6,"a4":0.4}'>3 : 2</button>
+          <button type="button" data-setze='{"f1":1,"f2":0,"f3":1.005,"f4":0,"p1":90,"p2":0,"p3":0,"p4":0,"a1":1,"a2":0,"a3":1,"a4":0,"d1":0.006,"d3":0.006}'>Spirale (1 : 1)</button>
+          <button type="button" data-setze='{"f1":4,"f2":5.01,"f3":5,"f4":4.006,"p1":0,"p2":30,"p3":60,"p4":0,"a1":0.5,"a2":0.5,"a3":0.5,"a4":0.5}'>Rosette (4 : 5)</button>
+        </div>
+        <div class="steuerung">
+          <label>Dauer (Pendelzeit, s) <input type="range" data-wert="dauer" min="20" max="600" step="5" value="200"><output></output></label>
+          <label>Tempo <input type="range" data-wert="tempo" min="1" max="60" step="1" value="12"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Pendel</summary>
+        <div class="pendel">
+          <p class="pendel-name">x, Pendel 1</p>
+          <div class="knoepfe-zeile steuerung">
+            <label>Frequenz <input type="range" data-wert="f1" min="0.5" max="8" step="0.001" value="2"><output></output></label>
+            <label>Phase (°) <input type="range" data-wert="p1" min="0" max="360" step="1" value="0"><output></output></label>
+            <label>Ausschlag <input type="range" data-wert="a1" min="0" max="1" step="0.01" value="0.7"><output></output></label>
+            <label>Reibung <input type="range" data-wert="d1" min="0" max="0.05" step="0.0005" value="0.004"><output></output></label>
+          </div>
+        </div>
+        <div class="pendel">
+          <p class="pendel-name">x, Pendel 2</p>
+          <div class="knoepfe-zeile steuerung">
+            <label>Frequenz <input type="range" data-wert="f2" min="0.5" max="8" step="0.001" value="3.003"><output></output></label>
+            <label>Phase (°) <input type="range" data-wert="p2" min="0" max="360" step="1" value="90"><output></output></label>
+            <label>Ausschlag <input type="range" data-wert="a2" min="0" max="1" step="0.01" value="0.3"><output></output></label>
+            <label>Reibung <input type="range" data-wert="d2" min="0" max="0.05" step="0.0005" value="0.006"><output></output></label>
+          </div>
+        </div>
+        <div class="pendel">
+          <p class="pendel-name">y, Pendel 3</p>
+          <div class="knoepfe-zeile steuerung">
+            <label>Frequenz <input type="range" data-wert="f3" min="0.5" max="8" step="0.001" value="3"><output></output></label>
+            <label>Phase (°) <input type="range" data-wert="p3" min="0" max="360" step="1" value="0"><output></output></label>
+            <label>Ausschlag <input type="range" data-wert="a3" min="0" max="1" step="0.01" value="0.7"><output></output></label>
+            <label>Reibung <input type="range" data-wert="d3" min="0" max="0.05" step="0.0005" value="0.005"><output></output></label>
+          </div>
+        </div>
+        <div class="pendel">
+          <p class="pendel-name">y, Pendel 4</p>
+          <div class="knoepfe-zeile steuerung">
+            <label>Frequenz <input type="range" data-wert="f4" min="0.5" max="8" step="0.001" value="2.004"><output></output></label>
+            <label>Phase (°) <input type="range" data-wert="p4" min="0" max="360" step="1" value="270"><output></output></label>
+            <label>Ausschlag <input type="range" data-wert="a4" min="0" max="1" step="0.01" value="0.3"><output></output></label>
+            <label>Reibung <input type="range" data-wert="d4" min="0" max="0.05" step="0.0005" value="0.003"><output></output></label>
+          </div>
+        </div>
+        <p class="hinweis">x(t) und y(t) sind je zwei ausschwingende Schwingungen: Frequenz, Phase, Ausschlag und Reibung (wie schnell der Schwung vergeht). Ganze Verhältnisse wie 2 : 3 geben geschlossene Figuren; ein wenig daneben (3,003) dreht sich die Figur und wird zur Spirale.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Stift und Papier</summary>
+        <div class="steuerung">
+          <label>Stift <input type="color" data-wert="stift" value="#dddddd"></label>
+          <label>Papier <input type="color" data-wert="papier" value="#111111"></label>
+          <label>Strich <input type="range" data-wert="strich" min="0.2" max="6" step="0.1" value="1"><output></output></label>
+          <label>Deckkraft <input type="range" data-wert="deckkraft" min="0.02" max="1" step="0.01" value="0.35"><output></output></label>
+          <label>Bildgröße
+            <select data-wert="bildgroesse">
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+              <option value="4096">4096 (zum Drucken)</option>
+            </select>
+          </label>
+          <button type="button" id="svg">SVG speichern (Linie)</button>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <label>Grundton (Hz für Frequenz 1) <input type="range" data-wert="grundton" min="20" max="440" step="1" value="110"><output></output></label>
+          <label>Länge (s) <input type="range" data-wert="tonlaenge" min="2" max="60" step="1" value="20"><output></output></label>
+          <button type="button" id="hoeren">anhören (x links, y rechts)</button>
+          <button type="button" id="wav">WAV speichern</button>
+          <label><input type="checkbox" data-wert="tonImVideo"> Ton im Video</label>
+        </div>
+        <p class="hinweis">Der linke Kanal ist x, der rechte y: im Projekt Oszilloskop-Musik (oder an einem echten Oszilloskop im XY-Betrieb) zeichnet der Ton dieselbe Figur, nur schneller.</p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+  <script type="module" src="/lib/format.js"></script>
+</body>
+</html>

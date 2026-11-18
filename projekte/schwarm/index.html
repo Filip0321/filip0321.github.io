@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schwarm - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="schwarm.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/zimmer/">Mein Zimmer</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Schwarm</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel schwarm-feld" id="stapel">
+        <canvas id="feld" width="1200" height="750" aria-label="Schwarm: gedrückt halten jagt die Vögel (Werkzeug wählen)"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="schwarm-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Schwarm</summary>
+        <div class="steuerung">
+          <button type="button" id="neu">neu verteilen</button>
+          <button type="button" id="pause">Pause</button>
+          <label>Anzahl <input type="range" data-wert="anzahl" min="50" max="8000" step="50" value="1500"><output></output></label>
+          <label>Zeit <input type="range" data-wert="zeit" min="0.1" max="2" step="0.05" value="1"><output></output></label>
+          <label>Rand
+            <select data-wert="rand">
+              <option value="torus" selected>Torus (rechts hinaus, links herein)</option>
+              <option value="wand">umkehren</option>
+            </select>
+          </label>
+          <label><input type="checkbox" data-wert="falke"> Falke</label>
+        </div>
+        <div class="presets">
+          <button type="button" data-setze='{"sicht": 60, "abstand": 18, "trennung": 1.5, "ausrichtung": 1, "zusammenhalt": 0.6, "vmax": 160, "vmin": 90, "kraft": 220, "blick": 300, "topologisch": true, "k": 7, "zittern": 0}'>Stare</button>
+          <button type="button" data-setze='{"sicht": 50, "abstand": 14, "trennung": 1.4, "ausrichtung": 0.4, "zusammenhalt": 1.6, "vmax": 120, "vmin": 100, "kraft": 160, "blick": 240, "topologisch": false, "zittern": 0, "rand": "wand"}'>Fischkreisel</button>
+          <button type="button" data-setze='{"sicht": 40, "abstand": 10, "trennung": 1, "ausrichtung": 0.05, "zusammenhalt": 0.9, "vmax": 140, "vmin": 0, "kraft": 400, "blick": 360, "topologisch": false, "zittern": 1}'>Mücken</button>
+          <button type="button" data-setze='{"sicht": 70, "abstand": 22, "trennung": 2, "ausrichtung": 1.5, "zusammenhalt": 0.3, "vmax": 50, "vmin": 10, "kraft": 60, "blick": 300, "topologisch": false, "zittern": 0.1}'>Herde</button>
+        </div>
+        <p class="hinweis">Kein Vogel kennt den Schwarm. Jeder sieht nur seine Nachbarn und folgt drei Regeln: nicht zu nah, in dieselbe Richtung, zur Mitte hin. Die Form des Ganzen entsteht von selbst.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Regeln</summary>
+        <div class="steuerung">
+          <label>Trennung <input type="range" data-wert="trennung" min="0" max="4" step="0.05" value="1.5"><output></output></label>
+          <label>Ausrichtung <input type="range" data-wert="ausrichtung" min="0" max="3" step="0.05" value="1"><output></output></label>
+          <label>Zusammenhalt <input type="range" data-wert="zusammenhalt" min="0" max="3" step="0.05" value="0.6"><output></output></label>
+          <label>Sichtweite <input type="range" data-wert="sicht" min="10" max="150" step="1" value="60"><output></output></label>
+          <label>Abstand <input type="range" data-wert="abstand" min="4" max="60" step="1" value="18"><output></output></label>
+          <label>Blickwinkel (°) <input type="range" data-wert="blick" min="60" max="360" step="5" value="300"><output></output></label>
+          <label>Höchsttempo <input type="range" data-wert="vmax" min="20" max="400" step="5" value="160"><output></output></label>
+          <label>Mindesttempo <input type="range" data-wert="vmin" min="0" max="300" step="5" value="90"><output></output></label>
+          <label>Kraft (Wendigkeit) <input type="range" data-wert="kraft" min="20" max="800" step="10" value="220"><output></output></label>
+          <label>Zittern <input type="range" data-wert="zittern" min="0" max="2" step="0.05" value="0"><output></output></label>
+          <label><input type="checkbox" data-wert="topologisch" checked> topologisch (die k nächsten statt alle in Sichtweite)</label>
+          <label data-nur="topologisch=true">k Nachbarn <input type="range" data-wert="k" min="1" max="20" step="1" value="7"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Maus</summary>
+        <div class="steuerung">
+          <label>Werkzeug
+            <select data-wert="werkzeug">
+              <option value="jagen" selected>Raubvogel (gedrückt halten)</option>
+              <option value="locken">Futter (gedrückt halten)</option>
+              <option value="wand">Wand zeichnen</option>
+              <option value="radieren">Wand radieren</option>
+            </select>
+          </label>
+          <button type="button" id="waendeWeg">alle Wände weg</button>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Ansicht</summary>
+        <div class="steuerung">
+          <label>Form
+            <select data-wert="form">
+              <option value="dreieck" selected>Dreieck</option>
+              <option value="strich">Strich</option>
+              <option value="punkt">Punkt</option>
+            </select>
+          </label>
+          <label>Größe <input type="range" data-wert="groesse" min="1" max="8" step="0.5" value="3"><output></output></label>
+          <label>Spuren <input type="range" data-wert="spuren" min="0" max="0.97" step="0.01" value="0.6"><output></output></label>
+          <label>Hell <input type="color" data-wert="hell" value="#dddddd"></label>
+          <label>Dunkel <input type="color" data-wert="dunkel" value="#111111"></label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Ton</summary>
+        <div class="steuerung">
+          <button type="button" id="tonAn" aria-pressed="false">Ton an</button>
+          <label>Stimmen <input type="range" data-wert="tonStimmen" min="1" max="32" step="1" value="12"><output></output></label>
+          <label>Tonleiter
+            <select data-wert="tonLeiter">
+              <option value="stufenlos" selected>stufenlos (Glissando)</option>
+              <option value="pentatonik-moll">Pentatonik Moll</option>
+              <option value="pentatonik-dur">Pentatonik Dur</option>
+              <option value="moll">Moll</option>
+              <option value="ganzton">Ganzton</option>
+            </select>
+          </label>
+          <label>Form
+            <select data-wert="tonForm">
+              <option value="sine" selected>Sinus</option>
+              <option value="triangle">Dreieck</option>
+              <option value="sawtooth">Sägezahn</option>
+            </select>
+          </label>
+          <label>tiefste Oktave <input type="range" data-wert="tonOktave" min="0" max="5" step="1" value="2"><output></output></label>
+          <label>Umfang (Oktaven) <input type="range" data-wert="tonUmfang" min="0.5" max="5" step="0.5" value="2"><output></output></label>
+          <label>Hell <input type="range" data-wert="tonHell" min="300" max="12000" step="50" value="3000"><output></output></label>
+          <label>Hall <input type="range" data-wert="tonHall" min="0" max="1" step="0.05" value="0.4"><output></output></label>
+          <label>Flügelrauschen <input type="range" data-wert="tonRauschen" min="0" max="0.5" step="0.01" value="0.08"><output></output></label>
+          <label>Lautstärke <input type="range" data-wert="tonLaut" min="0" max="1" step="0.01" value="0.4"><output></output></label>
+        </div>
+        <p class="hinweis">Eine Auswahl der Vögel singt: oben hoch, unten tief, links und rechts im Raum, wer schnell fliegt, ist laut. Dazu ein Rauschen wie Flügelschlag, so laut wie der Schwarm schnell ist. Ins Video kommt der Ton mit „Live aufnehmen“.</p>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wellenwanne - Filip Winkler</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/canvas.css">
+  <link rel="stylesheet" href="/css/steuerung.css">
+  <link rel="stylesheet" href="/css/export-dialog.css">
+  <link rel="stylesheet" href="/css/text.css">
+  <link rel="stylesheet" href="wellen.css">
+</head>
+<body>
+  <button class="menu-btn" aria-expanded="false" aria-controls="menu">Menü</button>
+
+  <nav id="menu" class="menu">
+    <ul>
+      <li><a href="/">Start</a></li>
+      <li><a href="/projekte/">Projekte</a></li>
+      <li><a href="/zimmer/">Mein Zimmer</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </nav>
+
+  <main class="seite werkbank">
+    <header class="projekt-kopf">
+      <a class="zurueck" href="/projekte/">← Projekte</a>
+      <h1>Wellenwanne</h1>
+      <ul class="tags">
+        <li>simulation</li>
+        <li>physik</li>
+        <li>ton</li>
+      </ul>
+    </header>
+
+    <div class="feld-rahmen">
+      <div class="feld-stapel wellen-feld" id="stapel">
+        <canvas id="feld" aria-label="Wellenwanne: klicken setzt Tropfen oder Quellen, ziehen malt Wände"></canvas>
+        <canvas id="effekte" class="schicht" hidden></canvas>
+        <canvas id="marken" class="schicht marken"></canvas> <!-- Quellen und Mikrofon, nicht im Export -->
+      </div>
+    </div>
+
+    <div class="bedienung">
+      <p class="meldung" id="meldung" hidden></p>
+      <p class="wellen-status" id="status" aria-live="off"></p>
+
+      <details class="abschnitt" open>
+        <summary>Aufbau</summary>
+        <div class="steuerung">
+          <label>Vorlage <select id="vorlage"></select></label>
+          <label><input type="checkbox" id="ebene"> ebene Welle von links</label>
+          <button type="button" id="pause">Pause</button>
+          <button type="button" id="wasser-ruhig">Wasser beruhigen</button>
+          <button type="button" id="quellen-weg">Quellen weg</button>
+          <button type="button" id="waende-weg">Wände und Glas weg</button>
+        </div>
+        <div class="steuerung">
+          <label>Werkzeug
+            <select data-wert="werkzeug">
+              <option value="tropfen">Tropfen (eine Welle)</option>
+              <option value="quelle">Quelle (schwingt dauernd)</option>
+              <option value="wand">Wand malen</option>
+              <option value="glas">Glas malen (langsamer)</option>
+              <option value="radieren">radieren</option>
+            </select>
+          </label>
+          <label data-nur="werkzeug=wand,glas,radieren">Pinsel <input type="range" data-wert="pinsel" min="1" max="30" step="1" value="3"><output></output></label>
+          <label>Brechzahl des Glases <input type="range" data-wert="brechzahl" min="1" max="2.5" step="0.05" value="1.5"><output></output></label>
+        </div>
+        <p class="hinweis">Klicken setzt einen Tropfen oder eine Quelle; Quellen lassen sich ziehen, Rechtsklick (oder Alt + Klick) löscht sie. Wände werfen die Welle zurück, Glas bremst sie (die Linse bündelt so). Am Rand verschwinden die Wellen in einem Schwamm, wie ins offene Meer.</p>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Wellen</summary>
+        <div class="steuerung">
+          <label>Wellenlänge (Zellen) <input type="range" data-wert="wellenlaenge" min="6" max="80" step="0.5" value="22"><output></output></label>
+          <label>Stärke <input type="range" data-wert="staerke" min="0.05" max="3" step="0.05" value="1"><output></output></label>
+          <label>Größe der Quelle <input type="range" data-wert="quellRadius" min="0.6" max="6" step="0.1" value="1.5"><output></output></label>
+          <label>Schritte pro Bild <input type="range" data-wert="tempo" min="1" max="16" step="1" value="6"><output></output></label>
+        </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Ansicht</summary>
+        <div class="steuerung">
+          <label>Zeigen
+            <select data-wert="ansicht">
+              <option value="auslenkung">Auslenkung (die Welle selbst)</option>
+              <option value="intensitaet">Intensität (Mittel über die Zeit: die Streifen)</option>
+              <option value="beides">beides</option>
+            </select>
+          </label>
+          <label>Verstärkung <input type="range" data-wert="verstaerkung" min="0.2" max="10" step="0.1" value="2"><output></output></label>
+          <label data-nur="ansicht=intensitaet,beides">Gedächtnis (Schritte) <input type="range" data-wert="gedaechtnis" min="20" max="2000" step="10" value="300"><output></output></label>
+          <label>Hell <input type="color" data-wert="hell" value="#dddddd"></label>
+          <label>Dunkel <input type="color" data-wert="dunkel" value="#111111"></label>
+          <label>Wände <input type="color" data-wert="wandfarbe" value="#dddddd"></label>
+          <label><input type="checkbox" data-wert="zeichen" checked> Quellen zeigen</label>
+          <label>Auflösung
+            <select data-wert="aufloesung">
+              <option value="384">384</option>
+              <option value="512" selected>512</option>
+              <option value="768">768</option>
+              <option value="1024">1024 (langsamer)</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Lauschen</summary>
+        <div class="steuerung">
+          <label><input type="checkbox" data-wert="lauschen"> Mikrofon in der Wanne</label>
+        </div>
+        <p class="hinweis">Ein Kreuz im Bild ist das Mikrofon (ziehen verschiebt es). Was es hört, wird zu einem Ton: so laut, wie die Welle dort im Mittel schwingt, so hoch, wie die Quellen schwingen. Hinter dem Doppelspalt hört man die hellen und dunklen Streifen.</p>
+      </details>
+
+      <details class="abschnitt" id="musik">
+        <summary>Musik</summary>
+        <div class="steuerung">
+          <label>Quelle
+            <select id="musik-quelle">
+              <option value="datei">Datei</option>
+              <option value="mikrofon">Mikrofon / Interface</option>
+              <option value="system">Systemton (Chrome, Edge)</option>
+            </select>
+          </label>
+          <label class="datei-knopf" id="musik-datei-knopf">Musik öffnen <input type="file" id="musik-datei" accept="audio/*"></label>
+        </div>
+        <audio id="musik-spieler" controls></audio>
+        <div class="steuerung" id="musik-baender"></div>
+        <div class="steuerung" hidden>
+          <label>Spektrum formt <input type="range" id="musik-form" min="0" max="1" step="0.05" value="0"><output></output></label>
+        </div>
+        <p class="hinweis">Der Bass macht die Wellen stärker, jeder Schlag lässt einen Tropfen fallen; die Zuordnung ist frei.</p>
+        <p class="hinweis" id="musik-meldung"></p>
+      </details>
+
+      <details class="abschnitt">
+        <summary>Effekte</summary>
+        <div data-effekt-regler="vhs"></div> <!-- Häkchen und Regler baut /lib/effekt-regler.js -->
+        <div data-effekt-regler="crt"></div>
+        <div id="sammlung"></div> <!-- weitere Effekte: /lib/effekte/sammlung-ui.js -->
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Export</summary>
+        <div class="steuerung export"></div>
+      </details>
+    </div>
+  </main>
+
+  <footer class="fuss">
+    <a href="/impressum/">Impressum</a>
+    <a href="/datenschutz/">Datenschutz</a>
+  </footer>
+
+  <script src="/script.js"></script>
+  <script src="/lib/mediabunny.js"></script>
+  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/lib/effekt-schicht.js"></script>
+  <script type="module" src="/lib/format.js"></script>
+</body>
+</html>

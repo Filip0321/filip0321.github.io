@@ -677,3 +677,62 @@ button.fader {
   padding: 0.3rem 0.5rem;
   resize: vertical;
 }
+
+
+
+/*
+Musik (audioreaktiv, /lib/audioreaktiv.js und /lib/mehrband.js): Spektrum mit Grenzen über die ganze Breite,
+darunter die Schlag-Spur; pro Signal eine Zeile Name | Ziel | Stärke, die sich der Spalte anpasst statt sie zu sprengen
+*/
+
+.mehrband {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.mehrband canvas {
+  display: block;
+  width: 100%;
+  border: 1px solid currentColor;
+  touch-action: none; /* Grenzen ziehen statt Seite schieben */
+}
+
+.mehrband .mehrband-spektrum {
+  height: 110px;
+}
+
+.mehrband .mehrband-spur {
+  height: 42px;
+  border-top: none;
+}
+
+#musik-baender > label.musik-zeile {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr) minmax(0, 1fr); /* feste erste Spalte: alle Zeilen fluchten, auch „Einsatz (Datei)“ */
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* alle drei in einer Zeile (die Regel für Regler-Labels oben schiebt den Regler sonst in Zeile 2) */
+#musik-baender > label.musik-zeile > * {
+  grid-row: 1;
+  grid-column: auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.musik-schlag {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  min-width: 0;
+}
+
+.musik-schlag label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}

@@ -19,8 +19,8 @@ import { ladeSplats, dreheSzene } from "./laden.js";
 import { erstelleZeichner } from "./zeichnen.js";
 import { erstelleKamera } from "./kamera.js";
 import { platzhalterZimmer, PLATZHALTER } from "./platzhalter.js";
-import { schritt, richteNeigungEin } from "./steuerung.js";
-import { baueDinge, platziereDinge, fahrtSchritt, flaechenZumZeichnen, setzeMaske } from "./dinge.js";
+import { schritt, richteNeigungEin, zeigeRegler } from "./steuerung.js";
+import { baueDinge, platziereDinge, fahrtSchritt, flaechenZumZeichnen } from "./dinge.js";
 import { wendeGrundrissAn, baueRundKamera, zeichneGrundriss, schnitthoehe } from "./grundriss.js";
 import { richteLeisteEin } from "./bearbeiten.js";
 import { zeichneGizmo } from "./gizmo.js";
@@ -43,13 +43,6 @@ worker.onmessage = ({ data }) => {
 };
 
 // gezeigte Szene (z.szene) zur Grafikkarte und zum Sortieren
-// eine Seite auf einer Fläche: Maske aus den Splats davor (dinge.js), einmal zeichnen, auslesen, wieder normal zeichnen
-z.maskeRechnen = (ebene) => {
-  const k = aktiveKamera();
-  k.rechne(z.canvas.width, z.canvas.height);
-  setzeMaske(zeichner.deckungVor(k, ebene));
-  neu();
-};
 z.vergissTextur = (el) => zeichner.vergiss(el);
 
 z.beiNeuerSzene = () => {
@@ -164,6 +157,7 @@ function schleife(jetzt) {
   platziereDinge(k);
   zeichneGrundriss();
   zeichneGizmo();
+  zeigeRegler();
 }
 requestAnimationFrame(schleife);
 

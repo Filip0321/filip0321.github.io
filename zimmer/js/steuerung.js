@@ -69,6 +69,49 @@ function zoome(k, feld, wert, min, max) {
   neu();
 }
 
+// ---------- Regler am Rand (Handy): Zoom und Höhe ----------
+// Der Zoom-Regler läuft von 0 (weit) bis 1 (nah). Beim Sichtfeld linear (max … min Grad), beim Abstand
+// logarithmisch: von 30 m bis 5 cm wäre linear fast der ganze Weg im Fernen, und jede Verdopplung der Nähe soll
+// gleich viel Regler kosten:  Abstand = fern · (nah / fern)^t
+// Der Höhen-Regler (nur beim Herumgehen) setzt die Augenhöhe zwischen den Grenzen aus zimmer.json ("hoehe").
+const zoomRegler = document.getElementById("zoom-regler");
+const hoeheRegler = document.getElementById("hoehe-regler");
+const hoeheFeld = document.getElementById("hoehe-feld");
+const FERN = 30;
+function zoomAusRegler(t) {
+  const { k, feld, min, max } = zoomWert();
+  const wert = feld === "abstand" ? Math.min(max, FERN) * (min / Math.min(max, FERN)) ** t : max + (min - max) * t;
+  zoome(k, feld, wert, min, max);
+}
+function reglerAusZoom() {
+  const { k, feld, min, max } = zoomWert();
+  const fern = Math.min(max, FERN);
+  return feld === "abstand" ? Math.log(fern / k[feld]) / Math.log(fern / min) : (max - k[feld]) / (max - min);
+}
+const hoeheGrenzen = () => {
+  const boden = bodenHoehe(), [unten, oben] = z.einst.hoehe ?? [-2, 6];
+  return [boden + unten, boden + oben];
+};
+zoomRegler?.addEventListener("input", () => zoomAusRegler(Number(zoomRegler.value)));
+hoeheRegler?.addEventListener("input", () => {
+  if (!z.rund) return;
+  const [a, b] = hoeheGrenzen();
+  z.rund.ziel[1] = a + (b - a) * Number(hoeheRegler.value);
+  eingabe();
+  neu();
+});
+// aus main.js nach jedem Bild: die Regler zeigen, was gerade gilt (nicht, während man an ihnen zieht)
+export function zeigeRegler() {
+  if (!zoomRegler || !matchMedia("(pointer: coarse)").matches) return;
+  if (document.activeElement !== zoomRegler) zoomRegler.value = Math.max(0, Math.min(1, reglerAusZoom()));
+  const gehen = art() === "begehen" && !z.zeig && !z.draufsicht && !!z.rund;
+  hoeheFeld.hidden = !gehen;
+  if (gehen && document.activeElement !== hoeheRegler) {
+    const [a, b] = hoeheGrenzen();
+    hoeheRegler.value = (z.rund.ziel[1] - a) / (b - a);
+  }
+}
+
 // Die Finger werden auf der ganzen Bühne gezählt, nicht nur auf dem Canvas: am Handy liegen die Kreise der
 // Gegenstände oft groß über dem Bild, und ein Finger darauf gehört sonst dem Link
 const buehne = c.parentElement;
@@ -411,3 +454,4 @@ export function parallaxNull() {
   if (z.kamera) z.kamera.extraGier = z.kamera.extraNick = 0;
   letzte = start = null;
 }
+

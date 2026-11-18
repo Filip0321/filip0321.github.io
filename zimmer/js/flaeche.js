@@ -35,6 +35,21 @@ export function homographie(breite, hoehe, [p0, p1, p2, p3]) {
   return `matrix3d(${a / breite},${d / breite},0,${g / breite},${b / hoehe},${e / hoehe},0,${h / hoehe},0,0,1,0,${c},${f},0,1)`;
 }
 
+// Fast ein Parallelogramm (man schaut ziemlich gerade auf die Fläche)? Dann reicht eine 2D-Abbildung (matrix, ohne
+// Teilung durch w). Die Abweichung der vierten Ecke von „p1 + p3 − p0“ (sx, sy in homographie) misst, wie weit das
+// Viereck vom Parallelogramm weg ist. Grund (Runde 18d): Firefox und Zen zeichnen Text in einer Ebene mit Perspektive
+// (matrix3d) verschoben, solange die Seite darin ganz oben steht; in einer 2D-Ebene nicht.
+// Die 2D-Abbildung ist die beste mittlere: Kanten gemittelt (oben/unten, links/rechts), Mitte auf die Mitte gelegt.
+export function abbildung(breite, hoehe, punkte, toleranz = 6) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = punkte;
+  if (Math.hypot(x0 - x1 + x2 - x3, y0 - y1 + y2 - y3) > toleranz) return homographie(breite, hoehe, punkte);
+  const ux = (x1 - x0 + x2 - x3) / 2, uy = (y1 - y0 + y2 - y3) / 2; // Breite als Vektor
+  const vx = (x3 - x0 + x2 - x1) / 2, vy = (y3 - y0 + y2 - y1) / 2; // Höhe als Vektor
+  const mx = (x0 + x1 + x2 + x3) / 4, my = (y0 + y1 + y2 + y3) / 4;
+  const ox = mx - (ux + vx) / 2, oy = my - (uy + vy) / 2;
+  return `matrix(${ux / breite},${uy / breite},${vx / hoehe},${vy / hoehe},${ox},${oy})`;
+}
+
 // ---------- Punkte ----------
 export const plus = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 export const minus = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];

@@ -1,0 +1,29 @@
+/*
+Wellenwanne: nur was es nirgends sonst auf der Website gibt
+*/
+.wellen-feld {
+  position: relative;
+  aspect-ratio: 1; /* bis ein anderes Format gewählt wird (/lib/format.js) */
+  width: min(100%, 80vh);
+  margin-inline: auto;
+  border: 1px solid currentColor;
+  touch-action: none; /* ziehen malt, statt die Seite zu verschieben */
+  cursor: crosshair;
+}
+
+.wellen-feld canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* die Zeichen für Quellen und Mikrofon liegen über dem Bild, fangen aber keine Maus */
+.wellen-feld .marken {
+  pointer-events: none;
+}
+
+.wellen-status {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}

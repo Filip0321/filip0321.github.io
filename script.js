@@ -1,5 +1,9 @@
 const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+// Läuft die Seite eingebettet (iframe, z. B. auf einer Fläche im Zimmer), ist sie dort nur ein Fenster:
+// Menü weg (css/style.css, Klasse „eingebettet“ auf <html>)
+if (window.self !== window.top) document.documentElement.classList.add("eingebettet");
+
 const el = document.getElementById("name");
 
 if (el) {
@@ -154,4 +158,6 @@ function stelleVideosEin() {
 }
 stelleVideosEin();
 wenigBewegung.addEventListener("change", stelleVideosEin);
+
+
 

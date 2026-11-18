@@ -11,6 +11,8 @@ import { richteKarteEin } from "/lib/parameterkarte.js";
 import { richteAttraktorTonEin } from "/lib/attraktor-ton.js";
 import { richteAudioreaktivEin } from "/lib/audioreaktiv.js";
 import { richteSzenenEin } from "/lib/szenen.js";
+import { oeffneDruckDialog, speichereDruck } from "/lib/druck.js";
+import { rechneDruck } from "./druck.js";
 
 // Settings
 
@@ -81,12 +83,16 @@ let ansicht = { x: 0, y: 0 }; // welcher Punkt des Attraktors in der Bildmitte l
 let sichtbar = punkte; // wie viele Punkte gerade gezeichnet werden
 let animationsId = null; // läuft gerade eine Animation? dann steht hier ihre Nummer
 
-function neuerVerlauf() {
+function verlaufTabelle() {
   const anker = einstellung.verlauf === "eigen"
     ? [hexZuRgb(einstellung.anfang), hexZuRgb(einstellung.ende)]
     : skalaAnker(einstellung.verlauf);
   // umgedreht: dieselben Anker rückwärts (Kopie mit [...], sonst würde die Skala in farben.js selbst umgedreht)
-  shader.setzeVerlauf(farbtabelle(einstellung.umgedreht ? [...anker].reverse() : anker));
+  return farbtabelle(einstellung.umgedreht ? [...anker].reverse() : anker);
+}
+
+function neuerVerlauf() {
+  shader.setzeVerlauf(verlaufTabelle());
 }
 
 function passeGroesseAn() {
@@ -134,8 +140,13 @@ function rechne() {
 // zeichnen billig, geht bei jedem Zoom
 // ohneSchatten: einmal ohne Schatten (für den Ton der Ansicht, attraktor-ton.js)
 function zeichne(ohneSchatten = false) {
+  shader.zeichne(zeichenWerte(ohneSchatten));
+}
+
+// alles, was der Shader für ein Bild braucht (auch der Druck rechnet damit, druck.js)
+function zeichenWerte(ohneSchatten = false) {
   const w = musik.wirkung; // alles 0, solange keine Musik läuft
-  shader.zeichne({
+  return {
     mitteX: ansicht.x, mitteY: ansicht.y, sichtbar,
     ...einstellung, // einstellung.hintergrund, .faerbung, .punktfarbe, .verlauf, .anfang, .ende, .staerke
     // was die Musik verändert, kommt nach ...einstellung und ersetzt dort den Wert des Reglers
@@ -152,7 +163,7 @@ function zeichne(ohneSchatten = false) {
     spektrum: musik.spektrum,
     spektrumStaerke: musik.spektrumStaerke(),
     verlaufVersatz: farbVersatz,
-  });
+  };
 }
 
 // um eine Zeitspanne weiterbewegen (live und beim Video-Rendern mit festen 1/30 s)
@@ -647,6 +658,53 @@ richteExportEin({
 });
 
 
+// Druck: in Papiergröße neu rechnen (druck.js, /lib/druck.js). Der Knopf kommt zu den Export-Knöpfen.
+// Hintergrund und Punktfarbe lassen sich fürs Papier ändern, ohne die Anzeige zu verstellen (z. B. dunkel auf Weiß).
+const druckKnopf = document.createElement("button");
+druckKnopf.type = "button";
+druckKnopf.textContent = "Für den Druck rechnen";
+const druckInfo = document.createElement("p");
+druckInfo.className = "hinweis";
+document.querySelector(".export").append(druckKnopf);
+document.querySelector(".export").after(druckInfo);
+druckKnopf.addEventListener("click", async () => {
+  if (!mass) return;
+  const papier = await oeffneDruckDialog({
+    felder: [
+      { name: "hintergrund", text: "Hintergrund", art: "farbe", wert: einstellung.hintergrund },
+      { name: "punktfarbe", text: "Punktfarbe (bei einer Farbe)", art: "farbe", wert: einstellung.punktfarbe },
+    ],
+    hinweis: "Gerechnet wird der jetzige Ausschnitt, neu in voller Größe, mit mehr und feineren Punkten. VHS, CRT und die Effekte der Sammlung kommen nicht mit, sie gehören zum Bildschirm.",
+  });
+  if (!papier) return;
+  druckKnopf.disabled = true;
+  stoppeAnimation();
+  const t0 = performance.now();
+  try {
+    const werteJetzt = { ...zeichenWerte(), hintergrund: papier.hintergrund, punktfarbe: papier.punktfarbe, spektrum: null, sichtbar: undefined };
+    const { bild, gesamt } = await rechneDruck({
+      typ, werte, start, punkte,
+      schirm: { breite: canvas.width, hoehe: canvas.height, dpr: canvas.width / Math.max(canvas.clientWidth, 1) },
+      zeichneWerte: werteJetzt,
+      verlauf: verlaufTabelle(),
+      schrittMass: shader.schrittMass(),
+      papier,
+      fortschritt: (a) => (druckInfo.textContent = `Druck: rechne … ${Math.round(a * 100)} %`),
+    });
+    druckInfo.textContent = "Druck: speichere …";
+    await speichereDruck(bild, papier, `${typ.name.toLowerCase().replace(/\s+/g, "-")}-${papier.papier}-${papier.dpi}dpi`);
+    druckInfo.textContent = `Druck: ${papier.breite} × ${papier.hoehe} Pixel, ${(gesamt / 1e6).toFixed(1)} Millionen Punkte, ${((performance.now() - t0) / 1000).toFixed(0)} s.`;
+  } catch (fehler) {
+    console.error(fehler);
+    druckInfo.textContent = `Druck ging nicht: ${fehler.message}`;
+  } finally {
+    druckKnopf.disabled = false;
+    sichtbar = punkte;
+    zeichne();
+  }
+});
+
+
 // Den Attraktor hören (siehe /lib/attraktor-ton.js): die Ansicht ohne Schatten als Spektrogramm
 
 richteAttraktorTonEin({
@@ -659,3 +717,5 @@ richteAttraktorTonEin({
   anzeige: sichtbaresBild, // mit VHS und CRT, wenn sie an sind
   zuschnitt: crtZuschnitt,
 });
+
+
