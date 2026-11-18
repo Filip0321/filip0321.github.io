@@ -439,7 +439,7 @@ const tasten = (o1, o2, x, fm, h) => jede((i) => ({ [`o1${i}`]: { ...o1, fmTiefe
 const TASTEN = k("Tasten", "Tasten (vierstimmig über den Verteiler): E-Piano (FM), Orgel, Harmonium, Akkordeon, Cembalo", [
   m("vt", "verteiler"), ...st.flatMap((s) => s.module), m("lp", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.18 }),
 ], [...st.flatMap((s) => s.kabel), ["lp", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
-["end", ["vt", "Noten", "ein", "noten"]], [["lp", "grenze"], ["ch", "mix"]], {
+["end", ["vt", "Noten", "ein", "noten"]], [["lp", "grenze"], ["ch", "mix"], ["vt", "anzahl"]], {
   "E-Piano": { werte: { ...tasten({ frequenz: 261.63, form: "sine" }, { frequenz: 261.63, form: "sine" }, 0, 600, { a: 0.002, d: 1.5, s: 0.2, r: 0.4 }), lp: { typ: "lowpass", grenze: 5000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.4 } } },
   Orgel: { werte: { ...tasten({ frequenz: 261.63, form: "sine" }, { frequenz: 523.25, form: "sine" }, 0.6, 1, { a: 0.005, d: 0.01, s: 1, r: 0.05 }), lp: { typ: "lowpass", grenze: 6000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.6 } } },
   Harmonium: { werte: { ...tasten({ frequenz: 261.63, form: "sawtooth" }, { frequenz: 262.54, form: "sawtooth" }, 0.8, 1, { a: 0.08, d: 0.1, s: 1, r: 0.2 }), lp: { typ: "lowpass", grenze: 1800, resonanz: 1, mod: 0 }, ch: { mix: 0.2 } } },
@@ -464,7 +464,7 @@ const WAVETABLE = k("Wavetable-Synth", "Wavetable-Synth (vierstimmig): Fläche, 
   m("vt", "verteiler"), m("lp", "lfo", { form: "triangle" }), m("lf", "lfo", { form: "sine" }), ...wst.flatMap((x) => x.module),
   m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.5 }),
 ], [...wst.flatMap((x) => x.kabel), ["lf", "aus", "fi", "Grenze"], ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
-["end", ["vt", "Noten", "ein", "noten"]], [["w1", "position"], ["fi", "grenze"], ["lp", "tiefe"], ["h1", "r"]], {
+["end", ["vt", "Noten", "ein", "noten"]], [["w1", "position"], ["fi", "grenze"], ["lp", "tiefe"], ["h1", "r"], ["vt", "anzahl"]], {
   "Fläche": { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 0.3, verstimmen: 18, stimmen: 2 }, { a: 1.2, d: 1, s: 0.8, r: 2.5 }), lp: { tempo: 0.07, tiefe: 0.25 }, lf: { tempo: 0.11, tiefe: 0.3 },
     fi: { typ: "lowpass", grenze: 1800, resonanz: 1, mod: 1 }, ch: { mix: 0.5 } } },
   Lead: { werte: { end: { pegel: 0.6 }, ...wtJede({ frequenz: 261.63, position: 0.28, verstimmen: 8, stimmen: 2 }, { a: 0.005, d: 0.3, s: 0.7, r: 0.2 }), lp: { tempo: 5, tiefe: 0.02 }, lf: { tempo: 0.5, tiefe: 0 },
@@ -540,7 +540,7 @@ const driftJede = (o, d, h) => Object.assign({}, ...[1, 2, 3, 4].map((i) => ({ [
 const DRIFT = k("Drift", "Drift (wie Abletons Drift): analoger Synth, vierstimmig, jede Stimme wandert ein wenig: Fläche, Bass, Keys, Lead", [
   m("vt", "verteiler"), ...dst.flatMap((x) => x.module), m("lf", "lfo", { form: "sine" }), m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.3 }),
 ], [...dst.flatMap((x) => x.kabel), ["lf", "aus", "fi", "Grenze"], ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
-["end", ["vt", "Noten", "ein", "noten"]], [["fi", "grenze"], ["fi", "resonanz"], ["d1", "staerke"], ["lf", "tiefe"]], {
+["end", ["vt", "Noten", "ein", "noten"]], [["fi", "grenze"], ["fi", "resonanz"], ["d1", "staerke"], ["lf", "tiefe"], ["vt", "anzahl"]], {
   "Fläche": { werte: { end: { pegel: 0.3 }, ...driftJede({ frequenz: 261.63, form: "sawtooth", fmTiefe: 1 }, { zeit: 3, staerke: 0.006 }, { a: 0.8, d: 1, s: 0.8, r: 1.5 }), lf: { tempo: 0.2, tiefe: 0.4 },
     fi: { typ: "lowpass", grenze: 1400, resonanz: 1.5, mod: 1.5 }, ch: { mix: 0.5 } } },
   Bass: { werte: { end: { pegel: 0.2 }, ...driftJede({ frequenz: 261.63, form: "square", fmTiefe: 1 }, { zeit: 2, staerke: 0.003 }, { a: 0.003, d: 0.3, s: 0.6, r: 0.1 }), lf: { tempo: 0.1, tiefe: 0 },
@@ -569,7 +569,7 @@ const meldJede = (a, b, fm, mix, h) => Object.assign({}, ...[1, 2, 3, 4].map((i)
 const MELD = k("Meld", "Meld (wie Abletons Meld): zwei Quellen je Stimme, B moduliert A (FM) und klingt mit: Glocke, Metall, Wachsen, FM-Pluck", [
   m("vt", "verteiler"), ...mst.flatMap((x) => x.module), m("lp", "lfo", { form: "triangle" }), m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.25 }),
 ], [...mst.flatMap((x) => x.kabel), ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
-["end", ["vt", "Noten", "ein", "noten"]], [["a1", "fmTiefe"], ["x1", "pegel"], ["lp", "tiefe"], ["fi", "grenze"]], {
+["end", ["vt", "Noten", "ein", "noten"]], [["a1", "fmTiefe"], ["x1", "pegel"], ["lp", "tiefe"], ["fi", "grenze"], ["vt", "anzahl"]], {
   // Glocke: B eine Sinuswelle auf 3,5-facher Frequenz, starke FM beim Anschlag (John Chowning, 1973: FM-Glocken)
   "FM-Glocke": { werte: { ...meldJede({ form: "sine" }, { frequenz: 261.63 * 3.5, position: 0, pegel: 1 }, 2000, 0, { a: 0.002, d: 2.5, s: 0, r: 1.5 }), lp: { tempo: 0.1, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 9000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.2 } } },
@@ -581,8 +581,39 @@ const MELD = k("Meld", "Meld (wie Abletons Meld): zwei Quellen je Stimme, B modu
     fi: { typ: "lowpass", grenze: 6000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.1 } } },
 });
 
+// Glitzer-Instrument (Runde 35): Glitzer, gespielt mit Noten. Jede Note ist ein heller Anschlag (Pling p1, wie eine
+// Spieluhr oder Celesta), dazu derselbe Ton höher (p2 über „Transponieren“), und SOLANGE die Note gehalten wird,
+// sprühen Funken um sie herum: ein Zufallsgeber, den das Gate der Note auf- und zudreht (Mathe: Gate · 2 − 1 an die
+// Dichte, also −1 = nichts, wenn keine Note klingt), spielt kurze Plings auf der Höhe der Note plus einem zufälligen
+// Sprung (Zufall Stufen, auf Oktaven oder Quinten gerundet: Mathe „runden“). So interpretiert es eine Melodie:
+// die Töne bleiben erkennbar, das Glitzern liegt darüber.
+const GLITZER_INSTRUMENT = k("Glitzer-Instrument", "Glitzer-Instrument: Noten werden zu Anschlag + Funken um den Ton (Sternenstaub, Spieluhr, Eiskristall, Funkenregen)", [
+  m("nd", "transponieren"), m("p1", "pling", { wasser: "0", steigen: 0 }), m("t2", "transponieren"), m("p2", "pling", { wasser: "0", steigen: 0 }),
+  m("nz", "notenZuTon"), m("mg", "mathe", { art: "0", b: 0, faktor: 2, versatz: -1 }), m("zg", "zufallsgeber", { regel: 0, dauer: 0.01 }), m("tz", "zufall", { art: "stufen", zeit: 300, mitte: 0 }),
+  m("qz", "mathe", { art: "9", faktor: 1, versatz: 0 }), m("mx", "mathe", { art: "0", b: 0, faktor: 1, versatz: 0 }), m("p3", "pling", { wasser: "0", breite: 1 }), m("ec", "echo"),
+  m("end", "verstaerker", { pegel: 0.8 }),
+], [
+  ["nd", "Noten", "p1", "Noten"], ["nd", "Noten", "t2", "Noten"], ["t2", "Noten", "p2", "Noten"], ["nd", "Noten", "nz", "Noten"],
+  ["nz", "Gate", "mg", "A"], ["mg", "aus", "zg", "Dichte"], ["zg", "Takt", "tz", "Takt"], ["zg", "Takt", "p3", "Takt"],
+  ["tz", "aus", "qz", "A"], ["nz", "Tonhöhe", "mx", "A"], ["qz", "aus", "mx", "B"], ["mx", "aus", "p3", "Tonhöhe"],
+  ["p1", "aus", "ec", "ein"], ["p2", "aus", "ec", "ein"], ["p3", "aus", "ec", "ein"], ["ec", "aus", "end", "ein"],
+], ["end", ["nd", "Noten", "ein", "noten"]], [["zg", "rate"], ["tz", "staerke"], ["p3", "abklingen"], ["ec", "nass"]], {
+  Sternenstaub: { werte: {
+    p1: { frequenz: 261.63, abklingen: 0.8, laut: 0.35, breite: 0.2 }, t2: { halbtoene: 12 }, p2: { frequenz: 261.63, abklingen: 0.25, laut: 0.15, breite: 0.6 },
+    zg: { rate: 420 }, tz: { staerke: 1.5 }, qz: { b: 1 }, p3: { frequenz: 523.25, abklingen: 0.12, laut: 0.1, steigen: 0 }, ec: { zeit: 0.3, rueck: 0.5, nass: 0.4 } } },
+  Spieluhr: { werte: {
+    p1: { frequenz: 523.25, abklingen: 1.5, laut: 0.4, breite: 0.1 }, t2: { halbtoene: 24 }, p2: { frequenz: 261.63, abklingen: 0.15, laut: 0.08, breite: 0.3 },
+    zg: { rate: 40 }, tz: { staerke: 1 }, qz: { b: 1 }, p3: { frequenz: 1046.5, abklingen: 0.3, laut: 0.06, steigen: 0 }, ec: { zeit: 0.25, rueck: 0.25, nass: 0.2 } } },
+  Eiskristall: { werte: {
+    p1: { frequenz: 261.63, abklingen: 2, laut: 0.3, breite: 0.3 }, t2: { halbtoene: 19 }, p2: { frequenz: 261.63, abklingen: 0.6, laut: 0.12, breite: 0.8 },
+    zg: { rate: 200 }, tz: { staerke: 1.2 }, qz: { b: 0.5833 }, p3: { frequenz: 523.25, abklingen: 0.35, laut: 0.1, steigen: 0 }, ec: { zeit: 0.55, rueck: 0.6, nass: 0.5 } } },
+  Funkenregen: { werte: {
+    p1: { frequenz: 261.63, abklingen: 0.4, laut: 0.3, breite: 0.2 }, t2: { halbtoene: 12 }, p2: { frequenz: 261.63, abklingen: 0.1, laut: 0.1, breite: 0.5 },
+    zg: { rate: 1500 }, tz: { staerke: 2 }, qz: { b: 0.01 }, p3: { frequenz: 1046.5, abklingen: 0.03, laut: 0.12, steigen: 0.5 }, ec: { zeit: 0.19, rueck: 0.35, nass: 0.3 } } },
+});
+
 export const KLAENGE = {
-  glitzer: GLITZER, schlegel: SCHLEGEL, vogel: VOGEL, frosch: FROSCH, insekt: INSEKT, wasser: WASSER, wind: WIND, feuer: FEUER, donner: DONNER, glocke: GLOCKE,
+  glitzer: GLITZER, glitzerInstrument: GLITZER_INSTRUMENT, schlegel: SCHLEGEL, vogel: VOGEL, frosch: FROSCH, insekt: INSEKT, wasser: WASSER, wind: WIND, feuer: FEUER, donner: DONNER, glocke: GLOCKE,
   blaeser: BLAESER, streicher: STREICHER, tasten: TASTEN, drift: DRIFT, meld: MELD, wavetable: WAVETABLE, trommel: TROMMEL,
 
   herz: k("Herzschlag", "Herzschlag: „lub-dub“ (Salve aus zwei Schlägen), ein tiefer Sinus, dessen Höhe beim Schlag fällt", [

@@ -107,6 +107,11 @@ export const SPUREN_VORLAGEN = {
     { id: "ha", typ: "hall", x: 1660, y: 440, werte: { zeit: 4, mix: 0.35 } },
     { id: "aus", typ: "ausgang", x: 2060, y: 40, werte: { laut: 0.5 } },
   ], [["f.end", "aus", "mi", "1"], ["s.end", "aus", "mi", "2"], ["k.end", "aus", "mi", "3"], ["mi", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]]),
+  glitzerInstrument: ausKlaengen("Glitzer-Instrument: eine ABC-Melodie, jede Note ein Anschlag mit Funken darum (Preset: Sternenstaub, Spieluhr, Eiskristall, Funkenregen)", [["gi", "glitzerInstrument", 860, 40, "Sternenstaub"]], [
+    { id: "ab", typ: "abc", x: 40, y: 40, werte: { abc: "L:1/8\nK:D\n|: d4 A2 F2 | e4 c2 A2 | B4 G2 E2 | F4 A4 :|" } },
+    { id: "ha", typ: "hall", x: 1260, y: 40, werte: { zeit: 3.5, mix: 0.3 } },
+    { id: "aus", typ: "ausgang", x: 1660, y: 40, werte: { laut: 0.5 } },
+  ], [["ab", "Noten", "gi.nd", "Noten"], ["gi.end", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]], 76),
   schlegel: ausKlaengen("Schlegel: eine ABC-Melodie mit Akkorden auf Marimba (Preset wechseln: Vibraphon, Xylophon, Kalimba, freier Stab)", [["sl", "schlegel", 860, 40, "Marimba"]], [
     { id: "ab", typ: "abc", x: 40, y: 40, werte: { abc: "L:1/8\nK:C\n|: [CEG]2 E G c2 G E | [A,CE]2 C E A2 E C | [F,A,C]2 A, C F2 C A, | [G,B,D]2 B, D G2 (3DEF :|" } },
     { id: "ha", typ: "hall", x: 1260, y: 40, werte: { zeit: 2, mix: 0.25 } },

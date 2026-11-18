@@ -848,26 +848,56 @@ const verteiler = {
   baue(ctx) {
     const N = 4;
     const stimmen = Array.from({ length: N }, () => ({ ton: konstante(ctx, 0), takt: new Takt(), anschlag: konstante(ctx, 0), note: null, seit: -1, frei: 0 }));
-    const an = (t, n, vel = 0.8, dauer = Infinity) => {
-      const s = stimmen.find((x) => x.note === n) ?? [...stimmen].filter((x) => x.note === null).sort((a, b) => a.frei - b.frei)[0] ?? [...stimmen].sort((a, b) => a.seit - b.seit)[0];
+    // Runde 36: Modus und Anzahl (wie in jedem Synth):
+    //   poly     jede Note eine eigene Stimme (höchstens „Stimmen“ viele zugleich)
+    //   mono     eine Stimme; eine neue Note nimmt sie (legato: läuft die alte noch, wird nicht neu angeschlagen, nur die
+    //            Tonhöhe springt); lässt man los, kehrt sie zur zuletzt noch gehaltenen Note zurück (wie ein Minimoog)
+    //   unisono  alle Stimmen spielen dieselbe Note (dick, breit; die Stimmen dahinter dürfen leicht verschieden sein)
+    const w = { modus: "poly", anzahl: 4 };
+    let gehalten = []; // mono: Noten in der Reihenfolge des Drückens
+    const setze = (s, t, n, vel, dauer, anschlagen = true) => {
       s.note = n;
       s.seit = t;
       s.ton.offset.setValueAtTime((n - 60) / 12, t);
       s.anschlag.offset.setValueAtTime(vel, t);
-      s.takt.sende(t, dauer);
+      if (anschlagen) s.takt.sende(t, dauer);
       if (Number.isFinite(dauer)) {
         s.note = null;
         s.frei = t + dauer;
       }
     };
+    const an = (t, n, vel = 0.8, dauer = Infinity) => {
+      const aktiv = stimmen.slice(0, w.modus === "poly" ? w.anzahl : w.modus === "mono" ? 1 : w.anzahl);
+      if (w.modus === "unisono") return aktiv.forEach((s) => setze(s, t, n, vel, dauer));
+      if (w.modus === "mono") {
+        const s = aktiv[0], legato = s.note !== null && Number.isFinite(dauer) === false;
+        gehalten = gehalten.filter((x) => x !== n).concat(n);
+        return setze(s, t, n, vel, dauer, !legato);
+      }
+      const s = aktiv.find((x) => x.note === n) ?? [...aktiv].filter((x) => x.note === null).sort((a, b) => a.frei - b.frei)[0] ?? [...aktiv].sort((a, b) => a.seit - b.seit)[0];
+      setze(s, t, n, vel, dauer);
+    };
     an.aus = (t, n) => {
+      if (w.modus === "mono") {
+        gehalten = gehalten.filter((x) => x !== n);
+        const s = stimmen[0];
+        if (s.note !== n) return;
+        if (gehalten.length) return setze(s, t, gehalten.at(-1), 0.8, Infinity, false); // zurück zur gehaltenen Note
+        s.takt.loslassen(t);
+        s.note = null;
+        s.frei = t;
+        return;
+      }
       for (const s of stimmen) if (s.note === n) {
         s.takt.loslassen(t);
         s.note = null;
         s.frei = t;
       }
     };
-    an.alleAus = (t) => stimmen.forEach((s) => s.note !== null && an.aus(t, s.note));
+    an.alleAus = (t) => {
+      gehalten = [];
+      stimmen.forEach((s) => s.note !== null && an.aus(t, s.note));
+    };
     const aus = {};
     stimmen.forEach((s, i) => {
       aus[`Ton ${i + 1}`] = { art: "ton", knoten: s.ton, info: `Tonhöhe der Stimme ${i + 1}: 1,0 pro Oktave, 0 = C4` };
@@ -877,7 +907,8 @@ const verteiler = {
     return {
       ein: { Noten: { art: "noten", ziel: an } },
       aus,
-      regler: [],
+      regler: [{ name: "anzahl", text: "Stimmen", min: 1, max: 4, wert: 4, schritt: 1, setze: (v) => (w.anzahl = Math.round(v)) }],
+      wahl: [{ name: "modus", text: "Modus", optionen: [["poly", "poly"], ["mono", "mono (legato)"], ["unisono", "unisono"]], wert: "poly", setze: (v) => { w.modus = v; an.alleAus(ctx.currentTime); } }],
       weg: () => stimmen.forEach((s) => (s.ton.stop(), s.anschlag.stop())),
     };
   },
