@@ -949,3 +949,37 @@ canvas.malbar {
   color: var(--text);
   border: 1px solid currentColor;
 }
+
+/* Arrangement unter der Wand (Runde 29) */
+.arrangement-feld {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  border: 1px solid currentColor;
+}
+
+.arrangement-scroll {
+  overflow-x: auto;
+}
+
+.arrangement-feld canvas.rolle:not(.arrangement) {
+  max-width: 60rem;
+}
+
+.fenster.modul.nur-arr .clip-raster,
+.fenster.modul.nur-arr .ablauf-zeile,
+.fenster.modul.nur-arr .ablauf-streifen {
+  display: none;
+}
+
+.arrangement-feld button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Video (Runde 33) */
+.video-schirm {
+  display: block;
+  width: 100%;
+  border: 1px solid currentColor;
+  background: #000;
+}

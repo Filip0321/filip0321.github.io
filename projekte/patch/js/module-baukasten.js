@@ -264,7 +264,12 @@ const pling = {
     tonhoehe.connect(k);
     const setze = (n) => (v) => p(n).setValueAtTime(v, ctx.currentTime);
     return {
-      ein: { Takt: { art: "takt", ziel: (t, d, anschlag) => k.port.postMessage({ zeit: t, anschlag }) }, "Tonhöhe": { art: "ton", ziel: tonhoehe } },
+      ein: {
+        Takt: { art: "takt", ziel: (t, d, anschlag) => k.port.postMessage({ zeit: t, anschlag }) },
+        "Tonhöhe": { art: "ton", ziel: tonhoehe },
+        // Runde 29: Noten direkt (jede Note ein Anschlag auf ihrer Höhe, die Frequenz gilt für C4): Akkorde gehen
+        Noten: { art: "noten", ziel: Object.assign((t, n, vel = 0.8) => k.port.postMessage({ zeit: t, anschlag: vel, ton: n }), { aus: () => {}, alleAus: () => {} }) },
+      },
       aus: { aus: { art: "ton", knoten: k } },
       regler: [
         { name: "frequenz", text: "Frequenz", ...log(30, 12000), wert: 1000, einheit: "Hz", setze: setze("frequenz") },

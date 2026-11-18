@@ -533,6 +533,13 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
       for (const g of gruppen.values()) if (g.offen) setzeRahmen(g);
     },
     gezogen() {},
+    // Runde 27: die Gruppe eines Moduls aufklappen (Arrangement: Klick auf einen Spurnamen) und ihren Titel geben
+    oeffneVon(m) {
+      const g = gruppeVon(m);
+      if (g && !g.offen) klappe(g, true);
+      return g;
+    },
+    titelVon: (m) => gruppeVon(m)?.titel ?? null,
     vergiss(m) {
       const g = gruppeVon(m);
       if (!g) return;

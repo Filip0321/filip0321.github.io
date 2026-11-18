@@ -883,4 +883,26 @@ const verteiler = {
   },
 };
 
-export const NOTEN_MODULE = { tastatur, pianoroll, akkorde, stimmen, notenZuTon, verteiler };
+// ---------- Transponieren (Runde 29) ----------
+// Reicht Noten weiter, um so viele Halbtöne verschoben (0 = unverändert: dann ist es ein Verteiler, der einen
+// Notenstrom an viele Eingänge gibt, z. B. in der Gruppe „Schlegel“). Anschlag × Faktor.
+const transponieren = {
+  titel: "Transponieren",
+  gruppe: "Noten",
+  baue() {
+    const noten = new Noten(), w = { halbtoene: 0, anschlag: 1 };
+    const an = (t, n, vel = 0.8, d = Infinity) => noten.an(t, n + w.halbtoene, Math.min(1, vel * w.anschlag), d);
+    an.aus = (t, n) => noten.aus(t, n + w.halbtoene);
+    an.alleAus = (t) => noten.alleAus(t);
+    return {
+      ein: { Noten: { art: "noten", ziel: an } },
+      aus: { Noten: { art: "noten", knoten: noten } },
+      regler: [
+        { name: "halbtoene", text: "Halbtöne", min: -24, max: 24, wert: 0, schritt: 1, setze: (v) => (w.halbtoene = Math.round(v)) },
+        { name: "anschlag", text: "Anschlag ×", min: 0, max: 2, wert: 1, setze: (v) => (w.anschlag = v) },
+      ],
+    };
+  },
+};
+
+export const NOTEN_MODULE = { tastatur, pianoroll, akkorde, stimmen, notenZuTon, verteiler, transponieren };

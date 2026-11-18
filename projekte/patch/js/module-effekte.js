@@ -139,7 +139,10 @@ const hall = {
   baue(ctx) {
     const m = mischer(ctx);
     const vor = ctx.createDelay(0.2), faltung = ctx.createConvolver();
-    m.ein.connect(vor).connect(faltung).connect(m.nass);
+    // Runde 28 (wie Abletons Reverb): Low Cut und High Cut nur auf dem Hall. Tiefe Frequenzen im Hall machen den
+    // Bass matschig, sehr hohe klingen nach Metall; echte Räume schlucken die Höhen an den Wänden.
+    const tiefCut = filter(ctx, "highpass", 120, 0.7), hochCut = filter(ctx, "lowpass", 9000, 0.7);
+    m.ein.connect(vor).connect(tiefCut).connect(hochCut).connect(faltung).connect(m.nass);
     const w = { zeit: 2.5, daempfung: 0.6 };
     let uhr = 0;
     const neu = () => {
@@ -154,6 +157,8 @@ const hall = {
         { name: "zeit", text: "Nachhall", ...log(0.2, 12), wert: 2.5, einheit: "s", setze: (v) => { w.zeit = v; neu(); } },
         { name: "daempfung", text: "Dämpfung", min: 0, max: 0.99, wert: 0.6, setze: (v) => { w.daempfung = v; neu(); } },
         { name: "vor", text: "Vorverz.", ...log(0.001, 0.2), wert: 0.02, einheit: "s", setze: (v) => vor.delayTime.setTargetAtTime(v, ctx.currentTime, 0.02) },
+        { name: "tiefcut", text: "Low Cut", ...log(20, 1000), wert: 120, einheit: "Hz", setze: (v) => tiefCut.frequency.setTargetAtTime(v, ctx.currentTime, 0.02) },
+        { name: "hochcut", text: "High Cut", ...log(1000, 20000), wert: 9000, einheit: "Hz", setze: (v) => hochCut.frequency.setTargetAtTime(v, ctx.currentTime, 0.02) },
         mixRegler(m, 0.35),
       ],
     };
@@ -348,4 +353,74 @@ const eq = {
   },
 };
 
-export const EFFEKTE = { verzerrung, bitcrusher, band, hall, chorus, kompressor, limiter, eq, mehrband, panorama };
+// ---------- Runde 28: Vinyl (wie Ableton „Vinyl Distortion“) ----------
+// Was eine Schallplatte mit dem Klang macht:
+//   Abtastverzerrung  Die Nadel ist rund, die Rille hat Ecken: sie folgt engen Kurven nicht ganz. Das verbiegt die Welle
+//                     unsymmetrisch, x + a·x² (gerade Obertöne, vor allem die Oktave: „warm“, nicht „kratzig“)
+//   Wärme             Tiefpass: hohe Frequenzen sind in der Rille winzig und gehen zuerst verloren
+//   Leiern            Ein Teller, der nicht ganz rund läuft, und ein Loch, das nicht ganz mittig sitzt: die Tonhöhe
+//                     schwankt einmal je Umdrehung (33⅓ U/min = 0,56 Hz). Gebaut als Verzögerung, deren Länge ein
+//                     LFO bewegt (eine bewegte Verzögerung verschiebt die Tonhöhe: Doppler)
+//   Knistern          Staub und Kratzer: einzelne kurze Klicks zu zufälligen Zeiten (Poisson), hier eine 6-s-Schleife
+//                     aus Klicks, Dichte = Klicks je Sekunde
+const vinyl = {
+  titel: "Vinyl",
+  gruppe: "Bearbeiten",
+  baue(ctx) {
+    const ein = verstaerker(ctx, 1), form = ctx.createWaveShaper(), lp = filter(ctx, "lowpass", 9000, 0.5);
+    const vz = ctx.createDelay(0.1), lfo = ctx.createOscillator(), tiefe = verstaerker(ctx, 0.0008), aus = verstaerker(ctx, 1);
+    vz.delayTime.value = 0.02;
+    lfo.frequency.value = 0.556;
+    lfo.connect(tiefe).connect(vz.delayTime);
+    lfo.start();
+    ein.connect(form).connect(lp).connect(vz).connect(aus);
+    const w = { verzerrung: 0.3, dichte: 3 };
+    const kurve = () => {
+      const n = 2048, c = new Float32Array(n), a = w.verzerrung;
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1;
+        c[i] = (x + a * x * x - a * 0.5) / (1 + a); // Gleichanteil (a/2 im Mittel) abgezogen
+      }
+      form.curve = c;
+    };
+    kurve();
+    // Knistern: eine Schleife aus zufälligen Klicks, durch einen Hochpass (Klicks sind kurz und hell)
+    let quelle = null;
+    const kl = verstaerker(ctx, 0.3), hp = filter(ctx, "highpass", 1500, 0.7);
+    kl.connect(hp).connect(aus);
+    const knistern = () => {
+      quelle?.stop();
+      const sek = 6, puf = ctx.createBuffer(1, ctx.sampleRate * sek, ctx.sampleRate), d = puf.getChannelData(0);
+      let t = 0;
+      while (true) {
+        t += -Math.log(Math.random() || 1e-9) / Math.max(0.1, w.dichte);
+        if (t >= sek) break;
+        const i = Math.floor(t * ctx.sampleRate), laut = Math.random() ** 3; // meist leise, selten laut
+        for (let k = 0; k < 40 && i + k < d.length; k++) d[i + k] += laut * (Math.random() * 2 - 1) * Math.exp(-k / 6);
+      }
+      quelle = new AudioBufferSourceNode(ctx, { buffer: puf, loop: true });
+      quelle.connect(kl);
+      quelle.start();
+    };
+    knistern();
+    const setze = (g) => (v) => g.setTargetAtTime(v, ctx.currentTime, 0.02);
+    let warte = null;
+    return {
+      ein: { ein: { art: "ton", ziel: ein } },
+      aus: { aus: { art: "ton", knoten: aus } },
+      regler: [
+        { name: "verzerrung", text: "Abtastung", min: 0, max: 1, wert: 0.3, setze: (v) => { w.verzerrung = v; kurve(); } },
+        { name: "waerme", text: "Wärme", ...log(2000, 18000), wert: 9000, einheit: "Hz", setze: setze(lp.frequency) },
+        { name: "leiern", text: "Leiern", min: 0, max: 0.004, wert: 0.0008, einheit: "s", setze: setze(tiefe.gain) },
+        { name: "knistern", text: "Knistern", min: 0, max: 1, wert: 0.3, setze: setze(kl.gain) },
+        { name: "dichte", text: "Dichte", ...log(0.2, 40), wert: 3, einheit: "/s", setze: (v) => { w.dichte = v; clearTimeout(warte); warte = setTimeout(knistern, 200); } },
+      ],
+      weg: () => {
+        quelle?.stop();
+        lfo.stop();
+      },
+    };
+  },
+};
+
+export const EFFEKTE = { verzerrung, bitcrusher, band, hall, chorus, kompressor, limiter, eq, vinyl, mehrband, panorama };

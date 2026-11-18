@@ -50,7 +50,9 @@ export const SPUREN_VORLAGEN = {
     {
       id: "cl", typ: "clips", x: 470, y: 40,
       werte: {
-        modus: "frei", feld: "2", ablauf: "1 1 2 2", grundton: "9", leiter: "moll",
+        modus: "frei", feld: "2", ablauf: "1 1 2 2", grundton: "9", leiter: "moll", arrTakte: "16",
+        // Runde 29: auch ein Arrangement (Modus „Arrangement“): Szene 1 und 2 im Wechsel, die Hi-Hat setzt erst später ein
+        arr: { 0: [[0, 0, 4], [4, 1, 4], [8, 0, 4], [12, 1, 4]], 1: [[4, 1, 4], [12, 1, 4]], 2: [[0, 0, 4], [4, 1, 4], [8, 0, 4], [12, 1, 4]], 3: [[0, 0, 4], [4, 1, 4], [8, 0, 8]] },
         clips: {
           "0:0": { takte: 1, tiefste: 48, noten: takt([0, 4, 8, 12]) }, "0:1": { takte: 1, tiefste: 48, noten: takt([0, 4, 8, 12]) },
           "1:0": { takte: 1, tiefste: 48, noten: takt([2, 6, 10, 14]) }, "1:1": { takte: 1, tiefste: 48, noten: takt([2, 6, 10, 14]) },
@@ -96,6 +98,37 @@ export const SPUREN_VORLAGEN = {
     { id: "ha", typ: "hall", x: 1300, y: 40, werte: { zeit: 3, mix: 0.3 } },
     { id: "aus", typ: "ausgang", x: 1300, y: 460, werte: { laut: 0.5 } },
   ], [["e1", "Takt", "ak", "Takt"], ["ak", "Noten", "sy.vt", "Noten"], ["sy.end", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]], 70),
+  // Runde 34: Vorlagen, die je eine Klang-Familie zeigen (Preset an der Gruppe wechseln, ± hineinsehen)
+  glitzer: ausKlaengen("Glitzer: Funken, Sternenstaub, Kristall nebeneinander (viele kurze hohe Töne, zufällig in Zeit, Höhe und Raum)", [
+    ["f", "glitzer", 460, 40, "Funken"], ["s", "glitzer", 860, 40, "Sternenstaub"], ["k", "glitzer", 1260, 40, "Kristall"],
+  ], [
+    { id: "no", typ: "notiz", x: 40, y: 40, werte: { text: "Drei Glitzer-Gruppen. Am Mischer einzeln lauter oder leiser drehen, um sie zu hören. In jeder Gruppe: Zufallsgeber (wie oft), Zufall Stufen (welche Höhe), Pling (der Ton), Echo. Die Dichte-Buchse der Gruppe: mit einem LFO wird der Funkenregen dichter und dünner." } },
+    { id: "mi", typ: "mischer", x: 1660, y: 40, werte: { k1: 0.7, k2: 0.6, k3: 0.6 } },
+    { id: "ha", typ: "hall", x: 1660, y: 440, werte: { zeit: 4, mix: 0.35 } },
+    { id: "aus", typ: "ausgang", x: 2060, y: 40, werte: { laut: 0.5 } },
+  ], [["f.end", "aus", "mi", "1"], ["s.end", "aus", "mi", "2"], ["k.end", "aus", "mi", "3"], ["mi", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]]),
+  schlegel: ausKlaengen("Schlegel: eine ABC-Melodie mit Akkorden auf Marimba (Preset wechseln: Vibraphon, Xylophon, Kalimba, freier Stab)", [["sl", "schlegel", 860, 40, "Marimba"]], [
+    { id: "ab", typ: "abc", x: 40, y: 40, werte: { abc: "L:1/8\nK:C\n|: [CEG]2 E G c2 G E | [A,CE]2 C E A2 E C | [F,A,C]2 A, C F2 C A, | [G,B,D]2 B, D G2 (3DEF :|" } },
+    { id: "ha", typ: "hall", x: 1260, y: 40, werte: { zeit: 2, mix: 0.25 } },
+    { id: "aus", typ: "ausgang", x: 1660, y: 40, werte: { laut: 0.5 } },
+  ], [["ab", "Noten", "sl.nd", "Noten"], ["sl.end", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]], 96),
+  drift: ausKlaengen("Drift: Akkorde auf einem analogen Synth, dessen Stimmen leicht wandern (Preset: Fläche, Bass, Keys, Lead)", [["dr", "drift", 860, 40, "Fläche"]], [
+    { id: "e1", typ: "euklid", x: 40, y: 40, werte: { n: 4, k: 4, tempo: 80, teilung: "4" } },
+    { id: "ak", typ: "akkorde", x: 40, y: 400, werte: { grundton: "2", leiter: "dorisch", art: "sept", lage: "fuehrung", schlaege: "8", spielweise: "zusammen", laenge: 1, anschlag: 0.6, folge: "1,4,1,5,0,0,0,0" } },
+    { id: "ha", typ: "hall", x: 1260, y: 40, werte: { zeit: 3, mix: 0.3 } },
+    { id: "aus", typ: "ausgang", x: 1660, y: 40, werte: { laut: 0.5 } },
+  ], [["e1", "Takt", "ak", "Takt"], ["ak", "Noten", "dr.vt", "Noten"], ["dr.end", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]], 80),
+  meld: ausKlaengen("Meld: FM-Glocken (zwei Quellen je Stimme, B moduliert A), dazu Echo und Hall", [["me", "meld", 860, 40, "FM-Glocke"]], [
+    { id: "ab", typ: "abc", x: 40, y: 40, werte: { abc: "L:1/8\nK:Em\n|: e4 B2 G2 | A4 E2 z2 | [GB]4 D2 E2 | [E,B,E]6 z2 :|" } },
+    { id: "ec", typ: "echo", x: 1260, y: 40, werte: { zeit: 0.42, rueck: 0.45, nass: 0.35 } },
+    { id: "ha", typ: "hall", x: 1260, y: 440, werte: { zeit: 4, mix: 0.3 } },
+    { id: "aus", typ: "ausgang", x: 1660, y: 40, werte: { laut: 0.5 } },
+  ], [["ab", "Noten", "me.vt", "Noten"], ["me.end", "aus", "ec", "ein"], ["ec", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]], 72),
+  wobble: ausKlaengen("Wobble: ein Bass, dessen Filter ein schneller LFO öffnet und schließt (Ausgänge an Knöpfen)", [["wb", "wavetable", 860, 40, "Wobble"]], [
+    { id: "ab", typ: "abc", x: 40, y: 40, werte: { abc: "L:1/4\nK:Dm\n|: D,,2 D,,2 | F,,2 A,,,2 :|" } },
+    { id: "li", typ: "limiter", x: 1260, y: 40, werte: { gain: 3, decke: -1 } },
+    { id: "aus", typ: "ausgang", x: 1660, y: 40, werte: { laut: 0.5 } },
+  ], [["ab", "Noten", "wb.vt", "Noten"], ["wb.end", "aus", "li", "ein"], ["li", "aus", "aus", "ein"]], 140),
   trommelkit: ausKlaengen("Trommeln aus Teilen: vier Trommel-Gruppen (Kick, Snare, Hi-Hat, Cowbell) an einem Euklid-Rhythmus", [
     ["k", "trommel", 860, 40, "Kick 909"], ["s", "trommel", 1260, 40, "Snare"], ["h", "trommel", 860, 420, "Hi-Hat zu"], ["c", "trommel", 1260, 420, "Cowbell"],
   ], [

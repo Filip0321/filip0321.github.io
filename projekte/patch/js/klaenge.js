@@ -437,7 +437,7 @@ const st = [1, 2, 3, 4].map(stimme);
 const jede = (f) => Object.assign({}, ...[1, 2, 3, 4].map((i) => f(i)));
 const tasten = (o1, o2, x, fm, h) => jede((i) => ({ [`o1${i}`]: { ...o1, fmTiefe: fm }, [`o2${i}`]: o2, [`x${i}`]: { pegel: x }, [`h${i}`]: h }));
 const TASTEN = k("Tasten", "Tasten (vierstimmig über den Verteiler): E-Piano (FM), Orgel, Harmonium, Akkordeon, Cembalo", [
-  m("vt", "verteiler"), ...st.flatMap((s) => s.module), m("lp", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.25 }),
+  m("vt", "verteiler"), ...st.flatMap((s) => s.module), m("lp", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.18 }),
 ], [...st.flatMap((s) => s.kabel), ["lp", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
 ["end", ["vt", "Noten", "ein", "noten"]], [["lp", "grenze"], ["ch", "mix"]], {
   "E-Piano": { werte: { ...tasten({ frequenz: 261.63, form: "sine" }, { frequenz: 261.63, form: "sine" }, 0, 600, { a: 0.002, d: 1.5, s: 0.2, r: 0.4 }), lp: { typ: "lowpass", grenze: 5000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.4 } } },
@@ -473,6 +473,10 @@ const WAVETABLE = k("Wavetable-Synth", "Wavetable-Synth (vierstimmig): Fläche, 
     fi: { typ: "lowpass", grenze: 700, resonanz: 4, mod: 1 }, ch: { mix: 0 } } },
   Pluck: { werte: { end: { pegel: 1 }, ...wtJede({ frequenz: 261.63, position: 0.6, verstimmen: 5, stimmen: 2 }, { a: 0.002, d: 0.35, s: 0, r: 0.3 }), lp: { tempo: 0.3, tiefe: 0.1 }, lf: { tempo: 0.2, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 3000, resonanz: 2, mod: 1 }, ch: { mix: 0.3 } } },
+  // Wobble: ein schneller LFO (4 Hz) an der Filtergrenze und ein zweiter an der Position: der Bass „spricht“ (Dubstep).
+  // Ausgänge an Knöpfen: hier hängen beide LFOs an Eingängen, die Knöpfe bewegen (Grenze, Position)
+  Wobble: { werte: { end: { pegel: 0.6 }, ...wtJede({ frequenz: 261.63, position: 0.35, verstimmen: 12, stimmen: 3 }, { a: 0.005, d: 0.3, s: 0.9, r: 0.15 }), lp: { tempo: 2, tiefe: 0.3 }, lf: { tempo: 4, tiefe: 1 },
+    fi: { typ: "lowpass", grenze: 500, resonanz: 6, mod: 2.5 }, ch: { mix: 0 } } },
   // Supersaw: sieben Sägezähne, ±30 Cent (die Trance-Fläche der späten 90er)
   Supersaw: { werte: { end: { pegel: 0.45 }, ...wtJede({ frequenz: 261.63, position: 0.2857, verstimmen: 30, stimmen: 7 }, { a: 0.02, d: 0.5, s: 0.85, r: 0.6 }), lp: { tempo: 0.1, tiefe: 0 }, lf: { tempo: 0.15, tiefe: 0.15 },
     fi: { typ: "lowpass", grenze: 6000, resonanz: 0.8, mod: 1 }, ch: { mix: 0.4 } } },
@@ -482,9 +486,104 @@ const WAVETABLE = k("Wavetable-Synth", "Wavetable-Synth (vierstimmig): Fläche, 
     fi: { typ: "lowpass", grenze: 3500, resonanz: 0.7, mod: 1 }, ch: { mix: 0.4 } } },
 });
 
+// Glitzer (Runde 27): Funken, Sternenstaub, Kristall. Viele kurze, hohe Sinustöne (Pling) zu zufälligen Zeiten, jeder
+// auf zufälliger Höhe (Zufall „Stufen“ springt bei jedem Takt) und an zufälligem Ort im Stereobild (Breite 1). Ein
+// Echo verteilt sie weiter. Warum das glitzert: das Ohr hört viele kurze, unregelmäßige, hohe Ereignisse wie Licht,
+// das an Kanten aufblitzt; ein „Steigen“ lässt jeden Funken kurz nach oben zischen.
+const GLITZER = k("Glitzer", "Glitzer: Funken, Sternenstaub, Kristall (viele kurze hohe Töne, zufällig in Zeit, Höhe und Raum)", [
+  m("zg", "zufallsgeber", { regel: 0, dauer: 0.01 }), m("tz", "zufall", { art: "stufen", zeit: 300 }), m("pl", "pling", { wasser: "0", breite: 1 }),
+  m("ec", "echo"), m("end", "verstaerker", { pegel: 0.8 }),
+], [["zg", "Takt", "tz", "Takt"], ["zg", "Takt", "pl", "Takt"], ["tz", "aus", "pl", "Tonhöhe"], ["pl", "aus", "ec", "ein"], ["ec", "aus", "end", "ein"]],
+["end", ["zg", "Dichte", "ein", "ton"]], [["zg", "rate"], ["pl", "frequenz"], ["pl", "abklingen"], ["ec", "nass"]], {
+  Funken: { werte: { zg: { rate: 900 }, tz: { staerke: 1.2, mitte: 0.4 }, pl: { frequenz: 3500, abklingen: 0.03, steigen: 0.6, laut: 0.25 }, ec: { zeit: 0.19, rueck: 0.35, nass: 0.35 } } },
+  Sternenstaub: { werte: { zg: { rate: 260 }, tz: { staerke: 1, mitte: 0.5 }, pl: { frequenz: 2600, abklingen: 0.35, steigen: 0, laut: 0.18 }, ec: { zeit: 0.42, rueck: 0.6, nass: 0.5 } } },
+  Kristall: { werte: { zg: { rate: 80 }, tz: { staerke: 0.8, mitte: 0.6 }, pl: { frequenz: 1800, abklingen: 1.2, steigen: 0, laut: 0.2 }, ec: { zeit: 0.6, rueck: 0.5, nass: 0.45 } } },
+});
+
+// Schlegel (Runde 28, wie Abletons „Collision“): angeschlagene Körper, gespielt mit Noten. Modalsynthese wie die Glocke:
+// jeder Körper schwingt in ein paar Eigenschwingungen (Moden), jede ein abklingender Sinus (Pling). Was den Klang
+// macht, sind ihre Verhältnisse. Ein frei schwingender Stab hat Moden bei 1 : 2,76 : 5,40 (krumm, metallisch). Beim
+// Marimba-Stab wird die Unterseite ausgehöhlt, bis daraus 1 : 4 : 10 wird (zwei Oktaven, dann noch gut drei weiter):
+// darum klingt sie rund und „gestimmt“. Xylophon: 1 : 3 : 6 (die Duodezime, hell und hart). Vibraphon: wie Marimba,
+// aus Metall, länger, dazu ein Tremolo (ein LFO an der Lautstärke, wie die drehenden Scheiben in den Röhren).
+// Kalimba: Metallzungen, fast nur Grundton, ein leiser krummer Oberton.
+const schlegel = (verh, zeiten, laut) => Object.fromEntries(verh.map((v, i) => [`p${i + 1}`, { frequenz: 261.63 * v, abklingen: zeiten[i], laut: laut[i], breite: 0.3, steigen: 0, wasser: "0" }]));
+// Runde 29: mehrstimmig. Die Noten gehen direkt in die Pling (jede Note ein Anschlag auf ihrer Höhe), nicht mehr über
+// „Noten → Ton“ (das kennt nur EINE Tonhöhe, ein Akkord wurde zu einer Note). Vorn reicht „Transponieren“ (0 Halbtöne)
+// die Noten an alle drei Pling weiter: eine Gruppe hat nur einen Eingang „Noten“ nach außen.
+const SCHLEGEL = k("Schlegel", "Schlegel (wie Collision): Marimba, Vibraphon, Xylophon, Kalimba, freier Stab (Modalsynthese, mehrstimmig, Noten am Eingang)", [
+  m("nd", "transponieren"), m("p1", "pling"), m("p2", "pling"), m("p3", "pling"), m("tr", "lfo", { form: "sine" }), m("vc", "verstaerker"), m("end", "verstaerker", { pegel: 0.65 }),
+], [
+  ["nd", "Noten", "p1", "Noten"], ["nd", "Noten", "p2", "Noten"], ["nd", "Noten", "p3", "Noten"],
+  ["p1", "aus", "vc", "ein"], ["p2", "aus", "vc", "ein"], ["p3", "aus", "vc", "ein"], ["tr", "aus", "vc", "Steuerung"], ["vc", "aus", "end", "ein"]],
+["end", ["nd", "Noten", "ein", "noten"]], [["p1", "abklingen"], ["p2", "laut"], ["nd", "halbtoene"]], {
+  Marimba: { werte: { ...schlegel([1, 4, 10], [0.6, 0.12, 0.04], [0.5, 0.15, 0.06]), vc: { pegel: 1 }, tr: { tempo: 5, tiefe: 0 } } },
+  Vibraphon: { werte: { ...schlegel([1, 4, 10], [2.5, 0.6, 0.2], [0.45, 0.12, 0.05]), vc: { pegel: 0.7 }, tr: { tempo: 5.5, tiefe: 0.3 } } },
+  Xylophon: { werte: { ...schlegel([1, 3, 6], [0.25, 0.08, 0.03], [0.45, 0.2, 0.08]), vc: { pegel: 1 }, tr: { tempo: 5, tiefe: 0 } } },
+  Kalimba: { werte: { ...schlegel([1, 5.9, 12.1], [0.9, 0.08, 0.02], [0.55, 0.06, 0.03]), vc: { pegel: 1 }, tr: { tempo: 5, tiefe: 0 } } },
+  "freier Stab": { werte: { ...schlegel([1, 2.76, 5.4], [1.5, 0.8, 0.4], [0.4, 0.25, 0.15]), vc: { pegel: 1 }, tr: { tempo: 5, tiefe: 0 } } },
+});
+
+// Drift (Runde 29, wie Abletons „Drift“): ein einfacher analoger Synth, vierstimmig. Was ihn „analog“ macht: keine
+// zwei Stimmen sind gleich. Bei echten Analog-Synths wandern die Oszillatoren mit der Temperatur ein paar Cent hin
+// und her; hier bekommt jede Stimme einen eigenen Zufall (Spaziergang, sehr klein) an die Tonhöhe. Ein Akkord
+// schwebt dadurch leicht, wie bei einem Juno oder Prophet. Dazu Filter mit Hüllkurve-artigem LFO, Chorus.
+function driftStimme(i) {
+  return {
+    module: [m(`o${i}`, "oszillator"), m(`d${i}`, "zufall", { art: "spaziergang", mitte: 0 }), m(`h${i}`, "huellkurve"), m(`v${i}`, "verstaerker", { pegel: 0 })],
+    kabel: [["vt", `Ton ${i}`, `o${i}`, "Tonhöhe"], [`d${i}`, "aus", `o${i}`, "Tonhöhe"], ["vt", `Takt ${i}`, `h${i}`, "Auslöser"],
+      [`o${i}`, "aus", `v${i}`, "ein"], [`h${i}`, "aus", `v${i}`, "Steuerung"], [`v${i}`, "aus", "fi", "ein"]],
+  };
+}
+const dst = [1, 2, 3, 4].map(driftStimme);
+const driftJede = (o, d, h) => Object.assign({}, ...[1, 2, 3, 4].map((i) => ({ [`o${i}`]: o, [`d${i}`]: { ...d, zeit: d.zeit * (0.8 + 0.1 * i) }, [`h${i}`]: h })));
+const DRIFT = k("Drift", "Drift (wie Abletons Drift): analoger Synth, vierstimmig, jede Stimme wandert ein wenig: Fläche, Bass, Keys, Lead", [
+  m("vt", "verteiler"), ...dst.flatMap((x) => x.module), m("lf", "lfo", { form: "sine" }), m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.3 }),
+], [...dst.flatMap((x) => x.kabel), ["lf", "aus", "fi", "Grenze"], ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
+["end", ["vt", "Noten", "ein", "noten"]], [["fi", "grenze"], ["fi", "resonanz"], ["d1", "staerke"], ["lf", "tiefe"]], {
+  "Fläche": { werte: { end: { pegel: 0.3 }, ...driftJede({ frequenz: 261.63, form: "sawtooth", fmTiefe: 1 }, { zeit: 3, staerke: 0.006 }, { a: 0.8, d: 1, s: 0.8, r: 1.5 }), lf: { tempo: 0.2, tiefe: 0.4 },
+    fi: { typ: "lowpass", grenze: 1400, resonanz: 1.5, mod: 1.5 }, ch: { mix: 0.5 } } },
+  Bass: { werte: { end: { pegel: 0.2 }, ...driftJede({ frequenz: 261.63, form: "square", fmTiefe: 1 }, { zeit: 2, staerke: 0.003 }, { a: 0.003, d: 0.3, s: 0.6, r: 0.1 }), lf: { tempo: 0.1, tiefe: 0 },
+    fi: { typ: "lowpass", grenze: 600, resonanz: 3, mod: 1 }, ch: { mix: 0 } } },
+  Keys: { werte: { end: { pegel: 0.3 }, ...driftJede({ frequenz: 261.63, form: "triangle", fmTiefe: 1 }, { zeit: 2, staerke: 0.004 }, { a: 0.005, d: 0.8, s: 0.3, r: 0.4 }), lf: { tempo: 4, tiefe: 0.05 },
+    fi: { typ: "lowpass", grenze: 3000, resonanz: 1, mod: 1 }, ch: { mix: 0.35 } } },
+  Lead: { werte: { end: { pegel: 0.22 }, ...driftJede({ frequenz: 261.63, form: "sawtooth", fmTiefe: 1 }, { zeit: 1, staerke: 0.004 }, { a: 0.01, d: 0.4, s: 0.7, r: 0.2 }), lf: { tempo: 5.5, tiefe: 0.1 },
+    fi: { typ: "lowpass", grenze: 2500, resonanz: 4, mod: 1 }, ch: { mix: 0.2 } } },
+});
+
+// Meld (Runde 30, wie Abletons „Meld“): zwei Klangquellen je Stimme, die sich gegenseitig beeinflussen. Quelle A ist
+// ein Oszillator, Quelle B ein Wavetable. B moduliert A in der Frequenz (FM, über den Verstärker f, dessen Menge die
+// Hüllkurve mitnimmt: beim Anschlag viel FM = hell, metallisch, dann weniger), und B kann außerdem selbst mitklingen
+// (Verstärker x). Steht B auf einem krummen Verhältnis zu A (3,5 oder √2), entstehen unharmonische Obertöne: Glocke,
+// Metall. Ein LFO schiebt die Position von B durch die Tabelle: der Klang verändert sich, während er klingt.
+function meldStimme(i) {
+  return {
+    module: [m(`a${i}`, "oszillator"), m(`b${i}`, "wavetable"), m(`f${i}`, "verstaerker", { pegel: 0 }), m(`x${i}`, "verstaerker"), m(`h${i}`, "huellkurve"), m(`v${i}`, "verstaerker", { pegel: 0 })],
+    kabel: [["vt", `Ton ${i}`, `a${i}`, "Tonhöhe"], ["vt", `Ton ${i}`, `b${i}`, "Tonhöhe"], ["vt", `Takt ${i}`, `h${i}`, "Auslöser"], ["lp", "aus", `b${i}`, "Position"],
+      [`b${i}`, "aus", `f${i}`, "ein"], [`h${i}`, "aus", `f${i}`, "Steuerung"], [`f${i}`, "aus", `a${i}`, "FM"],
+      [`a${i}`, "aus", `v${i}`, "ein"], [`b${i}`, "aus", `x${i}`, "ein"], [`x${i}`, "aus", `v${i}`, "ein"], [`h${i}`, "aus", `v${i}`, "Steuerung"], [`v${i}`, "aus", "fi", "ein"]],
+  };
+}
+const mst = [1, 2, 3, 4].map(meldStimme);
+const meldJede = (a, b, fm, mix, h) => Object.assign({}, ...[1, 2, 3, 4].map((i) => ({ [`a${i}`]: { frequenz: 261.63, ...a, fmTiefe: fm }, [`b${i}`]: { stimmen: 1, verstimmen: 0, pegel: 0.5, ...b }, [`x${i}`]: { pegel: mix }, [`h${i}`]: h })));
+const MELD = k("Meld", "Meld (wie Abletons Meld): zwei Quellen je Stimme, B moduliert A (FM) und klingt mit: Glocke, Metall, Wachsen, FM-Pluck", [
+  m("vt", "verteiler"), ...mst.flatMap((x) => x.module), m("lp", "lfo", { form: "triangle" }), m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.25 }),
+], [...mst.flatMap((x) => x.kabel), ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
+["end", ["vt", "Noten", "ein", "noten"]], [["a1", "fmTiefe"], ["x1", "pegel"], ["lp", "tiefe"], ["fi", "grenze"]], {
+  // Glocke: B eine Sinuswelle auf 3,5-facher Frequenz, starke FM beim Anschlag (John Chowning, 1973: FM-Glocken)
+  "FM-Glocke": { werte: { ...meldJede({ form: "sine" }, { frequenz: 261.63 * 3.5, position: 0, pegel: 1 }, 2000, 0, { a: 0.002, d: 2.5, s: 0, r: 1.5 }), lp: { tempo: 0.1, tiefe: 0 },
+    fi: { typ: "lowpass", grenze: 9000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.2 } } },
+  Metall: { werte: { ...meldJede({ form: "sine" }, { frequenz: 261.63 * 1.414, position: 1, pegel: 1 }, 1500, 0.2, { a: 0.005, d: 1.2, s: 0.2, r: 0.8 }), lp: { tempo: 0.3, tiefe: 0.1 },
+    fi: { typ: "lowpass", grenze: 7000, resonanz: 1, mod: 0 }, ch: { mix: 0.3 } } },
+  Wachsen: { werte: { ...meldJede({ form: "triangle" }, { frequenz: 261.63 * 2, position: 0.75 }, 150, 0.6, { a: 1.5, d: 1, s: 0.8, r: 2 }), lp: { tempo: 0.08, tiefe: 0.3 },
+    fi: { typ: "lowpass", grenze: 3000, resonanz: 1, mod: 0 }, ch: { mix: 0.5 } } },
+  "FM-Pluck": { werte: { ...meldJede({ form: "sine" }, { frequenz: 261.63 * 2, position: 0, pegel: 1 }, 2000, 0, { a: 0.001, d: 0.3, s: 0, r: 0.2 }), lp: { tempo: 0.2, tiefe: 0 },
+    fi: { typ: "lowpass", grenze: 6000, resonanz: 0.7, mod: 0 }, ch: { mix: 0.1 } } },
+});
+
 export const KLAENGE = {
-  vogel: VOGEL, frosch: FROSCH, insekt: INSEKT, wasser: WASSER, wind: WIND, feuer: FEUER, donner: DONNER, glocke: GLOCKE,
-  blaeser: BLAESER, streicher: STREICHER, tasten: TASTEN, wavetable: WAVETABLE, trommel: TROMMEL,
+  glitzer: GLITZER, schlegel: SCHLEGEL, vogel: VOGEL, frosch: FROSCH, insekt: INSEKT, wasser: WASSER, wind: WIND, feuer: FEUER, donner: DONNER, glocke: GLOCKE,
+  blaeser: BLAESER, streicher: STREICHER, tasten: TASTEN, drift: DRIFT, meld: MELD, wavetable: WAVETABLE, trommel: TROMMEL,
 
   herz: k("Herzschlag", "Herzschlag: „lub-dub“ (Salve aus zwei Schlägen), ein tiefer Sinus, dessen Höhe beim Schlag fällt", [
     m("zg", "zufallsgeber", { rate: 62, regel: 0.95, dauer: 0.1 }), m("sv", "salve", { anzahl: 2, abstand: 0.28, dauer: 0.4 }),

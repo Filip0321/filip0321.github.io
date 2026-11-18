@@ -570,7 +570,8 @@ class Pling extends AudioWorkletProcessor {
         // höchstens 12 neue Töne je Block (2,7 ms): mehr sind auch bei starkem Regen nicht echt, sondern ein Stau
         if (++neuImBlock > 12) continue;
         if (this.toene.length >= 128) this.toene.shift(); // der älteste muss weichen
-        const f0 = Math.min(18000, p.frequenz[0] * 2 ** (cv ? cv[i] : 0));
+        // Runde 29: kommt die Bestellung als Note (b.ton, MIDI-Nummer), gilt sie statt des Kabels: mehrstimmig
+        const f0 = Math.min(18000, p.frequenz[0] * 2 ** (b.ton !== undefined ? (b.ton - 60) / 12 : cv ? cv[i] : 0));
         const tau = p.wasser[0] > 0.5 ? 1 / (0.043 * f0 + 0.0014 * f0 ** 1.5) : p.abklingen[0];
         const pan = 0.5 + (Math.random() - 0.5) * p.breite[0];
         this.toene.push({ phase: 0, f0, tau, t: 0, a: p.laut[0] * (b.anschlag ?? 1), steigen: p.steigen[0], links: Math.cos(pan * Math.PI / 2), rechts: Math.sin(pan * Math.PI / 2) });
@@ -829,3 +830,114 @@ class Wavetable extends AudioWorkletProcessor {
   }
 }
 registerProcessor("wavetable", Wavetable);
+
+// ---------- Runde 31: Strecken (Timestretch, granular) ----------
+// Tempo und Tonhöhe getrennt: die Datei wird in kurze, überlappende Körner geschnitten (z. B. 80 ms, mit einem
+// Hann-Fenster weich ein- und ausgeblendet). Jedes Korn spielt mit der Tonhöhe (Abspielrate), aber WO das nächste
+// Korn in der Datei beginnt, rückt mit dem Tempo vor. Langsamer: die Körner beginnen dichter hintereinander in der
+// Datei (manches wird doppelt gespielt); schneller: sie überspringen etwas. Die Tonhöhe bleibt, weil jedes Korn in
+// sich normal schnell läuft. So arbeiten Abletons Warp-Modi „Texture“ und „Complex“ im Kern (Granularsynthese,
+// Dennis Gabor 1946: Klang als Folge von „akustischen Quanten“). Nachteil: bei Schlägen (Trommeln) verschmiert es
+// die Anschläge leicht, weil sie in zwei überlappende Körner fallen.
+class Strecke extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "tempo", defaultValue: 1, minValue: 0.1, maxValue: 4, automationRate: "k-rate" },
+      { name: "tonhoehe", defaultValue: 0, minValue: -48, maxValue: 48, automationRate: "k-rate" },
+      { name: "korn", defaultValue: 0.08, minValue: 0.01, maxValue: 0.5, automationRate: "k-rate" },
+    ];
+  }
+  constructor() {
+    super();
+    this.d = null;
+    this.srA = sampleRate;
+    this.koerner = [];
+    this.lesen = 0;
+    this.bisNaechstes = 0;
+    this.spielt = false;
+    this.ton = 0;
+    this.bestellt = [];
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.puffer) {
+        this.d = m.puffer;
+        this.srA = m.sr;
+      } else if (m.schlaege) this.schlaege = m.schlaege;
+      else if (m.modus) this.modus = m.modus;
+      else this.bestellt.push(m);
+    };
+  }
+  process(_, [aus], p) {
+    const k = aus[0], n = k.length;
+    const tempo = p.tempo[0], korn = Math.max(64, Math.round(p.korn[0] * sampleRate)), hop = korn >> 1, quelle = this.srA / sampleRate;
+    for (let i = 0; i < n; i++) {
+      const jetzt = currentTime + i / sampleRate;
+      while (this.bestellt.length && this.bestellt[0].zeit <= jetzt) {
+        const b = this.bestellt.shift();
+        if (b.stopp) this.spielt = false;
+        else {
+          this.spielt = true;
+          this.lesen = 0;
+          this.bisNaechstes = 0;
+          this.ton = b.ton ?? 0;
+          this.virt = 0; // Runde 32: Position auf der gestreckten Zeitachse (Schläge-Modus)
+          this.seg = -1;
+        }
+      }
+      if (this.modus === "schlaege" && this.schlaege?.length) {
+        // Runde 32, wie Abletons Warp „Beats“: die Datei ist an ihren Anschlägen in Stücke geteilt. Jedes Stück spielt
+        // in normaler Geschwindigkeit, aber es BEGINNT dort, wo es auf der gestreckten Zeitachse hingehört. Langsamer:
+        // nach dem Stück eine kurze Pause (weich ausgeblendet); schneller: das Stück wird abgeschnitten. Anschläge
+        // bleiben so scharf, weil sie nie in einem Korn verschmiert werden.
+        let y = 0;
+        if (this.spielt && this.d) {
+          this.virt += tempo * quelle;
+          const S = this.schlaege;
+          let sg = this.seg;
+          while (sg + 1 < S.length && S[sg + 1] <= this.virt) sg++;
+          if (sg !== this.seg) {
+            this.seg = sg;
+            this.lesen = S[Math.max(0, sg)];
+            this.alter = 0;
+          }
+          const ende = S[sg + 1] ?? this.d.length, rate = 2 ** ((p.tonhoehe[0] + this.ton) / 12) * quelle;
+          if (this.lesen < ende - 1) {
+            const g = Math.floor(this.lesen), r = this.lesen - g;
+            const rand = Math.min(1, this.alter / 64, (ende - this.lesen) / 256); // 64 Samples ein, 256 aus: kein Knacken
+            y = (this.d[g] + (this.d[g + 1] - this.d[g]) * r) * rand;
+            this.lesen += rate;
+            this.alter++;
+          }
+          if (this.virt >= this.d.length) this.spielt = false;
+        }
+        k[i] = y;
+        continue;
+      }
+      if (this.spielt && this.d && --this.bisNaechstes <= 0) {
+        // ein neues Korn: beginnt dort, wo das Tempo gerade steht; spielt mit der Tonhöhe
+        this.koerner.push({ pos: this.lesen, alter: 0, rate: 2 ** ((p.tonhoehe[0] + this.ton) / 12) * quelle });
+        this.lesen += hop * tempo * quelle;
+        this.bisNaechstes = hop;
+        if (this.lesen >= this.d.length) this.spielt = false;
+      }
+      let y = 0;
+      for (let j = this.koerner.length - 1; j >= 0; j--) {
+        const c = this.koerner[j];
+        if (c.alter >= korn) {
+          this.koerner.splice(j, 1);
+          continue;
+        }
+        const x = c.pos + c.alter * c.rate, g = Math.floor(x);
+        if (this.d && g + 1 < this.d.length) {
+          const s = this.d[g] + (this.d[g + 1] - this.d[g]) * (x - g);
+          y += s * 0.5 * (1 - Math.cos((2 * Math.PI * c.alter) / korn)); // Hann-Fenster: zwei überlappende ergeben 1
+        }
+        c.alter++;
+      }
+      k[i] = y;
+    }
+    for (let c = 1; c < aus.length; c++) aus[c].set(k);
+    return true;
+  }
+}
+registerProcessor("strecke", Strecke);
