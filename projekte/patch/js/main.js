@@ -18,12 +18,17 @@ import { VORLAGEN } from "./vorlagen.js";
 import { ladeHerunter, zeitstempel } from "/lib/export.js";
 import { erstelleAnsicht } from "./ansicht.js";
 import { erstelleGruppen } from "./gruppen.js";
+import { erstelleRueckgaengig } from "./rueckgaengig.js";
+import { KLAENGE, PRESET_SUCHE } from "./klaenge.js";
+import { leser } from "./bausteine.js";
+import { moduliere } from "./fenster.js";
 
 const hole = (id) => document.getElementById(id);
 const wand = hole("wand");
 const svg = hole("kabel");
 const meldung = hole("meldung");
 const SPEICHER = "patch-wand";
+let tempo = 120; // gemeinsames Tempo (BPM): neue Module übernehmen es, „Tempo“ oben stellt alle auf einmal
 
 let ctx = null, uhr = null, lautsprecher = null, aufnahmeZiel = null;
 const bild = new Set(); // Funktionen, die in jedem Bild zeichnen (Oszilloskop, Spektrum)
@@ -86,14 +91,62 @@ function neuesModul({ typ, x = 80, y = 80, werte = {}, id = null, schritte = nul
   }
   id ??= `m${naechsteId++}`;
   const modul = { id, typ, titel: def.titel, x, y, werte: { ...werte } };
-  modul.eingangBelegt = (name) => kabel.amEingang(modul, name).length > 0;
-  modul.teil = def.baue(ctx, { uhr, bild, lautsprecher, melde });
-  modul.el = baueFenster(modul, { wand: flaeche, lokal, beiZiehen: (m, dx, dy) => { gruppen?.gezogen(m, dx, dy); merkeBald(); }, beiSchliessen: loesche, beiBuchse: buchseGedrueckt });
+  modul.eingangBelegt = (name) => kabel.belegt(modul, name);
+  // modul geht mit (Runde 22): so kann ein Modul fragen, ob an einem Eingang ein Kabel steckt (modul.eingangBelegt)
+  modul.teil = def.baue(ctx, { uhr, bild, lautsprecher, melde, tempo: () => tempo, modul });
+  // Module mit eigenem Tempo-Knopf (BPM) fangen im gemeinsamen Tempo an, wenn nichts anderes gespeichert ist
+  if (hatTempo(modul) && modul.werte.tempo === undefined) modul.werte.tempo = tempo;
+  modul.el = baueFenster(modul, { modLeser: () => leser(ctx), wand: flaeche, lokal, beiZiehen: (m, dx, dy) => { gruppen?.gezogen(m, dx, dy); merkeBald(); }, beiSchliessen: loesche, beiBuchse: buchseGedrueckt, beiStumm: stummSchalten });
+  if (modul.werte.__stumm) stummSchalten(modul, true);
   if (schritte) modul.extraEl?.schritteSetzen?.(schritte);
+  // Lämpchen: wenn ein Takt oder eine Note hinausgeht, leuchtet die Buchse kurz auf. Die Zeit ist eine Zeit der
+  // Audio-Uhr, meist bis 100 ms in der Zukunft (vorausgeplant, takt.js): so lange warten, dann blinken
+  for (const [name, a] of Object.entries(modul.teil.aus)) {
+    if (a.art === "ton") continue;
+    let zuletzt = 0;
+    a.knoten.blink = (zeit) => {
+      // höchstens 15-mal je Sekunde (ein Zufallsgeber für Regen schickt 2000 Takte je Sekunde)
+      if (performance.now() - zuletzt < 66) return;
+      zuletzt = performance.now();
+      const b = modul.el.querySelector(`.buchse.aus[data-name="${CSS.escape(name)}"]`);
+      if (!b) return;
+      setTimeout(() => {
+        b.classList.add("blitz");
+        setTimeout(() => b.classList.remove("blitz"), 90);
+      }, Math.max(0, (zeit - ctx.currentTime) * 1000));
+    };
+  }
   module.set(id, modul);
   merkeBald();
   return modul;
 }
+
+// ein Modul aus- oder einschalten (die Kabel bleiben, kabel.js trennt nur im Graph); gespeichert in werte.__stumm
+function stummSchalten(m, an) {
+  kabel.setzeStumm(m, an);
+  m.werte.__stumm = an || undefined;
+  m.el?.classList.toggle("stumm", an);
+  m.el?.querySelector(".stumm-knopf")?.setAttribute("aria-pressed", String(an));
+  merkeBald();
+}
+
+const hatTempo = (m) => m.teil.regler?.some((r) => r.name === "tempo" && r.einheit === "BPM");
+
+// ---------- gemeinsames Tempo ----------
+function setzeTempo(v, { alle = true } = {}) {
+  tempo = Math.round(Math.min(220, Math.max(40, v)));
+  tempoFeld.value = tempo;
+  if (!alle) return;
+  for (const m of module.values()) {
+    if (!hatTempo(m)) continue;
+    const knopf = m.el.querySelector('input[data-regler="tempo"]');
+    if (!knopf) continue;
+    knopf.value = tempo; // BPM-Knöpfe sind linear: Stellung = Wert
+    knopf.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  merkeBald();
+}
+const tempoFeld = document.createElement("input");
 
 function loesche(modul) {
   gruppen?.vergiss(modul);
@@ -111,27 +164,96 @@ function leere() {
   naechsteId = 1;
 }
 
-hole("hinzu").addEventListener("click", () => {
-  const typ = hole("hinzu-typ").value;
+hole("hinzu").addEventListener("click", () => fuegeAnSichtEin(hole("hinzu-typ").value));
+function fuegeAnSichtEin(typ) {
   // dorthin, wohin man gerade schaut (Mitte des sichtbaren Teils der Wand), ein wenig versetzt
   const w = wand.getBoundingClientRect();
   const mitte = lokal(w.left + wand.clientWidth / 2, w.top + 60);
   const x = mitte.x - 180 + (Math.random() - 0.5) * 80;
   const y = mitte.y + Math.random() * 60;
+  if (typ.startsWith("klang:")) return klangEinfuegen(typ.slice(6), Math.max(0, x), y);
   neuesModul({ typ, x: Math.max(0, x), y });
-});
+}
+
+// Klänge als Gruppen (klaenge.js): eingefügt wie „Als Gruppe einfügen“, zugeklappt, mit ± hineinsehen
+function klangEinfuegen(name, x, y) {
+  // „vogel“ oder „vogel/Amsel“ (dann gleich mit diesem Preset)
+  const [n, preset] = name.split("/");
+  const d = KLAENGE[n];
+  if (d) gruppen.fuegeEin(d, x, y, { titel: d.titel, startPreset: preset ?? null });
+}
 
 // Auswahl der Module, nach Gruppen
 {
   const wahl = hole("hinzu-typ");
   const gruppen = {};
-  for (const [typ, def] of Object.entries(TYPEN)) (gruppen[def.gruppe] ??= []).push([typ, def.titel]);
+  // versteckt: die alten kompakten Natur-Module (Runde 23: jetzt Gruppen); alte Patches können sie weiter benutzen
+  for (const [typ, def] of Object.entries(TYPEN)) if (!def.versteckt) (gruppen[def.gruppe] ??= []).push([typ, def.titel]);
   for (const [gruppe, liste] of Object.entries(gruppen)) {
     const g = document.createElement("optgroup");
     g.label = gruppe;
     for (const [typ, titel] of liste) g.append(new Option(titel, typ));
     wahl.append(g);
   }
+  const g = document.createElement("optgroup");
+  g.label = "Klänge (Gruppen)";
+  for (const [name, d] of Object.entries(KLAENGE)) g.append(new Option(d.titel, `klang:${name}`));
+  wahl.append(g);
+
+  // Runde 24: statt der langen Auswahl ein Knopf „Module“ mit aufklappbaren Themen (das Auswahlfeld bleibt
+  // unsichtbar im HTML, damit die Seite unverändert bleiben kann). Ein Klick auf ein Modul setzt es in die Mitte der
+  // Ansicht. Klang-Familien mit Presets klappen noch einmal auf: „Vogel“ → Amsel, Kohlmeise …
+  const label = wahl.closest("label");
+  label.hidden = true;
+  hole("hinzu").hidden = true;
+  const knopf = document.createElement("button");
+  knopf.type = "button";
+  knopf.className = "module-knopf";
+  knopf.textContent = "Module ▾";
+  knopf.setAttribute("aria-expanded", "false");
+  const feld = document.createElement("div");
+  feld.className = "modul-browser";
+  feld.hidden = true;
+  const eintrag = (text, typ, titel) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = text;
+    if (titel) b.title = titel;
+    b.addEventListener("click", () => {
+      zu();
+      fuegeAnSichtEin(typ);
+    });
+    return b;
+  };
+  const thema = (name, inhalt) => {
+    const d = document.createElement("details");
+    const s = document.createElement("summary");
+    s.textContent = name;
+    const liste = document.createElement("div");
+    liste.className = "modul-liste";
+    liste.append(...inhalt);
+    d.append(s, liste);
+    return d;
+  };
+  for (const [gruppe, liste] of Object.entries(gruppen)) feld.append(thema(gruppe, liste.map(([typ, titel]) => eintrag(titel, typ))));
+  feld.append(thema("Klänge (Gruppen)", Object.entries(KLAENGE).map(([name, d]) => {
+    const presets = Object.keys(d.gruppe.presets ?? {});
+    if (!presets.length) return eintrag(d.titel, `klang:${name}`, d.text);
+    const f = thema(d.titel, presets.map((p) => eintrag(p, `klang:${name}/${p}`, `${d.titel} mit Preset ${p}`)));
+    f.className = "familie";
+    return f;
+  })));
+  const zu = () => {
+    feld.hidden = true;
+    knopf.setAttribute("aria-expanded", "false");
+  };
+  knopf.addEventListener("click", () => {
+    feld.hidden = !feld.hidden;
+    knopf.setAttribute("aria-expanded", String(!feld.hidden));
+  });
+  document.addEventListener("pointerdown", (ev) => !feld.hidden && !feld.contains(ev.target) && ev.target !== knopf && zu());
+  document.addEventListener("keydown", (ev) => ev.key === "Escape" && zu());
+  label.after(knopf, feld);
 }
 
 // ---------- Modulsuche (Doppelklick auf die freie Wand, wie in Bitwig) ----------
@@ -152,11 +274,14 @@ wand.addEventListener("dblclick", (ev) => {
   const feld = box.querySelector("input"), liste = box.querySelector("ul");
   const setze = (typ) => {
     box.remove();
+    if (typ.startsWith("klang:")) return klangEinfuegen(typ.slice(6), Math.max(0, x - 20), Math.max(0, y - 10));
     neuesModul({ typ, x: Math.max(0, x - 20), y: Math.max(0, y - 10) });
   };
   const zeige = () => {
     const q = feld.value.trim().toLowerCase();
-    liste.replaceChildren(...Object.entries(TYPEN)
+    const alle = [...Object.entries(TYPEN).filter(([, d]) => !d.versteckt), ...Object.entries(KLAENGE).map(([n, d]) => [`klang:${n}`, { titel: `${d.titel} (Gruppe)`, gruppe: "Klänge" }]),
+      ...PRESET_SUCHE.map((p) => [`klang:${p.name}/${p.preset}`, { titel: p.titel, gruppe: "Klänge" }])];
+    liste.replaceChildren(...alle
       .filter(([typ, d]) => !q || d.titel.toLowerCase().includes(q) || d.gruppe.toLowerCase().includes(q) || typ.includes(q))
       .slice(0, 12)
       .map(([typ, d]) => {
@@ -252,7 +377,8 @@ function stecke(a, b) {
 }
 
 // ---------- Gruppen (gruppen.js) und Zoom (ansicht.js) ----------
-gruppen = erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGedrueckt, merkeBald, melde, ladeHerunter, zeitstempel });
+gruppen = erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGedrueckt, merkeBald, melde, ladeHerunter, zeitstempel, stummSchalten });
+const rueckgaengig = erstelleRueckgaengig({ alsDaten, lade, module, kabel, neuesModul, loesche, gruppen, melde, merkeBald });
 {
   const leiste = hole("bedienung");
   // Instrument (eine Vorlage) als zugeklappte Gruppe dazu, ohne den Patch zu ersetzen
@@ -261,10 +387,16 @@ gruppen = erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGed
   const wahl = document.createElement("select");
   wahl.append(new Option("Vorlage wählen …", ""));
   for (const [name, v] of Object.entries(VORLAGEN)) if (name !== "leer") wahl.append(new Option(v.text.split(":")[0], name));
+  for (const [name, d] of Object.entries(KLAENGE)) wahl.append(new Option(`Klang: ${d.titel}`, `klang:${name}`));
   wahl.addEventListener("change", () => {
     if (!wahl.value) return;
     const w = wand.getBoundingClientRect();
     const p = lokal(w.left + 40, w.top + 40);
+    if (wahl.value.startsWith("klang:")) {
+      klangEinfuegen(wahl.value.slice(6), p.x, p.y);
+      wahl.value = "";
+      return;
+    }
     gruppen.fuegeEin(VORLAGEN[wahl.value], p.x, p.y, { titel: wahl.selectedOptions[0].textContent });
     wahl.value = "";
   });
@@ -306,7 +438,41 @@ gruppen = erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGed
   anzeige.textContent = "100 %";
   anzeige.title = "Strg + Mausrad zoomt auch; Doppelklick: 100 %";
   zoom.append("Zoom ", weniger, anzeige, mehr);
-  leiste.append(gruppen.gruppeKnopf, instrument, laden, zoom);
+  // Tempo für alle, mit Tippen (Tap): der Abstand der letzten Klicks ergibt das Tempo
+  const tempoGruppe = document.createElement("span");
+  tempoGruppe.className = "steuerung-gruppe tempo-gruppe";
+  tempoFeld.type = "number";
+  tempoFeld.min = 40;
+  tempoFeld.max = 220;
+  tempoFeld.value = tempo;
+  tempoFeld.setAttribute("aria-label", "Tempo für alle Module in BPM");
+  tempoFeld.addEventListener("change", () => setzeTempo(Number(tempoFeld.value) || 120));
+  const tippen = document.createElement("button");
+  tippen.type = "button";
+  tippen.textContent = "tippen";
+  tippen.title = "Im Takt mehrmals klicken";
+  let tipps = [];
+  tippen.addEventListener("click", () => {
+    const t = performance.now();
+    tipps = tipps.filter((x) => t - x < 2500).concat(t);
+    if (tipps.length >= 3) setzeTempo(60000 / ((tipps.at(-1) - tipps[0]) / (tipps.length - 1)));
+  });
+  tempoGruppe.append("Tempo ", tempoFeld, " BPM ", tippen);
+  // Rückgängig und Wiederholen auch als Knöpfe (Strg+Z, Strg+Umschalt+Z)
+  const rueckKnopf = document.createElement("button"), wiederKnopf = document.createElement("button");
+  rueckKnopf.type = wiederKnopf.type = "button";
+  rueckKnopf.textContent = "↶";
+  wiederKnopf.textContent = "↷";
+  rueckKnopf.title = "Rückgängig (Strg+Z)";
+  wiederKnopf.title = "Wiederholen (Strg+Umschalt+Z)";
+  rueckKnopf.setAttribute("aria-label", "Rückgängig");
+  wiederKnopf.setAttribute("aria-label", "Wiederholen");
+  rueckKnopf.addEventListener("click", () => rueckgaengig.rueck());
+  wiederKnopf.addEventListener("click", () => rueckgaengig.wieder());
+  const rw = document.createElement("span");
+  rw.className = "steuerung-gruppe";
+  rw.append(rueckKnopf, wiederKnopf);
+  leiste.append(tempoGruppe, rw, gruppen.gruppeKnopf, instrument, laden, zoom);
   // Hilfe ergänzen (ohne die Seite selbst zu ändern)
   const hilfe = document.querySelector(".hinweis-liste");
   for (const text of [
@@ -315,7 +481,11 @@ gruppen = erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGed
     "In einer Gruppe: Rechtsklick (am Handy lange drücken) auf eine Buchse legt sie nach außen, auf einen Drehknopf macht ihn zum Makro. Zugeklappt sieht man nur diese.",
     "„Als Gruppe einfügen“ holt eine Vorlage (z. B. ein Instrument) als zugeklappte Gruppe dazu; „Gruppe speichern“ (Knopf an der Gruppe) schreibt sie als Datei, „Gruppe laden“ holt sie in einen anderen Patch.",
     "Zoom: Strg + Mausrad oder − und +.",
-    "Fensterknöpfe: der linke klappt ein (nur Buchsen), der mittlere blendet das Bild aus.",
+    "Fensterknöpfe: „?“ erklärt das Modul, dann einklappen (nur Buchsen), Bild aus, schließen.",
+    "Tempo oben stellt alle Module mit BPM-Knopf auf einmal; jedes kann danach trotzdem sein eigenes haben.",
+    "Strg+Z rückgängig, Strg+Umschalt+Z wiederholen. Markierte Module: Strg+C, Strg+V, Strg+D (verdoppeln), Entf.",
+    "Buchsen: gepunktet mit Doppelrand sind Noten (viele Töne zugleich, für Akkorde: Tastatur, Pianoroll, Akkorde → Stimmen).",
+    "Die Tastatur spielt mit der Computertastatur wie in Ableton: A S D F … sind weiße Tasten, W E T Z U schwarze, Y/X Oktave, C/V Anschlag.",
   ]) {
     const li = document.createElement("li");
     li.textContent = text;
@@ -329,11 +499,15 @@ function alsDaten() {
     module: [...module.values()].map((m) => ({ id: m.id, typ: m.typ, x: Math.round(m.x), y: Math.round(m.y), werte: m.werte, ...(m.extraEl?.schritteLesen && { schritte: m.extraEl.schritteLesen() }) })),
     kabel: kabel.alle().map((k) => [k.von.modul.id, k.von.name, k.nach.modul.id, k.nach.name]),
     gruppen: gruppen.alsDaten(),
+    tempo,
   };
 }
 
 function lade(daten) {
   leere();
+  // gemeinsames Tempo: gespeichert, sonst das des ersten Moduls mit BPM-Knopf (ältere Patches und Vorlagen)
+  const t = daten.tempo ?? daten.module.find((m) => m.werte?.tempo > 30)?.werte.tempo;
+  if (t) setzeTempo(t, { alle: false });
   for (const m of daten.module) neuesModul(m);
   naechsteId = Math.max(1, ...[...module.keys()].map((id) => Number(id.replace(/\D/g, "")) + 1 || 1));
   // Kabel erst, wenn alle Fenster stehen (die Knöpfe werden im nächsten Bild gebaut)
@@ -354,8 +528,10 @@ let merkUhr = 0;
 function merkeBald() {
   clearTimeout(merkUhr);
   merkUhr = setTimeout(() => {
+    const text = JSON.stringify(alsDaten());
+    rueckgaengig.merke(text);
     try {
-      localStorage.setItem(SPEICHER, JSON.stringify(alsDaten()));
+      localStorage.setItem(SPEICHER, text);
     } catch {}
   }, 500);
 }
@@ -419,9 +595,26 @@ function schleife(jetzt) {
   zuletzt = jetzt;
   gruppen.zeichne();
   kabel.zeichne(dt);
+  for (const m of module.values()) moduliere(m); // Kabel an Drehknöpfen (fenster.js)
   for (const f of bild) f();
   requestAnimationFrame(schleife);
 }
 
 // zum Ausprobieren und für Tests
-window.patch = { module, kabel, lade, alsDaten, VORLAGEN, gruppen, ansicht, ctx: () => ctx };
+// Hinweise zu Runde 23 unter „So geht es“ (aus JS, damit die HTML-Seite bleibt, wie sie ist)
+{
+  const liste = document.querySelector(".hinweis-liste");
+  for (const t of [
+    "Jeder Drehknopf hat daneben eine kleine Buchse: ein Kabel dort (LFO, Zufall, Hüllkurve) dreht den Knopf. 1,0 am Kabel = eine halbe Umdrehung des Knopfs nach rechts, −1,0 nach links; der Zeiger zeigt den bewegten Wert.",
+    "⏻ an jedem Modul und jeder Gruppe: aus- und einschalten, ohne Kabel zu ziehen.",
+    "Klänge sind Gruppen: ± klappt sie auf. Gruppen mit „Preset“ (Vogel, Frosch, Bläser, Tasten …) drehen beim Wechsel an Knöpfen und schalten Teile aus; man sieht danach, was sich geändert hat.",
+    "Was ein Eingang erwartet: Maus auf die Buchse halten, oder „?“ am Modul.",
+  ]) {
+    if (!liste) break;
+    const li = document.createElement("li");
+    li.textContent = t;
+    liste.append(li);
+  }
+}
+
+window.patch = { module, kabel, lade, alsDaten, VORLAGEN, KLAENGE, gruppen, ansicht, ctx: () => ctx, klangEinfuegen };

@@ -1,3 +1,6 @@
+import { NATUR_VORLAGEN, MEER_NOTIZ } from "./vorlagen-natur.js";
+import { SPUREN_VORLAGEN } from "./vorlagen-spuren.js"; // Runde 24
+
 // Fertige Patches zum Anfangen. Jeder Eintrag: Module (Typ, Lage, Werte) und Kabel [von, Ausgang, nach, Eingang].
 // Genau dieses Format schreibt auch „Patch speichern“.
 
@@ -68,7 +71,8 @@ export const VORLAGEN = {
       { id: "fil", typ: "filter", x: 860, y: 900, werte: { grenze: 300, resonanz: 6, mod: 3 } },
       { id: "hk", typ: "huellkurve", x: 860, y: 470, werte: { a: 0.002, d: 0.12, s: 0, r: 0.08 } },
       { id: "vca", typ: "verstaerker", x: 1250, y: 900, werte: { pegel: 0 } },
-      { id: "mix", typ: "mischer", x: 1250, y: 40, werte: { k1: 1, k2: 0.5, k3: 0.7, k4: 0 } },
+      { id: "mix", typ: "mischer", x: 1250, y: 40, werte: { k1: 1, k2: 0.75, k3: 0.7, k4: 0 } },
+      { id: "ha", typ: "hall", x: 1250, y: 420, werte: { zeit: 1.3, daempfung: 0.7, mix: 0.12 } },
       { id: "aus", typ: "ausgang", x: 1640, y: 40, werte: { laut: 0.5 } },
       { id: "spk", typ: "spektrum", x: 1640, y: 420, werte: {} },
     ],
@@ -84,8 +88,9 @@ export const VORLAGEN = {
       ["bd", "aus", "mix", "1"],
       ["hh", "aus", "mix", "2"],
       ["vca", "aus", "mix", "3"],
-      ["mix", "aus", "aus", "ein"],
-      ["mix", "aus", "spk", "ein"],
+      ["mix", "aus", "ha", "ein"],
+      ["ha", "aus", "aus", "ein"],
+      ["ha", "aus", "spk", "ein"],
     ],
   },
 
@@ -209,115 +214,46 @@ export const VORLAGEN = {
   },
 
   boombap: {
-    text: "Boom Bap (88): Swing aus dem Taktwerk, Bitcrusher und Band für Staub, E-Piano aus FM",
+    text: "Boom Bap (88): Swing, Jazz-Akkorde (ii–V–I) auf einem E-Piano aus Stimmen, Band und Knistern für Staub",
     module: [
       { id: "e1", typ: "euklid", x: 40, y: 40, werte: { n: 16, k: 3, drehen: 15, tempo: 88, teilung: "16" } },
-      { id: "e2", typ: "euklid", x: 40, y: 330, werte: { n: 4, k: 2, drehen: 0, tempo: 88, teilung: "4" } },
+      { id: "e2", typ: "euklid", x: 40, y: 330, werte: { n: 4, k: 2, drehen: 1, tempo: 88, teilung: "4" } },
       { id: "e3", typ: "euklid", x: 40, y: 620, werte: { n: 8, k: 8, tempo: 88, teilung: "8" } },
       { id: "tw", typ: "taktwerk", x: 470, y: 620, werte: { swing: 0.5, chance: 0.9 } },
       { id: "bd", typ: "bassdrum", x: 470, y: 40, werte: { tief: 55, hoch: 140, laenge: 0.5 } },
       { id: "sn", typ: "snare", x: 470, y: 330, werte: { ton: 220, mischung: 0.55, laenge: 0.25, farbe: 1200 } },
       { id: "hh", typ: "hihat", x: 860, y: 620, werte: { laenge: 0.05, farbe: 6000 } },
-      { id: "dm", typ: "mischer", x: 860, y: 40, werte: { k1: 1, k2: 0.8, k3: 0.4 } },
+      { id: "dm", typ: "mischer", x: 860, y: 40, werte: { k1: 0.75, k2: 0.8, k3: 0.55 } },
       { id: "bc", typ: "bitcrusher", x: 1250, y: 40, werte: { bits: 10, teiler: 3, mix: 0.6 } },
-      { id: "e4", typ: "euklid", x: 40, y: 900, werte: { n: 8, k: 3, drehen: 1, tempo: 88, teilung: "8" } },
-      { id: "ar", typ: "arpeggiator", x: 470, y: 900, werte: { akkord: "moll9", muster: "aufab", oktaven: 1, halbton: -7, laenge: 0.9 } },
-      { id: "ep", typ: "fmop", x: 860, y: 900, werte: { frequenz: 261.63, verhaeltnis: 1, index: 0 } },
-      { id: "eh", typ: "huellkurve", x: 1250, y: 900, werte: { a: 0.002, d: 0.9, s: 0.15, r: 0.4 } },
-      { id: "ev", typ: "verstaerker", x: 1250, y: 1200, werte: { pegel: 0 } },
-      { id: "ch", typ: "chorus", x: 860, y: 1200, werte: { mix: 0.4 } },
-      { id: "mi", typ: "mischer", x: 1640, y: 330, werte: { k1: 1, k2: 0.7 } },
-      { id: "ba", typ: "band", x: 1640, y: 620, werte: { wow: 0.5, flutter: 0.3, antrieb: 2, rauschen: 0.004, alter: 7000 } },
-      { id: "ko", typ: "kompressor", x: 1640, y: 920, werte: { schwelle: -20, verhaeltnis: 4, aufholen: 0 } },
-      { id: "aus", typ: "ausgang", x: 1640, y: 1250, werte: { laut: 0.5 } },
+      { id: "e4", typ: "euklid", x: 40, y: 1000, werte: { n: 4, k: 4, tempo: 88, teilung: "4" } },
+      { id: "ak", typ: "akkorde", x: 470, y: 1000, werte: { grundton: "2", leiter: "dorisch", art: "sept", lage: "fuehrung", schlaege: "4", spielweise: "zusammen", laenge: 0.85, anschlag: 0.6, folge: "1,4,7,3,0,0,0,0", bassOktave: -2 } },
+      { id: "ep", typ: "stimmen", x: 1100, y: 1000, werte: { form: "sine", form2: "triangle", mix: 0.25, a: 0.003, d: 1.6, s: 0.3, r: 0.5, grenze: 1600, reso: 0.8, fhk: 1.6, anschlagFilter: 0.8, breite: 6, pegel: 0.3 } },
+      { id: "ba2", typ: "stimmen", x: 1100, y: 1600, werte: { form: "sine", form2: "triangle", mix: 0.3, a: 0.005, d: 0.5, s: 0.5, r: 0.12, grenze: 600, reso: 0.7, fhk: 0.8, breite: 0, anzahl: 1, pegel: 0.45 } },
+      { id: "ch", typ: "chorus", x: 1680, y: 1000, werte: { mix: 0.4 } },
+      { id: "kn", typ: "knistern", x: 1250, y: 330, werte: { rate: 30, laenge: 0.0004, knall: 0.05, breite: 0.9, pegel: 0.25 } },
+      { id: "mi", typ: "mischer", x: 1680, y: 330, werte: { k1: 1, k2: 0.8, k3: 0.8, k4: 0.6 } },
+      { id: "ba", typ: "band", x: 2080, y: 330, werte: { wow: 0.5, flutter: 0.3, antrieb: 2, rauschen: 0.004, alter: 7000, kopf: 3, aussetzer: 0.1 } },
+      { id: "ko", typ: "kompressor", x: 2080, y: 700, werte: { schwelle: -20, verhaeltnis: 4, aufholen: 0 } },
+      { id: "aus", typ: "ausgang", x: 2080, y: 1050, werte: { laut: 0.5 } },
     ],
     kabel: [
       ["e1", "Takt", "bd", "Auslöser"], ["e2", "Takt", "sn", "Auslöser"], ["e3", "Takt", "tw", "Takt"], ["tw", "Takt", "hh", "Auslöser"],
       ["bd", "aus", "dm", "1"], ["sn", "aus", "dm", "2"], ["hh", "aus", "dm", "3"], ["dm", "aus", "bc", "ein"],
-      ["e4", "Takt", "ar", "Takt"], ["ar", "Tonhöhe", "ep", "Tonhöhe"], ["ar", "Takt", "eh", "Auslöser"],
-      ["eh", "aus", "ep", "Index"], ["ep", "aus", "ev", "ein"], ["eh", "aus", "ev", "Steuerung"], ["ev", "aus", "ch", "ein"],
-      ["bc", "aus", "mi", "1"], ["ch", "aus", "mi", "2"], ["mi", "aus", "ba", "ein"], ["ba", "aus", "ko", "ein"], ["ko", "aus", "aus", "ein"],
+      ["e4", "Takt", "ak", "Takt"], ["ak", "Noten", "ep", "Noten"], ["ak", "Bass", "ba2", "Noten"], ["ep", "aus", "ch", "ein"],
+      ["bc", "aus", "mi", "1"], ["ch", "aus", "mi", "2"], ["ba2", "aus", "mi", "3"], ["kn", "aus", "mi", "4"],
+      ["mi", "aus", "ba", "ein"], ["ba", "aus", "ko", "ein"], ["ko", "aus", "aus", "ein"],
     ],
   },
 
-  // ---------- Instrumente zum Spielen mit dem MIDI-Keyboard (Runde 17) ----------
-  // Alle Klangquellen stehen auf C4 = 261,63 Hz, der MIDI-Eingang gibt Halbtöne über C4 / 12 aus.
-
-  akkordeon: {
-    text: "Akkordeon (MIDI): Zungen im Musette-Register, der Balg ist eine Hüllkurve",
-    module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
-      { id: "zu", typ: "zungen", x: 470, y: 40, werte: { frequenz: 261.63, register: "musette", verstimmung: 14 } },
-      { id: "hk", typ: "huellkurve", x: 470, y: 470, werte: { a: 0.04, d: 0.2, s: 0.85, r: 0.12 } },
-      { id: "ha", typ: "hall", x: 860, y: 40, werte: { zeit: 1.4, mix: 0.2 } },
-      { id: "aus", typ: "ausgang", x: 1250, y: 40, werte: { laut: 0.5 } },
-    ],
-    kabel: [["mi", "Tonhöhe", "zu", "Tonhöhe"], ["mi", "Takt", "hk", "Auslöser"], ["hk", "aus", "zu", "Balg"], ["zu", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]],
-  },
-
-  harmonium: {
-    text: "Harmonium mit Shruti-Bordun (MIDI): zwei Zungen halten Grundton und Quinte, die dritte spielst du",
-    module: [
-      { id: "d1", typ: "zungen", x: 40, y: 40, werte: { frequenz: 130.81, register: "harmonium", luft: 0.35, hell: 1500 } },
-      { id: "d2", typ: "zungen", x: 40, y: 470, werte: { frequenz: 196, register: "harmonium", luft: 0.25, hell: 1500 } },
-      { id: "mi", typ: "midi", x: 470, y: 40, werte: {} },
-      { id: "zu", typ: "zungen", x: 860, y: 40, werte: { frequenz: 261.63, register: "harmonium", hell: 1800 } },
-      { id: "hk", typ: "huellkurve", x: 860, y: 470, werte: { a: 0.06, d: 0.3, s: 0.9, r: 0.25 } },
-      { id: "mx", typ: "mischer", x: 1250, y: 40, werte: { k1: 0.5, k2: 0.5, k3: 0.9 } },
-      { id: "ha", typ: "hall", x: 1250, y: 470, werte: { zeit: 5, mix: 0.35, daempfung: 0.7 } },
-      { id: "aus", typ: "ausgang", x: 1640, y: 470, werte: { laut: 0.45 } },
-    ],
-    kabel: [
-      ["mi", "Tonhöhe", "zu", "Tonhöhe"], ["mi", "Takt", "hk", "Auslöser"], ["hk", "aus", "zu", "Balg"],
-      ["d1", "aus", "mx", "1"], ["d2", "aus", "mx", "2"], ["zu", "aus", "mx", "3"], ["mx", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"],
-    ],
-  },
-
-  streicher: {
-    text: "Streicher (MIDI): zwei verstimmte Sägezähne, langsamer Bogen, Vibrato, Chorus und Hall",
-    module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
-      { id: "o1", typ: "oszillator", x: 470, y: 40, werte: { frequenz: 261.63, fein: -7, form: "sawtooth" } },
-      { id: "o2", typ: "oszillator", x: 470, y: 400, werte: { frequenz: 261.63, fein: 7, form: "sawtooth" } },
-      { id: "lf", typ: "lfo", x: 40, y: 470, werte: { tempo: 5.2, tiefe: 0.006 } },
-      { id: "fi", typ: "filter", x: 860, y: 40, werte: { grenze: 2200, resonanz: 0.7, mod: 0 } },
-      { id: "hk", typ: "huellkurve", x: 860, y: 470, werte: { a: 0.35, d: 0.5, s: 0.8, r: 0.9 } },
-      { id: "vc", typ: "verstaerker", x: 1250, y: 40, werte: { pegel: 0 } },
-      { id: "ch", typ: "chorus", x: 1250, y: 400, werte: { mix: 0.5, tiefe: 0.005 } },
-      { id: "ha", typ: "hall", x: 1640, y: 40, werte: { zeit: 3.5, mix: 0.35 } },
-      { id: "aus", typ: "ausgang", x: 1640, y: 470, werte: { laut: 0.4 } },
-    ],
-    kabel: [
-      ["mi", "Tonhöhe", "o1", "Tonhöhe"], ["mi", "Tonhöhe", "o2", "Tonhöhe"], ["lf", "aus", "o1", "Tonhöhe"], ["lf", "aus", "o2", "Tonhöhe"],
-      ["o1", "aus", "fi", "ein"], ["o2", "aus", "fi", "ein"], ["mi", "Takt", "hk", "Auslöser"],
-      ["fi", "aus", "vc", "ein"], ["hk", "aus", "vc", "Steuerung"], ["vc", "aus", "ch", "ein"], ["ch", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"],
-    ],
-  },
-
-  blaeser: {
-    text: "Bläser (MIDI): hohler Ton wie eine Klarinette, Atemrauschen, Vibrato",
-    module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
-      { id: "wf", typ: "wellenform", x: 470, y: 40, werte: { frequenz: 261.63, vorlage: "hohl" } },
-      { id: "lf", typ: "lfo", x: 40, y: 470, werte: { tempo: 5.5, tiefe: 0.005 } },
-      { id: "ra", typ: "rauschen", x: 470, y: 470, werte: { pegel: 0.12 } },
-      { id: "rf", typ: "filter", x: 860, y: 470, werte: { grenze: 1800, resonanz: 2, typ: "bandpass", mod: 0 } },
-      { id: "hk", typ: "huellkurve", x: 860, y: 40, werte: { a: 0.07, d: 0.2, s: 0.85, r: 0.15 } },
-      { id: "vc", typ: "verstaerker", x: 1250, y: 40, werte: { pegel: 0 } },
-      { id: "ha", typ: "hall", x: 1250, y: 470, werte: { zeit: 2, mix: 0.25 } },
-      { id: "aus", typ: "ausgang", x: 1640, y: 470, werte: { laut: 0.5 } },
-    ],
-    kabel: [
-      ["mi", "Tonhöhe", "wf", "Tonhöhe"], ["lf", "aus", "wf", "Tonhöhe"], ["ra", "aus", "rf", "ein"],
-      ["wf", "aus", "vc", "ein"], ["rf", "aus", "vc", "ein"], ["mi", "Takt", "hk", "Auslöser"], ["hk", "aus", "vc", "Steuerung"],
-      ["vc", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"],
-    ],
-  },
+  // ---------- Instrumente zum Spielen (Runde 17) ----------
+  // Alle Klangquellen stehen auf C4 = 261,63 Hz, die Tastatur gibt Halbtöne über C4 / 12 aus.
+  // Runde 21: Tastatur statt MIDI-Eingang. Sie spielt mit der Computertastatur (A S D F …), der Maus und einem
+  // MIDI-Keyboard; vorher blieben diese Vorlagen ohne Keyboard stumm.
 
   glocke: {
-    text: "Glocke (MIDI): FM mit krummem Verhältnis 3,5, die Hüllkurve öffnet den Index",
+    text: "Glocke (Tastatur): FM mit krummem Verhältnis 3,5, die Hüllkurve öffnet den Index",
     module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
+      { id: "mi", typ: "tastatur", x: 40, y: 40, werte: {} },
       { id: "fm", typ: "fmop", x: 470, y: 40, werte: { frequenz: 261.63, verhaeltnis: 3.5, index: 0 } },
       { id: "hk", typ: "huellkurve", x: 470, y: 470, werte: { a: 0.001, d: 2.5, s: 0, r: 2.5 } },
       { id: "vc", typ: "verstaerker", x: 860, y: 40, werte: { pegel: 0 } },
@@ -327,24 +263,10 @@ export const VORLAGEN = {
     kabel: [["mi", "Tonhöhe", "fm", "Tonhöhe"], ["mi", "Takt", "hk", "Auslöser"], ["hk", "aus", "fm", "Index"], ["fm", "aus", "vc", "ein"], ["hk", "aus", "vc", "Steuerung"], ["vc", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]],
   },
 
-  epiano: {
-    text: "E-Piano (MIDI): FM 1:1, hell beim Anschlag, dann weich; Chorus",
-    module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
-      { id: "fm", typ: "fmop", x: 470, y: 40, werte: { frequenz: 261.63, verhaeltnis: 1, index: 0.2 } },
-      { id: "hi", typ: "huellkurve", x: 470, y: 470, werte: { a: 0.001, d: 0.8, s: 0.1, r: 0.3 } },
-      { id: "hv", typ: "huellkurve", x: 860, y: 470, werte: { a: 0.002, d: 2.5, s: 0.3, r: 0.5 } },
-      { id: "vc", typ: "verstaerker", x: 860, y: 40, werte: { pegel: 0 } },
-      { id: "ch", typ: "chorus", x: 1250, y: 40, werte: { mix: 0.45, tempo: 0.6 } },
-      { id: "aus", typ: "ausgang", x: 1640, y: 40, werte: { laut: 0.5 } },
-    ],
-    kabel: [["mi", "Tonhöhe", "fm", "Tonhöhe"], ["mi", "Takt", "hi", "Auslöser"], ["mi", "Takt", "hv", "Auslöser"], ["hi", "aus", "fm", "Index"], ["fm", "aus", "vc", "ein"], ["hv", "aus", "vc", "Steuerung"], ["vc", "aus", "ch", "ein"], ["ch", "aus", "aus", "ein"]],
-  },
-
   saite: {
-    text: "Gezupfte Saite (MIDI oder Pads): Karplus-Strong",
+    text: "Gezupfte Saite (Tastatur): Karplus-Strong",
     module: [
-      { id: "mi", typ: "midi", x: 40, y: 40, werte: {} },
+      { id: "mi", typ: "tastatur", x: 40, y: 40, werte: {} },
       { id: "sa", typ: "saite", x: 470, y: 40, werte: { frequenz: 261.63, klingen: 0.997, hell: 0.3 } },
       { id: "ha", typ: "hall", x: 860, y: 40, werte: { zeit: 2.2, mix: 0.3 } },
       { id: "aus", typ: "ausgang", x: 1250, y: 40, werte: { laut: 0.5 } },
@@ -366,9 +288,109 @@ export const VORLAGEN = {
     kabel: [["e1", "Takt", "tu", "Takt"], ["tu", "Tonhöhe", "qu", "ein"], ["qu", "aus", "sa", "Tonhöhe"], ["tu", "Takt", "sa", "Zupfen"], ["sa", "aus", "ec", "ein"], ["ec", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]],
   },
 
+  // ---------- Runde 21: Akkorde ----------
+  akkorde: {
+    text: "Akkorde (100): I–V–vi–IV als Fläche, Arpeggio und Bass aus einem Akkord-Modul, dazu Bassdrum und Hi-Hat",
+    module: [
+      { id: "e4", typ: "euklid", x: 40, y: 40, werte: { n: 4, k: 4, tempo: 100, teilung: "4" } },
+      { id: "e16", typ: "euklid", x: 40, y: 330, werte: { n: 16, k: 11, drehen: 0, tempo: 100, teilung: "16" } },
+      { id: "eh", typ: "euklid", x: 40, y: 620, werte: { n: 8, k: 4, drehen: 1, tempo: 100, teilung: "8" } },
+      { id: "ak", typ: "akkorde", x: 470, y: 40, werte: { grundton: "0", leiter: "dur", art: "dreiklang", lage: "fuehrung", schlaege: "4", spielweise: "zusammen", laenge: 0.95, anschlag: 0.7, folge: "1,5,6,4,0,0,0,0", arp: "aufab", arpOktaven: 2, bassOktave: -2 } },
+      { id: "pad", typ: "stimmen", x: 1100, y: 40, werte: { form: "sawtooth", form2: "sawtooth", mix: 0.5, breite: 18, a: 0.08, d: 1.2, s: 0.7, r: 1.2, grenze: 1300, reso: 1, fhk: 1.2, anschlagFilter: 0.4, pegel: 0.18 } },
+      { id: "arp", typ: "stimmen", x: 1100, y: 640, werte: { form: "triangle", form2: "square", mix: 0.35, breite: 8, a: 0.002, d: 0.25, s: 0, r: 0.2, grenze: 1600, reso: 2, fhk: 2.5, anschlagFilter: 0.6, oktave: 1, pegel: 0.16 } },
+      { id: "bass", typ: "stimmen", x: 1100, y: 1240, werte: { form: "square", form2: "sine", mix: 0.5, breite: 0, a: 0.005, d: 0.3, s: 0.7, r: 0.1, grenze: 380, reso: 2, fhk: 1.5, anzahl: 1, pegel: 0.3 } },
+      { id: "echo", typ: "echo", x: 1680, y: 640, werte: { zeit: 0.45, rueck: 0.4, nass: 0.3 } },
+      { id: "bd", typ: "bassdrum", x: 470, y: 900, werte: { tief: 50, hoch: 150, laenge: 0.4 } },
+      { id: "hh", typ: "hihat", x: 470, y: 1200, werte: { laenge: 0.04 } },
+      { id: "mi", typ: "mischer", x: 1680, y: 40, werte: { k1: 1, k2: 0.9, k3: 1, k4: 0.8 } },
+      { id: "dr", typ: "mischer", x: 1680, y: 1240, werte: { k1: 0.8, k2: 0.5 } },
+      { id: "ha", typ: "hall", x: 2080, y: 40, werte: { zeit: 2.5, daempfung: 0.6, mix: 0.25 } },
+      { id: "ko", typ: "kompressor", x: 2080, y: 400, werte: { schwelle: -18, verhaeltnis: 3, aufholen: 2 } },
+      { id: "aus", typ: "ausgang", x: 2080, y: 760, werte: { laut: 0.5 } },
+    ],
+    kabel: [
+      ["e4", "Takt", "ak", "Takt"], ["e16", "Takt", "ak", "Arp-Takt"],
+      ["ak", "Noten", "pad", "Noten"], ["ak", "Arpeggio", "arp", "Noten"], ["ak", "Bass", "bass", "Noten"],
+      ["arp", "aus", "echo", "ein"],
+      ["pad", "aus", "mi", "1"], ["echo", "aus", "mi", "2"], ["bass", "aus", "mi", "3"], ["dr", "aus", "mi", "4"],
+      ["e4", "Takt", "bd", "Auslöser"], ["eh", "Takt", "hh", "Auslöser"], ["bd", "aus", "dr", "1"], ["hh", "aus", "dr", "2"],
+      ["mi", "aus", "ha", "ein"], ["ha", "aus", "ko", "ein"], ["ko", "aus", "aus", "ein"],
+    ],
+  },
+
+  ambient: {
+    text: "Ambient (64): schwebende add9-Akkorde, langsame Fläche, zufälliges Glockenspiel, Tropfen im Hall, Band",
+    module: [
+      { id: "e1", typ: "euklid", x: 40, y: 40, werte: { n: 4, k: 4, tempo: 64, teilung: "4" } },
+      { id: "e2", typ: "euklid", x: 40, y: 330, werte: { n: 16, k: 5, drehen: 2, tempo: 64, teilung: "8" } },
+      { id: "ak", typ: "akkorde", x: 470, y: 40, werte: { grundton: "2", leiter: "dur", art: "add9", lage: "fuehrung", schlaege: "8", spielweise: "zusammen", laenge: 1, anschlag: 0.55, folge: "1,6,4,5,0,0,0,0", arp: "zufall", arpOktaven: 2, oktave: 0 } },
+      { id: "pad", typ: "stimmen", x: 1100, y: 40, werte: { form: "sawtooth", form2: "triangle", mix: 0.5, breite: 25, a: 2.5, d: 3, s: 0.8, r: 5, grenze: 900, reso: 1.2, fhk: 0.8, anschlagFilter: 0.2, anzahl: 8, pegel: 0.42 } },
+      { id: "lfo", typ: "lfo", x: 470, y: 900, werte: { tempo: 0.05, tiefe: 0.6, form: "sine" } },
+      { id: "gl", typ: "stimmen", x: 1100, y: 640, werte: { form: "sine", form2: "triangle", mix: 0.2, breite: 4, a: 0.004, d: 2, s: 0, r: 2, grenze: 4000, reso: 0.7, fhk: 1, oktave: 1, pegel: 0.28 } },
+      { id: "echo", typ: "echo", x: 1680, y: 640, werte: { zeit: 0.7, rueck: 0.55, nass: 0.45 } },
+      { id: "tr", typ: "tropfen", x: 1680, y: 1000, werte: { rate: 0.7, rKlein: 2, rGross: 8, steigen: 0.25, breite: 1, pegel: 1 } },
+      { id: "mi", typ: "mischer", x: 1680, y: 40, werte: { k1: 1, k2: 0.9, k3: 0.6, k4: 0 } },
+      { id: "ha", typ: "hall", x: 2080, y: 40, werte: { zeit: 8, daempfung: 0.5, mix: 0.45 } },
+      { id: "ba", typ: "band", x: 2080, y: 400, werte: { wow: 0.35, flutter: 0.1, antrieb: 1.2, rauschen: 0.002, alter: 9000, kopf: 3 } },
+      { id: "aus", typ: "ausgang", x: 2080, y: 800, werte: { laut: 0.5 } },
+    ],
+    kabel: [
+      ["e1", "Takt", "ak", "Takt"], ["e2", "Takt", "ak", "Arp-Takt"], ["ak", "Noten", "pad", "Noten"], ["ak", "Arpeggio", "gl", "Noten"],
+      ["lfo", "aus", "pad", "Grenze"], ["gl", "aus", "echo", "ein"],
+      ["pad", "aus", "mi", "1"], ["echo", "aus", "mi", "2"], ["tr", "aus", "mi", "3"],
+      ["mi", "aus", "ha", "ein"], ["ha", "aus", "ba", "ein"], ["ba", "aus", "aus", "ein"],
+    ],
+  },
+
+  pianoroll: {
+    text: "Pianoroll: Noten zeichnen (eine Melodie mit Akkorden liegt schon da), mehrstimmig gespielt",
+    module: [
+      { id: "pr", typ: "pianoroll", x: 40, y: 40, werte: { tempo: 96, takte: "2", tiefste: 48, leiter: "moll", grundton: "9", swing: 0.12, noten: [[0, 57, 8, 0.6], [0, 60, 8, 0.55], [0, 64, 8, 0.55], [8, 55, 8, 0.6], [8, 60, 8, 0.55], [8, 64, 8, 0.5], [16, 53, 8, 0.6], [16, 57, 8, 0.55], [16, 60, 8, 0.55], [24, 52, 8, 0.6], [24, 55, 8, 0.55], [24, 59, 8, 0.55], [0, 69, 2, 0.9], [3, 72, 1, 0.7], [4, 71, 2, 0.8], [6, 67, 2, 0.6], [10, 69, 2, 0.8], [12, 64, 4, 0.7], [18, 65, 2, 0.8], [20, 69, 2, 0.7], [22, 72, 2, 0.9], [26, 71, 3, 0.8], [29, 68, 3, 0.7]] } },
+      { id: "st", typ: "stimmen", x: 680, y: 40, werte: { form: "sawtooth", form2: "square", mix: 0.35, breite: 10, a: 0.01, d: 0.6, s: 0.5, r: 0.4, grenze: 1400, reso: 2, fhk: 2, anschlagFilter: 0.7, pegel: 0.45 } },
+      { id: "ch", typ: "chorus", x: 1300, y: 40, werte: { mix: 0.35 } },
+      { id: "ha", typ: "hall", x: 1300, y: 400, werte: { zeit: 2.2, mix: 0.25 } },
+      { id: "aus", typ: "ausgang", x: 1300, y: 760, werte: { laut: 0.5 } },
+      { id: "ta", typ: "tastatur", x: 40, y: 760, werte: {} },
+    ],
+    kabel: [["pr", "Noten", "st", "Noten"], ["ta", "Noten", "st", "Noten"], ["st", "aus", "ch", "ein"], ["ch", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]],
+  },
+
+  meer: {
+    text: "Meer: braunes Rauschen, Wellen alle 9 s (LFO, mit Mathe auf 0 … 1 gebracht) öffnen Filter und Lautstärke, Gischt kommt etwas später",
+    module: [
+      { id: "ra", typ: "rauschen", x: 40, y: 40, werte: { farbe: "braun", pegel: 0.9 } },
+      { id: "fi", typ: "filter", x: 470, y: 40, werte: { typ: "lowpass", grenze: 250, resonanz: 0.6, mod: 2.5 } },
+      { id: "vc", typ: "verstaerker", x: 860, y: 40, werte: { pegel: 0.1 } },
+      { id: "lfo", typ: "lfo", x: 40, y: 430, werte: { tempo: 0.11, tiefe: 1, form: "triangle" } },
+      { id: "ma", typ: "mathe", x: 470, y: 430, werte: { art: "4", b: 0, faktor: 0.5, versatz: 0 } },
+      { id: "ra2", typ: "rauschen", x: 40, y: 820, werte: { farbe: "weiss", pegel: 0.4 } },
+      { id: "hp", typ: "filter", x: 470, y: 820, werte: { typ: "highpass", grenze: 2500, resonanz: 0.5, mod: 0 } },
+      { id: "vc2", typ: "verstaerker", x: 860, y: 820, werte: { pegel: 0 } },
+      { id: "ec", typ: "echo", x: 860, y: 430, werte: { zeit: 1.5, rueck: 0, nass: 1 } },
+      { id: "mi", typ: "mischer", x: 1250, y: 40, werte: { k1: 1, k2: 0.5 } },
+      { id: "ha", typ: "hall", x: 1250, y: 400, werte: { zeit: 2, daempfung: 0.6, mix: 0.3 } },
+      { id: "aus", typ: "ausgang", x: 1640, y: 40, werte: { laut: 0.5 } },
+    ],
+    kabel: [
+      ["ra", "aus", "fi", "ein"], ["fi", "aus", "vc", "ein"], ["lfo", "aus", "ma", "A"], ["ma", "aus", "fi", "Grenze"], ["ma", "aus", "vc", "Steuerung"],
+      ["ra2", "aus", "hp", "ein"], ["hp", "aus", "vc2", "ein"], ["ma", "aus", "ec", "ein"], ["ec", "aus", "vc2", "Steuerung"],
+      ["vc", "aus", "mi", "1"], ["vc2", "aus", "mi", "2"], ["mi", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"],
+    ],
+  },
+
   leer: {
     text: "Leer (nur der Ausgang)",
     module: [{ id: "aus", typ: "ausgang", x: 900, y: 300, werte: {} }],
     kabel: [],
   },
 };
+
+// Runde 22: Meer bekommt eine Notiz und wird eine Gruppe (zum Aufklappen und Nachbauen); dann die Lern-Vorlagen und
+// die Landschaft aus vorlagen-natur.js, „Leer“ bleibt am Ende der Liste
+VORLAGEN.meer.module.unshift({ id: "no", typ: "notiz", x: 40, y: 1200, werte: { text: MEER_NOTIZ } });
+VORLAGEN.meer.gruppen = [{ id: "g1", titel: "Meer", offen: true, x: 0, y: 0, mitglieder: VORLAGEN.meer.module.filter((m) => m.typ !== "ausgang").map((m) => m.id), aussen: [["ha", "aus", "aus", "ton"]], makros: [["lfo", "tempo"], ["fi", "grenze"]] }];
+{
+  const leer = VORLAGEN.leer;
+  delete VORLAGEN.leer;
+  Object.assign(VORLAGEN, SPUREN_VORLAGEN, NATUR_VORLAGEN, { leer });
+}

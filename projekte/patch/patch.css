@@ -69,6 +69,12 @@ Regeln der Seite: zwei Farben, Rahmen 1px, keine Rundungen (Ausnahme Drehknöpfe
   stroke-dasharray: 6 5;
 }
 
+/* Noten: gepunktet (viele Töne zugleich) */
+.kabel.noten {
+  stroke-dasharray: 2 4;
+  stroke-width: 3.5;
+}
+
 .kabel.zug {
   opacity: 0.5;
 }
@@ -144,6 +150,16 @@ Regeln der Seite: zwei Farben, Rahmen 1px, keine Rundungen (Ausnahme Drehknöpfe
 
 .buchse.takt {
   border-style: dashed;
+}
+
+.buchse.noten {
+  border: 3px double currentColor;
+}
+
+/* Lämpchen: ein Takt oder eine Note geht gerade hinaus */
+.buchse.blitz {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
 }
 
 /* Ausgänge gefüllt, Eingänge hohl; ein steckendes Kabel macht auch den Eingang voll */
@@ -394,7 +410,7 @@ Regeln der Seite: zwei Farben, Rahmen 1px, keine Rundungen (Ausnahme Drehknöpfe
   border: 1px solid var(--text);
   background: rgba(221, 221, 221, 0.03);
   pointer-events: none;
-  z-index: 0;
+  z-index: 6; /* über zugeklappten Gruppen (5), unter Modulen (ab 10) */
 }
 
 .gruppen-rahmen .fenster-leiste {
@@ -443,4 +459,483 @@ Regeln der Seite: zwei Farben, Rahmen 1px, keine Rundungen (Ausnahme Drehknöpfe
 
 .knoepfe label.als-makro {
   text-decoration: underline;
+}
+
+/* ---------- Runde 21 ---------- */
+
+/* „?“ in der Titelleiste: was das Modul macht */
+.hilfe-knopf {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: 0.3rem;
+  padding: 0;
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  align-self: center;
+}
+
+.hilfe-knopf[aria-expanded="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.modul-hilfe {
+  margin-bottom: 0.7rem;
+  line-height: 1.45;
+}
+
+/* breitere Fenster (Pianoroll, Lenia, Akkorde) */
+.fenster.modul.breit {
+  width: 34rem;
+}
+
+/* Knöpfe unter einem Bild (Lenia: Wesen dazu, leeren): normale Knöpfe nebeneinander */
+.knopf-reihe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+/* kleine Anzeigen (Hüllkurve, LFO): flach, ein Strich */
+.schirm.klein {
+  height: 4.5rem;
+  width: 100%;
+}
+
+/* Tastatur am Bildschirm */
+.klaviatur {
+  position: relative;
+  display: flex;
+  height: 5.5rem;
+  margin-top: 0.5rem;
+  user-select: none;
+  touch-action: none;
+}
+
+.klaviatur .weiss {
+  flex: 1;
+  border: 1px solid currentColor;
+  margin-right: -1px;
+  background: var(--bg);
+}
+
+.klaviatur .schwarz {
+  position: absolute;
+  top: 0;
+  height: 58%;
+  border: 1px solid currentColor;
+  background: var(--text);
+  z-index: 1;
+}
+
+.klaviatur .gedrueckt.weiss {
+  background: var(--text);
+}
+
+.klaviatur .gedrueckt.schwarz {
+  background: var(--bg);
+}
+
+.klaviatur span {
+  position: absolute;
+  bottom: 0.2rem;
+  font-size: 0.65rem;
+  pointer-events: none;
+}
+
+/* Pianoroll */
+.rolle {
+  display: block;
+  width: 100%;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--text);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Akkorde: die Folge als Reihe von Feldern, der klingende Akkord vertauscht */
+.folge {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.folge .feld {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid currentColor;
+  font-size: 0.75rem;
+}
+
+.folge .feld.jetzt {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.folge .feld select {
+  font-size: 0.75rem;
+}
+
+.folge select {
+  width: 100%;
+}
+
+.tempo-gruppe input {
+  width: 4.5em;
+}
+
+/* ---------- Runde 22: nur schlichte Fenster ----------
+Die schlichten Fenster (css/fenster.css) blenden die zwei XP-Zierknöpfe aus. Hier sind sie aber echte Knöpfe
+(einklappen, Bild an/aus): darum als Textknöpfe wie das Kreuz. Gleich genau wie die Regel dort, steht aber später. */
+.modul .fenster-knopf.einklappen,
+.modul .fenster-knopf.bild-schalter {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.modul .fenster-knopf.einklappen::before {
+  content: "–";
+}
+
+.modul .fenster-knopf.bild-schalter::before {
+  content: "◫";
+}
+
+.modul.eingeklappt .fenster-knopf.einklappen::before {
+  content: "+";
+}
+
+.modul .fenster-knopf.einklappen:hover,
+.modul .fenster-knopf.bild-schalter:hover:not(:disabled),
+.modul .fenster-knopf.einklappen:focus-visible,
+.modul .fenster-knopf.bild-schalter:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+  outline: none;
+}
+
+.modul.ohne-bild .fenster-knopf.bild-schalter {
+  opacity: 0.5;
+}
+
+/* Gruppen: aufklappen/zuklappen und speichern, ebenfalls als Textknöpfe */
+:root .fenster-knopf.gruppe-klappen,
+:root .fenster-knopf.gruppe-speichern {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+:root .fenster-knopf.gruppe-klappen::before {
+  content: "±";
+}
+
+:root .fenster-knopf.gruppe-speichern::before {
+  content: "↓";
+}
+
+:root .fenster-knopf.gruppe-klappen:hover,
+:root .fenster-knopf.gruppe-speichern:hover,
+:root .fenster-knopf.gruppe-klappen:focus-visible,
+:root .fenster-knopf.gruppe-speichern:focus-visible {
+  background: var(--text);
+  color: var(--bg);
+  outline: none;
+}
+
+/* Notiz: ein Zettel an der Wand */
+.notiz-text {
+  display: block;
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.4rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: vertical;
+  overflow: hidden;
+}
+
+.tageszeit {
+  margin-top: 0.4rem;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Schleife: wo der Kopf auf dem Band steht */
+.band-stelle {
+  --stelle: 0;
+  position: relative;
+  height: 0.6rem;
+  margin-top: 0.5rem;
+  border: 1px solid currentColor;
+}
+
+.band-stelle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--stelle) * 100%);
+  width: 2px;
+  background: var(--text);
+}
+
+/* Stimme: Text zum Sprechen oder Singen */
+.stimme-text {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.3rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+/* ---------- Runde 22b: ausschalten ---------- */
+.stumm-knopf {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.2rem;
+  padding: 0;
+  border: 1px solid currentColor;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  align-self: center;
+}
+
+/* aus: hohl (wie ein ausgeschaltetes Lämpchen) */
+.stumm-knopf[aria-pressed="true"] {
+  background: none;
+  color: inherit;
+}
+
+.fenster.stumm .fenster-inhalt {
+  opacity: 0.4;
+}
+
+.kabel.stumm {
+  opacity: 0.25;
+}
+
+/* ---------- Runde 23: Kabel an Drehknöpfen, Buchsen-Infos ---------- */
+.knoepfe label {
+  position: relative;
+}
+
+/* die kleine Buchse oben rechts an jedem Knopf */
+.buchse.mod-buchse {
+  position: absolute;
+  top: 0;
+  right: 0.2rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  min-width: 0;
+  padding: 0;
+  opacity: 0.45;
+}
+
+.knoepfe label:hover .mod-buchse,
+.buchse.mod-buchse.belegt {
+  opacity: 1;
+}
+
+/* ein moduliertes Knopf-Feld: unterstrichen, damit man sieht, dass er gerade bewegt wird */
+.knoepfe label.moduliert output {
+  text-decoration: underline;
+}
+
+.buchsen-info {
+  margin: 0.4rem 0 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.taster-knopf {
+  min-width: 7rem;
+  min-height: 3rem;
+}
+
+.taster-knopf[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Preset-Auswahl in der Titelleiste einer Gruppe */
+.gruppen-rahmen .fenster-leiste {
+  pointer-events: auto;
+}
+
+.gruppe-preset {
+  margin: 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* Runde 24: Modul-Auswahl nach Themen aufklappbar */
+.patch-leiste {
+  position: relative;
+}
+
+.modul-browser {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  width: min(34rem, 92vw);
+  max-height: 70vh;
+  overflow: auto;
+  padding: 0.4rem;
+  border: 1px solid currentColor;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.modul-browser details {
+  border-bottom: 1px solid rgba(221, 221, 221, 0.2);
+}
+
+.modul-browser summary {
+  padding: 0.3rem 0.2rem;
+  cursor: pointer;
+}
+
+.modul-liste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.2rem 0 0.5rem 1rem;
+}
+
+.modul-liste > .familie {
+  flex-basis: 100%;
+  border-bottom: none;
+}
+
+.modul-liste button {
+  font-size: 0.85rem;
+}
+
+/* Spuren (Runde 23b): Kanal und Clips */
+.pegel-anzeige {
+  display: block;
+  width: 100%;
+  height: 14px;
+  color: var(--text);
+}
+
+.solo-knopf[aria-pressed="true"],
+.clip-feld.spielt {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.clip-raster {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.clip-raster button {
+  min-width: 0;
+  min-height: 1.6rem;
+  padding: 0 0.2rem;
+  font-size: 0.75rem;
+}
+
+.clip-kopf {
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.clip-feld {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.clip-feld.voll {
+  border-style: solid;
+  opacity: 1;
+}
+
+.clip-feld.gewaehlt {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+
+.clip-feld.wartet {
+  animation: clip-blinkt 0.5s steps(1) infinite;
+}
+
+@keyframes clip-blinkt {
+  50% {
+    background: var(--text);
+    color: var(--bg);
+  }
+}
+
+.ablauf-zeile input {
+  width: 14rem;
+}
+
+.ablauf-streifen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0.3rem 0;
+}
+
+.ablauf-streifen span {
+  min-width: 1.6rem;
+  padding: 0 0.3rem;
+  border: 1px solid currentColor;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.ablauf-streifen span.jetzt {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Shaper: Kennlinie zum Malen (Runde 24) */
+canvas.malbar {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.clip-raster button:not(.spielt) {
+  background: transparent;
+  color: var(--text);
 }

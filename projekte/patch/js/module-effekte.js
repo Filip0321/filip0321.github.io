@@ -87,8 +87,15 @@ const band = {
   baue(ctx) {
     const k = new AudioWorkletNode(ctx, "band", { outputChannelCount: [2] });
     const alter = filter(ctx, "lowpass", 9000, 0.6);
+    // Kopfbuckel (Runde 21): Tonköpfe heben die Tiefen um 60–120 Hz leicht an (die Spaltbreite des Kopfs passt dort
+    // gerade zur Wellenlänge auf dem Band). Ein Glockenfilter (peaking) bei 90 Hz macht das nach: der „warme“ Bass.
+    const kopf = ctx.createBiquadFilter();
+    kopf.type = "peaking";
+    kopf.frequency.value = 90;
+    kopf.Q.value = 0.9;
+    kopf.gain.value = 2;
     const ein = verstaerker(ctx, 1);
-    ein.connect(k).connect(alter);
+    ein.connect(k).connect(kopf).connect(alter);
     const p = (n) => k.parameters.get(n);
     return {
       ein: { ein: { art: "ton", ziel: ein } },
@@ -99,6 +106,8 @@ const band = {
         { name: "antrieb", text: "Sättigung", ...log(0.2, 8), wert: 1.5, setze: (v) => p("antrieb").setValueAtTime(v, ctx.currentTime) },
         { name: "rauschen", text: "Rauschen", min: 0, max: 0.03, wert: 0.003, setze: (v) => p("rauschen").setValueAtTime(v, ctx.currentTime) },
         { name: "alter", text: "Alter", ...log(1500, 16000), wert: 9000, einheit: "Hz", setze: (v) => alter.frequency.setTargetAtTime(v, ctx.currentTime, 0.02) },
+        { name: "kopf", text: "Kopfbuckel", min: 0, max: 8, wert: 2, einheit: "dB", setze: (v) => kopf.gain.setTargetAtTime(v, ctx.currentTime, 0.02) },
+        { name: "aussetzer", text: "Aussetzer", min: 0, max: 1, wert: 0, setze: (v) => p("aussetzer").setValueAtTime(v, ctx.currentTime) },
       ],
     };
   },

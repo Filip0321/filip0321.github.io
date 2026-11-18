@@ -1,8 +1,21 @@
 const wenigBewegung = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 // Läuft die Seite eingebettet (iframe, z. B. auf einer Fläche im Zimmer), ist sie dort nur ein Fenster:
-// Menü weg (css/style.css, Klasse „eingebettet“ auf <html>)
-if (window.self !== window.top) document.documentElement.classList.add("eingebettet");
+// Menü weg (css/style.css, Klasse „eingebettet“ auf <html>). Runde 24: auch der Titel der Projektseite (das Zimmer
+// zeigt den Namen schon auf seiner Tafel). Und ist das Fenster gleich mit DIESER Seite geöffnet worden (der Link im
+// Zimmer zeigt auf genau dieses Projekt), braucht es kein „← Projekte“: Klasse „eingebettet-ziel“. Kam man im Fenster
+// erst über die Projektliste hierher, bleibt der Link, damit man zurück zur Liste kommt.
+if (window.self !== window.top) {
+  document.documentElement.classList.add("eingebettet");
+  try {
+    // frameElement gibt es nur bei gleicher Herkunft (das Zimmer liegt auf derselben Seite); sonst einfach nichts tun
+    const src = window.frameElement?.getAttribute("src");
+    if (src) {
+      const pfad = (p) => p.replace(/index\.html$/, "").replace(/\/?$/, "/");
+      if (pfad(new URL(src, location.href).pathname) === pfad(location.pathname)) document.documentElement.classList.add("eingebettet-ziel");
+    }
+  } catch {}
+}
 
 const el = document.getElementById("name");
 

@@ -135,6 +135,43 @@
       "auf": "nichts",
       "tafel": "aus",
       "danach": "link"
+    },
+    {
+      "name": "Patch",
+      "link": "/projekte/patch/",
+      "form": "flaeche",
+      "lage": [
+        4.212,
+        -2.941,
+        0.254
+      ],
+      "radius": 1.184,
+      "kamera": "kreisen",
+      "tafel": "knapp",
+      "auf": "nichts",
+      "danach": "seite",
+      "punkte": [
+        [
+          4.546,
+          -2.237,
+          1.117
+        ],
+        [
+          3.884,
+          -2.233,
+          -0.609
+        ],
+        [
+          3.869,
+          -3.657,
+          -0.625
+        ],
+        [
+          4.549,
+          -3.638,
+          1.132
+        ]
+      ]
     }
   ],
   "grundriss": {

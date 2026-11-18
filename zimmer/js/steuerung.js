@@ -21,6 +21,9 @@
 // Zoomen: Mausrad oder zwei Finger (kneifen). Je nach Blickart ändert das den Abstand (frei, Zeigen, Draufsicht)
 // oder das Sichtfeld (Rundblick und Parallaxe: dort steht die Kamera fest). Beim Kneifen zählt das Verhältnis der
 // Fingerabstände: Abstand am Anfang / Abstand jetzt, mal dem Wert am Anfang. Finger auseinander = näher heran.
+// Ausnahme Herumgehen: dort gehen zwei Finger in Blickrichtung (auseinander = vorwärts, zusammen = rückwärts), für
+// das Sichtfeld gibt es am Handy ja den Zoom-Regler. Gerechnet wird mit der Änderung des Fingerabstands seit der
+// letzten Bewegung: 100 Pixel auseinander sind ein Meter.
 //
 // Winkel: die Kamera schaut entgegen „vorn“ = (sin g · cos n, sin n, cos g · cos n). Größere Gier dreht den Blick
 // nach links, größerer Nick nach unten.
@@ -125,15 +128,27 @@ buehne.addEventListener("pointerdown", (ev) => {
   if (ev.pointerType === "mouse" || ev.target.closest("aside, section, button")) return; // nicht in Leiste und Tafel
   finger.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (finger.size === 2 && z.kamera && !fahrtLaeuft()) {
-    const zw = zoomWert();
-    kneifen = { ...zw, start: zw.k[zw.feld], d0: fingerAbstand() };
+    if (art() === "begehen" && z.rund && !z.zeig && !z.draufsicht) kneifen = { gehen: true, d: fingerAbstand() };
+    else {
+      const zw = zoomWert();
+      kneifen = { ...zw, start: zw.k[zw.feld], d0: fingerAbstand() };
+    }
     ziehen = null; // der erste Finger dreht nicht mehr
   }
 }, { capture: true });
 buehne.addEventListener("pointermove", (ev) => {
   if (!finger.has(ev.pointerId)) return;
   finger.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-  if (kneifen && finger.size >= 2) zoome(kneifen.k, kneifen.feld, (kneifen.start * kneifen.d0) / fingerAbstand(), kneifen.min, kneifen.max);
+  if (!kneifen || finger.size < 2) return;
+  if (kneifen.gehen) {
+    const d = fingerAbstand(), weg = (d - kneifen.d) * 0.01;
+    kneifen.d = d;
+    const k = z.rund, vor = [-Math.sin(k.gier), 0, -Math.cos(k.gier)]; // waagerecht in Blickrichtung (wie W)
+    const nach = k.ziel.map((a, i) => a + vor[i] * weg);
+    if (darfGehen(k.ziel, nach)) k.ziel = nach;
+    eingabe();
+    neu();
+  } else zoome(kneifen.k, kneifen.feld, (kneifen.start * kneifen.d0) / fingerAbstand(), kneifen.min, kneifen.max);
 }, { capture: true });
 for (const art_ of ["pointerup", "pointercancel"]) {
   buehne.addEventListener(art_, (ev) => {

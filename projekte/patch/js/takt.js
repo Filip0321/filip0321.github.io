@@ -14,11 +14,36 @@ export class Takt {
   // dauer: wie lange der Ton gehalten wird; Infinity = bis loslassen() kommt (eine Taste am MIDI-Keyboard:
   // beim Anschlag weiß man noch nicht, wann sie losgelassen wird)
   sende(zeit, dauer) {
+    this.blink?.(zeit); // das Lämpchen an der Buchse (main.js)
     for (const h of this.hoerer) h(zeit, dauer);
   }
   // Taste los: wer gehaltene Töne kennt (Hüllkurve), hat eine Funktion .los am Eingang
   loslassen(zeit) {
     for (const h of this.hoerer) h.los?.(zeit);
+  }
+}
+
+// Noten (Runde 21): Ereignisse mit Tonhöhe, beliebig viele gleichzeitig. Ein Ton-Kabel kann nur EINE Tonhöhe tragen
+// (eine Zahl je Sample, wie eine Spannung); für einen Akkord bräuchte man drei Kabel und drei Stimmen. Ein Noten-Kabel
+// trägt stattdessen Nachrichten wie MIDI: „Note 60 an, Anschlag 0,8“ und später „Note 60 aus“. Wer zuhört (die
+// Stimmen), verteilt sie selbst auf seine Stimmen. So arbeiten auch Bitwig (Notenkabel) und Max (MIDI-Ströme).
+//   an(zeit, ton, anschlag, dauer)   ton: MIDI-Nummer (60 = C4, Kommazahlen erlaubt), anschlag 0 … 1,
+//                                    dauer in Sekunden oder Infinity (bis aus() kommt, wie eine gehaltene Taste)
+//   aus(zeit, ton)                   nur nötig bei dauer = Infinity
+// Ein Hörer ist eine Funktion (zeit, ton, anschlag, dauer) mit einer Funktion .aus(zeit, ton) daran.
+export class Noten {
+  constructor() {
+    this.hoerer = new Set();
+  }
+  an(zeit, ton, anschlag = 0.8, dauer = Infinity) {
+    this.blink?.(zeit);
+    for (const h of this.hoerer) h(zeit, ton, anschlag, dauer);
+  }
+  aus(zeit, ton) {
+    for (const h of this.hoerer) h.aus?.(zeit, ton);
+  }
+  alleAus(zeit) {
+    for (const h of this.hoerer) h.alleAus?.(zeit);
   }
 }
 
@@ -45,6 +70,7 @@ export function erstelleUhr(ctx) {
     }
   }, ALLE);
   return {
+    nullpunkt: null_,
     // tempo: () => Schläge pro Minute; rufe: (zeit, nummer); gibt eine Funktion zum Abmelden zurück
     abonniere(tempo, rufe) {
       const a = { tempo, rufe, naechste: null, nr: 0 };

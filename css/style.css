@@ -106,6 +106,12 @@ Menu Styles
   display: none !important;
 }
 
+/* Runde 24: im Fenster des Zimmers kein Titel der Projektseite; „← Projekte“ nur, wenn man über die Liste kam */
+.eingebettet .projekt-kopf h1,
+.eingebettet-ziel .projekt-kopf .zurueck {
+  display: none;
+}
+
 .menu-btn {
   position: fixed;
   top: 1.5rem;

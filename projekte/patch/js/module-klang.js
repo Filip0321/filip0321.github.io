@@ -36,7 +36,7 @@ const wellenform = {
       ein: { "Tonhöhe": { art: "ton", ziel: tonhoehe }, FM: { art: "ton", ziel: fm } },
       aus: { aus: { art: "ton", knoten: osc } },
       regler: [
-        { name: "frequenz", text: "Frequenz", ...log(20, 4000), wert: 110, einheit: "Hz", setze: (v) => osc.frequency.setTargetAtTime(v, ctx.currentTime, 0.01) },
+        { name: "frequenz", text: "Frequenz", ...log(20, 12000), wert: 110, einheit: "Hz", setze: (v) => osc.frequency.setTargetAtTime(v, ctx.currentTime, 0.01) },
         { name: "fmTiefe", text: "FM-Tiefe", ...log(1, 2000), wert: 100, einheit: "Hz", setze: (v) => fm.gain.setTargetAtTime(v, ctx.currentTime, 0.01) },
       ],
       wahl: [{

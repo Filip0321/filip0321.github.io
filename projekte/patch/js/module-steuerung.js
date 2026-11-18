@@ -1,7 +1,7 @@
 // Neue Steuer-Module (Runde 17): MIDI-Eingang, Notenraster, Arpeggiator, Turing-Maschine, Quantisierer,
 // Sample & Hold, Glide, Taktwerk, Makros.
 
-import { Takt } from "./takt.js";
+import { Takt, Noten } from "./takt.js";
 import { log, konstante, filter, leser, LEITERN, LEITER_WAHL, GRUNDTOENE } from "./bausteine.js";
 
 const TEILUNG = [["4", "Viertel"], ["8", "Achtel"], ["16", "Sechzehntel"]];
@@ -22,6 +22,7 @@ const midi = {
     const ton = konstante(ctx, 0), gate = konstante(ctx, 0), anschlag = konstante(ctx, 0);
     const regler = [0, 1, 2, 3].map(() => konstante(ctx, 0));
     const takt = new Takt(), pad = new Takt();
+    const noten = new Noten(); // Runde 21: alle Tasten zugleich, für Akkorde (Stimmen)
     const w = { kanal: "alle", cc: 70, oktave: 0, biegung: 2 };
     let gehalten = [], biegen = 0, anzeige = null, zugang = null;
     const stimme = (note) => (note - 60 + w.oktave * 12 + biegen * w.biegung) / 12;
@@ -35,6 +36,7 @@ const midi = {
       if (w.kanal !== "alle" && Number(w.kanal) !== kanal) return;
       if (art === 0x90 && b > 0) {
         gehalten = gehalten.filter((n) => n !== a).concat(a);
+        noten.an(t, a + w.oktave * 12, b / 127, Infinity);
         setzeTon(t);
         anschlag.offset.setValueAtTime(b / 127, t);
         gate.offset.setValueAtTime(1, t);
@@ -42,6 +44,7 @@ const midi = {
         if (anzeige) anzeige.textContent = `Note ${a} · Anschlag ${b}`;
       } else if (art === 0x80 || (art === 0x90 && b === 0)) {
         if (kanal === 10) return;
+        noten.aus(t, a + w.oktave * 12);
         gehalten = gehalten.filter((n) => n !== a);
         if (gehalten.length) setzeTon(t);
         else {
@@ -76,7 +79,7 @@ const midi = {
       ein: {},
       aus: {
         "Tonhöhe": { art: "ton", knoten: ton }, Gate: { art: "ton", knoten: gate }, Anschlag: { art: "ton", knoten: anschlag },
-        Takt: { art: "takt", knoten: takt }, Pad: { art: "takt", knoten: pad },
+        Takt: { art: "takt", knoten: takt }, Pad: { art: "takt", knoten: pad }, Noten: { art: "noten", knoten: noten },
         K1: { art: "ton", knoten: regler[0] }, K2: { art: "ton", knoten: regler[1] }, K3: { art: "ton", knoten: regler[2] }, K4: { art: "ton", knoten: regler[3] },
       },
       regler: [

@@ -137,37 +137,40 @@ Grafiken sind vierfach groß, --m = 0.125 ergibt etwa XP-Originalgröße
 }
 
 /*
-Schlichte Fenster: ohne XP-Grafik, nach den Seitenregeln
-die Klasse "schlicht" sitzt auf <html> (fenster.js)
+Schlichte Fenster: ohne XP-Grafik, nach den Seitenregeln.
+Seit Runde 22 immer (vorher nur mit der Klasse "schlicht" auf <html>, umschaltbar auf der Startseite).
+:root statt .schlicht: gleich genau (eine Klasse = eine Pseudoklasse), gilt aber immer, also auch schon,
+bevor ein Skript läuft (kein kurzes Aufblitzen der XP-Rahmen). Die XP-Regeln oben bleiben stehen:
+Foto-Effekte malt seine XP-Fenster selbst ins Bild (effekte/rahmen.js) und braucht diese Datei nicht.
 */
 
-.schlicht .fenster {
+:root .fenster {
   padding: 2.2rem 0 0;
   border: 1px solid currentColor;
   background: var(--bg);
 }
 
-.schlicht .fenster::after {
+:root .fenster::after {
   display: none;
 }
 
-.schlicht .fenster-leiste {
+:root .fenster-leiste {
   height: 2.2rem;
   padding: 0 0.3rem 0 0.75rem;
   border-bottom: 1px solid currentColor;
 }
 
-.schlicht .fenster-titel {
+:root .fenster-titel {
   font: inherit;
   color: inherit;
 }
 
-.schlicht .fenster-knopf.deko,
-.schlicht .fenster-knopf.deko2 {
+:root .fenster-knopf.deko,
+:root .fenster-knopf.deko2 {
   display: none;
 }
 
-.schlicht .fenster-knopf.schliessen {
+:root .fenster-knopf.schliessen {
   display: grid;
   place-items: center;
   width: 1.6rem;
@@ -177,14 +180,21 @@ die Klasse "schlicht" sitzt auf <html> (fenster.js)
   font: inherit;
 }
 
-.schlicht .fenster-knopf.schliessen::before {
+:root .fenster-knopf.schliessen::before {
   content: "✕";
 }
 
-.schlicht .fenster-knopf.schliessen:hover,
-.schlicht .fenster-knopf.schliessen:focus-visible,
-.schlicht .fenster-knopf.schliessen:active {
+:root .fenster-knopf.schliessen:hover,
+:root .fenster-knopf.schliessen:focus-visible,
+:root .fenster-knopf.schliessen:active {
   background: var(--text);
   color: var(--bg);
   outline: none;
+}
+
+
+
+/* der frühere Umschalter auf der Startseite (fenster.js entfernt ihn; so blitzt er auch vorher nicht auf) */
+#stil-wechsel {
+  display: none;
 }

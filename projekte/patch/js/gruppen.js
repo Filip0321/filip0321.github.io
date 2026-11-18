@@ -11,14 +11,19 @@
 // an denen schon ein Kabel nach draußen geht, von selbst außen.
 // Ein Makro ist eine zweite Ansicht desselben Reglers: drehen am Makro stellt den Regler innen (und umgekehrt).
 //
-// Gespeichert wird eine Gruppe als { id, titel, mitglieder, offen, aussen, makros, x, y } im Patch; als eigene
+// Presets (Runde 23): eine Gruppe kann mehrere Einstellungen kennen (Vogel: Amsel, Kohlmeise, Spatz …). Ein Preset ist
+// je Mitglied eine Liste von Werten (Knöpfe und Auswahlen) und ob es aus ist (⏻). Die Auswahl steht in der Titelleiste;
+// gewählt wird es genau so, als hätte man selbst an allen Knöpfen gedreht. Man sieht danach, was sich verändert hat.
+//
+// Gespeichert wird eine Gruppe als { id, titel, mitglieder, offen, aussen, makros, presets, preset, x, y } im Patch; als eigene
 // Datei („Gruppe speichern“) mit ihren Modulen und inneren Kabeln, zum Einfügen in andere Patches.
 
 import { macheDrehknopf } from "/lib/knopfRegler.js";
+import { setzeWert } from "./fenster.js";
 
 let zaehler = 1;
 
-export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGedrueckt, merkeBald, melde, ladeHerunter, zeitstempel }) {
+export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buchseGedrueckt, merkeBald, melde, ladeHerunter, zeitstempel, stummSchalten = () => {} }) {
   const gruppen = new Map(); // id → gruppe
   const gruppeVon = (m) => (m?.gruppe ? gruppen.get(m.gruppe) : null);
 
@@ -35,10 +40,10 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
   }
 
   // ---------- Bilden, Auflösen ----------
-  function bilden(liste, { titel = "Gruppe", offen = true, aussen = null, makros = [], id = null } = {}) {
+  function bilden(liste, { titel = "Gruppe", offen = true, aussen = null, makros = [], id = null, presets = null, preset = null } = {}) {
     liste = liste.filter((m) => m && !m.gruppe);
     if (!liste.length) return null;
-    const g = { id: id ?? `g${zaehler++}`, titel, mitglieder: new Set(liste), offen, aussen: [], makros: [], x: 0, y: 0, el: null, rahmen: null };
+    const g = { id: id ?? `g${zaehler++}`, titel, mitglieder: new Set(liste), offen, aussen: [], makros: [], x: 0, y: 0, el: null, rahmen: null, presets, preset };
     for (const m of liste) m.gruppe = g.id;
     gruppen.set(g.id, g);
     // außen: angegeben, sonst alle Buchsen mit Kabeln nach draußen
@@ -153,7 +158,17 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
   function knoepfeFuer(g) {
     const k = document.createElement("div");
     k.className = "fenster-knoepfe";
+    // ⏻ (Runde 22b): die ganze Gruppe aus und wieder ein (alle Mitglieder)
+    const alleStumm = () => [...g.mitglieder].every((m) => m.stumm || !Object.keys(m.teil.aus).length);
+    const aus = knopf("stumm-knopf", "Gruppe ein- und ausschalten", "ein- und ausschalten (die Kabel bleiben stecken)", () => {
+      const an = !alleStumm();
+      for (const m of g.mitglieder) if (Object.keys(m.teil.aus).length) stummSchalten(m, an);
+      aus.setAttribute("aria-pressed", String(an));
+    });
+    aus.textContent = "⏻";
+    aus.setAttribute("aria-pressed", String(alleStumm()));
     k.append(
+      aus,
       knopf("fenster-knopf deko gruppe-klappen", g.offen ? "Gruppe zuklappen" : "Gruppe aufklappen", g.offen ? "zuklappen" : "aufklappen", () => klappe(g, !g.offen)),
       knopf("fenster-knopf deko2 gruppe-speichern", "Gruppe als Datei speichern", "Gruppe speichern (zum Einfügen in andere Patches)", () => speichere(g)),
       knopf("fenster-knopf schliessen", "Gruppe auflösen", "Gruppe auflösen (die Module bleiben)", () => aufloesen(g)),
@@ -162,6 +177,34 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
   }
 
   // Rahmen (aufgeklappt) und Fenster (zugeklappt) neu bauen
+  // Preset anwenden: Werte stellen (setzeWert, wie gedreht), ⏻ setzen
+  function wendeAn(g, name) {
+    const p = g.presets?.[name];
+    if (!p) return;
+    g.preset = name;
+    for (const [id, e] of Object.entries(p)) {
+      const m = module.get(id);
+      if (!m) continue;
+      for (const [k, v] of Object.entries(e.werte ?? {})) setzeWert(m, k, v);
+      if ("stumm" in e) stummSchalten(m, Boolean(e.stumm));
+    }
+    for (const w of [g.el, g.rahmen]) {
+      const s = w?.querySelector(".gruppe-preset");
+      if (s) s.value = name;
+    }
+    merkeBald();
+  }
+  function presetWahl(g) {
+    const s = document.createElement("select");
+    s.className = "gruppe-preset";
+    s.setAttribute("aria-label", `${g.titel}: Preset`);
+    for (const n of Object.keys(g.presets)) s.append(new Option(n, n));
+    s.value = g.preset ?? Object.keys(g.presets)[0];
+    s.addEventListener("pointerdown", (ev) => ev.stopPropagation()); // nicht die Gruppe ziehen
+    s.addEventListener("change", () => wendeAn(g, s.value));
+    return s;
+  }
+
   function baue(g) {
     g.el?.remove();
     g.rahmen?.remove();
@@ -172,7 +215,7 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
       r.className = "gruppen-rahmen";
       const leiste = document.createElement("header");
       leiste.className = "fenster-leiste";
-      leiste.append(titelFeld(g), knoepfeFuer(g));
+      leiste.append(titelFeld(g), ...(g.presets ? [presetWahl(g)] : []), knoepfeFuer(g));
       r.append(leiste);
       flaeche.append(r);
       ziehbar(leiste, g);
@@ -181,13 +224,23 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
     } else {
       const f = document.createElement("article");
       f.className = "fenster modul gruppe-fenster";
-      f.style.zIndex = 50000; // über den normalen Fenstern
+      // unter den Modul-Fenstern (die fangen bei 10 an, fenster.js): klappt man eine Gruppe auf, liegen ihre Module
+      // über den anderen zugeklappten Gruppen und nicht darunter (Runde 22b; vorher 50000, über allem)
+      f.style.zIndex = 5;
       f.style.left = `${g.x}px`;
       f.style.top = `${g.y}px`;
       const leiste = document.createElement("header");
       leiste.className = "fenster-leiste";
       leiste.append(titelFeld(g), knoepfeFuer(g));
       const inhalt = document.createElement("div");
+      if (g.presets) {
+        const reihe = document.createElement("div");
+        reihe.className = "steuerung";
+        const l = document.createElement("label");
+        l.append("Preset ", presetWahl(g));
+        reihe.append(l);
+        inhalt.append(reihe);
+      }
       inhalt.className = "fenster-inhalt";
       const buchsen = document.createElement("div");
       buchsen.className = "buchsen";
@@ -375,6 +428,7 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
       mitglieder: [...g.mitglieder].map((m) => m.id),
       aussen: g.aussen.map((a) => [a.modul.id, a.name, a.richtung, a.art]),
       makros: g.makros.map((mk) => [mk.modul.id, mk.name]),
+      ...(g.presets && { presets: g.presets, preset: g.preset }),
     }));
   }
   function lade(liste = []) {
@@ -384,6 +438,7 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
         id: d.id, titel: d.titel, offen: true,
         aussen: d.aussen.map(([id, name, richtung, art]) => ({ modul: module.get(id), name, richtung, art })),
         makros: d.makros.map(([id, name]) => ({ modul: module.get(id), name })),
+        presets: d.presets ?? null, preset: d.preset ?? null,
       });
       if (!g) continue;
       zaehler = Math.max(zaehler, Number(String(d.id).replace(/\D/g, "")) + 1 || zaehler);
@@ -401,7 +456,7 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
   function gruppeAlsDaten(g) {
     const ids = new Set([...g.mitglieder].map((m) => m.id));
     return {
-      gruppe: { titel: g.titel, aussen: g.aussen.map((a) => [a.modul.id, a.name, a.richtung, a.art]), makros: g.makros.map((mk) => [mk.modul.id, mk.name]) },
+      gruppe: { titel: g.titel, aussen: g.aussen.map((a) => [a.modul.id, a.name, a.richtung, a.art]), makros: g.makros.map((mk) => [mk.modul.id, mk.name]), ...(g.presets && { presets: g.presets, preset: g.preset }) },
       module: [...g.mitglieder].map((m) => ({ id: m.id, typ: m.typ, x: Math.round(m.x), y: Math.round(m.y), werte: m.werte, ...(m.extraEl?.schritteLesen && { schritte: m.extraEl.schritteLesen() }) })),
       kabel: kabel.alle().filter((k) => ids.has(k.von.modul.id) && ids.has(k.nach.modul.id)).map((k) => [k.von.modul.id, k.von.name, k.nach.modul.id, k.nach.name]),
     };
@@ -413,12 +468,21 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
 
   // Module einer Gruppen-Datei (oder einer Vorlage) in den jetzigen Patch: neue Ids, an die Stelle (x, y), zugeklappt
   // ohne: Typen, die nicht mitkommen (Ausgang: den gibt es nur einmal); was an ihnen hing, liegt dann außen
-  function fuegeEin(daten, x, y, { titel, ohne = ["ausgang"] } = {}) {
+  function fuegeEin(daten, x, y, { titel, ohne = ["ausgang"], startPreset = null } = {}) {
     const neu = new Map();
     const x0 = Math.min(...daten.module.map((m) => m.x)), y0 = Math.min(...daten.module.map((m) => m.y));
+    // Mit Start-Preset kommen dessen Werte gleich beim Bau in die Module (nicht erst danach): sonst läuft für einen
+    // Augenblick das erste Preset (Regen: 1800 Takte je Sekunde) in ein Modul, das gleich auf „Tropfstein“ umschaltet,
+    // und die schon bestellten Tropfen klingen alle mit den neuen, langen Zeiten (gemessen: ein lauter Knall).
+    const sp = startPreset && daten.gruppe?.presets?.[startPreset];
     for (const d of daten.module) {
       if (ohne.includes(d.typ)) continue;
-      const m = neuesModul({ ...d, id: null, x: x + d.x - x0, y: y + d.y - y0, werte: { ...d.werte } });
+      const werte = { ...d.werte, ...(sp?.[d.id]?.werte ?? {}) };
+      if (sp?.[d.id]) {
+        if (sp[d.id].stumm) werte.__stumm = true;
+        else delete werte.__stumm;
+      }
+      const m = neuesModul({ ...d, id: null, x: x + d.x - x0, y: y + d.y - y0, werte });
       if (m) neu.set(d.id, m);
     }
     const aussen = (daten.gruppe?.aussen ?? []).map(([id, name, richtung, art]) => ({ modul: neu.get(id), name, richtung, art })).filter((a) => a.modul);
@@ -435,10 +499,21 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
           if (!aussen.some((x) => x.modul === von && x.name === an)) aussen.push({ modul: von, name: an, richtung: "aus", art });
         }
       }
+      // Presets: ihre Ids sind die der Datei, hier gelten die neuen
+      let presets = null;
+      if (daten.gruppe?.presets) {
+        presets = {};
+        for (const [n, p] of Object.entries(daten.gruppe.presets)) {
+          presets[n] = {};
+          for (const [id, e] of Object.entries(p)) if (neu.get(id)) presets[n][neu.get(id).id] = e;
+        }
+      }
       const g = bilden([...neu.values()], {
         titel: titel ?? daten.gruppe?.titel ?? "Gruppe", offen: true, aussen,
         makros: (daten.gruppe?.makros ?? []).map(([id, name]) => ({ modul: neu.get(id), name })),
+        presets, preset: daten.gruppe?.preset ?? null,
       });
+      if (g && presets && (startPreset ?? g.preset)) requestAnimationFrame(() => wendeAn(g, startPreset ?? g.preset));
       if (g) requestAnimationFrame(() => klappe(g, false));
       merkeBald();
     });
@@ -446,6 +521,13 @@ export function erstelleGruppen({ flaeche, lokal, module, kabel, neuesModul, buc
 
   return {
     umleiten, innen, bilden, alsDaten, lade, fuegeEin, gruppeKnopf,
+    // für Kopieren und Löschen (rueckgaengig.js): die markierten Module
+    auswahl: () => [...auswahl],
+    waehleAus(liste) {
+      auswahl.clear();
+      for (const m of liste) if (m && !m.gruppe) auswahl.add(m);
+      zeigeAuswahl();
+    },
     // jedes Bild: Rahmen um aufgeklappte Gruppen nachführen (Fenster darin können gezogen worden sein)
     zeichne() {
       for (const g of gruppen.values()) if (g.offen) setzeRahmen(g);

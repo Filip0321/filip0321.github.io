@@ -17,6 +17,7 @@
 // Sequenz in jeder Lage gleich (eine Oktave ist immer eine Verdopplung, egal wie hoch der Grundton steht).
 
 import { Takt } from "./takt.js";
+import { huellkurvenBild, verlaufsBild, wellenBild, filterBild } from "./anzeigen.js";
 
 const log = (min, max) => ({ min, max, log: true }); // Knopf logarithmisch (Frequenzen, Zeiten)
 const FORMEN = [["sine", "Sinus"], ["triangle", "Dreieck"], ["sawtooth", "Sägezahn"], ["square", "Rechteck"]];
@@ -39,8 +40,9 @@ export const TYPEN = {
   oszillator: {
     titel: "Oszillator",
     gruppe: "Klang",
-    baue(ctx) {
+    baue(ctx, { bild }) {
       const osc = ctx.createOscillator();
+      const bildchen = wellenBild(ctx, bild, osc, () => osc.frequency.value * 2 ** (osc.detune.value / 1200)); // Runde 23
       const tonhoehe = verstaerker(ctx, 1200); // 1,0 → eine Oktave (detune in Cent)
       const fm = verstaerker(ctx, 0); // Frequenzmodulation: Kabel × Tiefe (Hz) → Frequenz
       tonhoehe.connect(osc.detune);
@@ -50,35 +52,81 @@ export const TYPEN = {
         ein: { "Tonhöhe": { art: "ton", ziel: tonhoehe }, FM: { art: "ton", ziel: fm } },
         aus: { aus: { art: "ton", knoten: osc } },
         regler: [
-          { name: "frequenz", text: "Frequenz", ...log(20, 4000), wert: 110, einheit: "Hz", setze: (v) => osc.frequency.setTargetAtTime(v, ctx.currentTime, 0.01) },
+          // bis 12 kHz (Runde 22b, vorher 4 kHz): Grillen und Meisen singen höher
+          { name: "frequenz", text: "Frequenz", ...log(20, 12000), wert: 110, einheit: "Hz", setze: (v) => osc.frequency.setTargetAtTime(v, ctx.currentTime, 0.01) },
           { name: "fein", text: "Fein", min: -100, max: 100, wert: 0, einheit: "Cent", setze: (v) => (osc.detune.value = v) },
           { name: "fmTiefe", text: "FM-Tiefe", ...log(1, 2000), wert: 100, einheit: "Hz", setze: (v) => fm.gain.setTargetAtTime(v, ctx.currentTime, 0.01) },
         ],
         wahl: [{ name: "form", text: "Form", optionen: FORMEN, wert: "sawtooth", setze: (v) => (osc.type = v) }],
-        weg: () => osc.stop(),
+        extra: bildchen.extra,
+        weg: () => {
+          osc.stop();
+          bildchen.weg();
+        },
       };
     },
   },
 
+  // Rauschen in Farben (Runde 21). Wie bei Licht: weiß hat alle Frequenzen gleich stark (gleiche Leistung je Hz).
+  //   rosa   gleiche Leistung je Oktave (−3 dB je Oktave): so klingen Wasserfall, Regen, Blätter; das Ohr hört es
+  //          als „gleichmäßig“, weil es Oktaven hört, nicht Hertz. Gemacht mit Paul Kellets Filter: sieben
+  //          Tiefpässe mit verschiedenen Zeiten, zusammengezählt, liegen nah an −3 dB je Oktave.
+  //   braun  −6 dB je Oktave, wie ein Teilchen in Brownscher Bewegung: jeder Wert ist der vorige plus ein kleiner
+  //          Zufallsschritt (aufsummiert, leicht zur Mitte gezogen, sonst liefe er davon). Klingt wie Brandung,
+  //          ferner Donner, Wind hinter dem Fenster.
+  //   blau   +3 dB je Oktave (Differenz zweier aufeinanderfolgender Werte): Zischen, Funken.
   rauschen: {
     titel: "Rauschen",
     gruppe: "Klang",
     baue(ctx) {
-      // zwei Sekunden weißes Rauschen in Schleife (jeder Wert zufällig, alle Frequenzen gleich stark)
-      const puffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-      const d = puffer.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      const quelle = ctx.createBufferSource();
-      quelle.buffer = puffer;
-      quelle.loop = true;
       const pegel = verstaerker(ctx, 0.5);
-      quelle.connect(pegel);
-      quelle.start();
+      const puffer = {};
+      const mache = (farbe) => {
+        if (puffer[farbe]) return puffer[farbe];
+        const n = ctx.sampleRate * 4, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0, braun = 0, vorher = 0;
+        for (let i = 0; i < n; i++) {
+          const w = Math.random() * 2 - 1;
+          if (farbe === "weiss") d[i] = w;
+          else if (farbe === "rosa") {
+            b0 = 0.99886 * b0 + w * 0.0555179;
+            b1 = 0.99332 * b1 + w * 0.0750759;
+            b2 = 0.969 * b2 + w * 0.153852;
+            b3 = 0.8665 * b3 + w * 0.3104856;
+            b4 = 0.55 * b4 + w * 0.5329522;
+            b5 = -0.7616 * b5 - w * 0.016898;
+            d[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
+            b6 = w * 0.115926;
+          } else if (farbe === "braun") {
+            braun = (braun + 0.02 * w) / 1.02;
+            d[i] = braun;
+          } else {
+            d[i] = w - vorher;
+            vorher = w;
+          }
+        }
+        // alle Farben gleich laut (gleicher Effektivwert wie weißes Rauschen bei Pegel 1: 0,58)
+        let q = 0;
+        for (let i = 0; i < n; i++) q += d[i] * d[i];
+        const f = 0.58 / Math.sqrt(q / n);
+        for (let i = 0; i < n; i++) d[i] *= f;
+        return (puffer[farbe] = b);
+      };
+      let quelle = null;
+      const setzeFarbe = (farbe) => {
+        quelle?.stop();
+        quelle = ctx.createBufferSource(); // ein Puffer lässt sich nur einmal setzen: also neue Quelle
+        quelle.buffer = mache(farbe);
+        quelle.loop = true;
+        quelle.connect(pegel);
+        quelle.start();
+      };
       return {
         ein: {},
         aus: { aus: { art: "ton", knoten: pegel } },
         regler: [{ name: "pegel", text: "Pegel", min: 0, max: 1, wert: 0.5, setze: (v) => (pegel.gain.value = v) }],
-        weg: () => quelle.stop(),
+        wahl: [{ name: "farbe", text: "Farbe", optionen: [["weiss", "weiß"], ["rosa", "rosa"], ["braun", "braun"], ["blau", "blau"]], wert: "weiss", setze: setzeFarbe }],
+        weg: () => quelle?.stop(),
       };
     },
   },
@@ -214,7 +262,10 @@ export const TYPEN = {
             melde("Diese Datei kann der Browser nicht lesen.");
           }
         });
-        el.append(label);
+        const reihe = document.createElement("div");
+        reihe.className = "steuerung"; // nur dort versteckt das CSS das eigentliche Dateifeld (Runde 22)
+        reihe.append(label);
+        el.append(reihe);
       };
       return {
         ein: {},
@@ -230,22 +281,68 @@ export const TYPEN = {
   lfo: {
     titel: "LFO",
     gruppe: "Steuerung",
-    baue(ctx) {
+    baue(ctx, { bild }) {
       const osc = ctx.createOscillator();
       osc.type = "sine";
       osc.frequency.value = 0.5;
       const tiefe = verstaerker(ctx, 0.5);
       osc.connect(tiefe);
       osc.start();
+      // Zufall als Form (Runde 23): „Stufen“ springt im Tempo auf einen neuen Zufallswert (Sample & Hold auf Rauschen),
+      // „glatt“ gleitet dorthin (Kosinus), „Rauschen“ ist weißes Rauschen (für Zittern, oder als Klang).
+      // Dann spielt statt des Oszillators eine Konstante, die ein Zeitgeber alle 10 ms nachstellt.
+      const zq = ctx.createConstantSource(), rausch = ctx.createBufferSource();
+      zq.start();
+      {
+        const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        rausch.buffer = b;
+        rausch.loop = true;
+        rausch.start();
+      }
+      const z = { form: "sine", von: 0, nach: 0, phase: 0, zuletzt: ctx.currentTime };
+      const zeitgeber = setInterval(() => {
+        const t = ctx.currentTime, dt = t - z.zuletzt;
+        z.zuletzt = t;
+        if (z.form !== "zufall" && z.form !== "glatt") return;
+        z.phase += dt * osc.frequency.value;
+        if (z.phase >= 1) {
+          z.phase %= 1;
+          z.von = z.nach;
+          z.nach = Math.random() * 2 - 1;
+          if (z.form === "zufall") zq.offset.setValueAtTime(z.nach, t);
+        }
+        if (z.form === "glatt") zq.offset.setTargetAtTime(z.von + (z.nach - z.von) * (1 - Math.cos(Math.PI * z.phase)) / 2, t, 0.01);
+      }, 10);
+      const formSetzen = (v) => {
+        z.form = v;
+        for (const n of [osc, zq, rausch]) n.disconnect();
+        if (v === "zufall" || v === "glatt") zq.connect(tiefe);
+        else if (v === "rauschen") rausch.connect(tiefe);
+        else {
+          osc.type = v;
+          osc.connect(tiefe);
+        }
+      };
+      // Anzeige (Runde 21): die letzten zwei Sekunden des Ausgangs; oben und unten ist die eingestellte Tiefe
+      const anzeige = verlaufsBild(ctx, bild, tiefe, () => tiefe.gain.value);
+      anzeige.an();
       return {
+        extra: anzeige.extra,
         ein: { Tempo: { art: "ton", ziel: osc.frequency } },
         aus: { aus: { art: "ton", knoten: tiefe } },
         regler: [
           { name: "tempo", text: "Tempo", ...log(0.02, 30), wert: 0.5, einheit: "Hz", setze: (v) => (osc.frequency.value = v) },
           { name: "tiefe", text: "Tiefe", min: 0, max: 1, wert: 0.5, setze: (v) => tiefe.gain.setTargetAtTime(v, ctx.currentTime, 0.01) },
         ],
-        wahl: [{ name: "form", text: "Form", optionen: FORMEN, wert: "sine", setze: (v) => (osc.type = v) }],
-        weg: () => osc.stop(),
+        wahl: [{ name: "form", text: "Form", optionen: [...FORMEN, ["zufall", "Zufall (Stufen)"], ["glatt", "Zufall (glatt)"], ["rauschen", "Rauschen"]], wert: "sine", setze: formSetzen }],
+        weg: () => {
+          clearInterval(zeitgeber);
+          osc.stop();
+          zq.stop();
+          rausch.stop();
+          anzeige.weg();
+        },
       };
     },
   },
@@ -258,10 +355,12 @@ export const TYPEN = {
   huellkurve: {
     titel: "Hüllkurve",
     gruppe: "Steuerung",
-    baue(ctx) {
+    baue(ctx, { bild }) {
       const k = konstante(ctx, 0);
       const w = { a: 0.01, d: 0.2, s: 0.5, r: 0.3 };
+      const anzeige = huellkurvenBild(ctx, bild, w, k); // Form und Punkt (anzeigen.js, Runde 21)
       const ausloesen = (t, dauer = 0.2) => {
+        anzeige.angeschlagen(t, dauer);
         const p = k.offset;
         p.cancelAndHoldAtTime?.(t) ?? p.cancelScheduledValues(t);
         p.linearRampToValueAtTime(1, t + w.a);
@@ -273,6 +372,7 @@ export const TYPEN = {
       };
       // Taste losgelassen: ab jetzt in R auf 0
       ausloesen.los = (t) => {
+        anzeige.losgelassen(t);
         const p = k.offset;
         p.cancelAndHoldAtTime?.(t) ?? p.cancelScheduledValues(t);
         p.setTargetAtTime(0, t, w.r / 3);
@@ -286,7 +386,11 @@ export const TYPEN = {
           { name: "s", text: "Sustain", min: 0, max: 1, wert: 0.5, setze: (v) => (w.s = v) },
           { name: "r", text: "Release", ...log(0.01, 5), wert: 0.3, einheit: "s", setze: (v) => (w.r = v) },
         ],
-        weg: () => k.stop(),
+        extra: anzeige.extra,
+        weg: () => {
+          k.stop();
+          anzeige.weg();
+        },
       };
     },
   },
@@ -422,9 +526,10 @@ export const TYPEN = {
   filter: {
     titel: "Filter",
     gruppe: "Bearbeiten",
-    baue(ctx) {
+    baue(ctx, { bild }) {
       const f = ctx.createBiquadFilter();
       f.type = "lowpass";
+      const bildchen = filterBild(bild, f); // Frequenzgang (Runde 23)
       // Steuerung über detune (Cent): ein Kabel mit 1,0 verschiebt die Grenze um „Mod“ Oktaven; so wirkt ein LFO
       // oben und unten im Spektrum gleich stark (wie man Tonhöhen hört)
       const mod = verstaerker(ctx, 2400);
@@ -437,7 +542,9 @@ export const TYPEN = {
           { name: "resonanz", text: "Resonanz", ...log(0.3, 30), wert: 4, setze: (v) => (f.Q.value = v) },
           { name: "mod", text: "Mod", min: 0, max: 6, wert: 2, einheit: "Okt.", setze: (v) => (mod.gain.value = v * 1200) },
         ],
-        wahl: [{ name: "typ", text: "Art", optionen: [["lowpass", "Tiefpass"], ["highpass", "Hochpass"], ["bandpass", "Bandpass"], ["notch", "Kerbe"]], wert: "lowpass", setze: (v) => (f.type = v) }],
+        wahl: [{ name: "typ", text: "Art", optionen: [["lowpass", "Tiefpass"], ["highpass", "Hochpass"], ["bandpass", "Bandpass"], ["notch", "Kerbe"], ["peaking", "Glocke (Spitze)"]], wert: "lowpass", setze: (v) => { f.type = v; if (v === "peaking") f.gain.value = 12; } }],
+        extra: bildchen.extra,
+        weg: () => bildchen.weg(),
       };
     },
   },
@@ -661,7 +768,7 @@ export const TYPEN = {
       a.fftSize = 2048;
       const d = new Float32Array(2048);
       const LEITERN = { penta: [0, 2, 4, 7, 9], moll: [0, 2, 3, 5, 7, 8, 10], dur: [0, 2, 4, 5, 7, 9, 11], chromatisch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] };
-      const w = { tempo: 110, teilung: 8, umfang: 2, schwelle: 0.4, gate: 0.4, schritte: 2, leiter: "penta", wesen: 0, wild: "neu" };
+      const w = { tempo: 110, teilung: 8, umfang: 2, schwelle: 0.4, gate: 0.4, schritte: 2, leiter: "penta", wesen: 0, wild: "neu", lesekopf: "wandert", stab: 0.5 };
       let welt = null, setze = null, alleWesen = null, kopf = -1, pegel = 0, wollen = 0, dichteDurchgang = 0;
       const N = 128, SPALTEN = 16;
 
@@ -694,7 +801,9 @@ export const TYPEN = {
       };
       const uhrAbo = uhr.abonniere(() => w.tempo * (w.teilung / 4), (t, nr) => {
         if (!welt) return;
-        const i = nr % SPALTEN, x = Math.floor(((i + 0.5) / SPALTEN) * N);
+        // Lesekopf „steht“ (Runde 21): immer dieselbe Spalte, wie ein Stab, durch den die Wesen hindurchfliegen.
+        // Dann klingt es nur, wenn eines vorbeikommt; die Melodie ist sein Querschnitt, Zeile für Zeile.
+        const i = nr % SPALTEN, x = w.lesekopf === "steht" ? Math.min(N - 1, Math.floor(w.stab * N)) : Math.floor(((i + 0.5) / SPALTEN) * N);
         const spalte = welt.spalte(x);
         let best = 0, wo = 0, lebend = 0;
         spalte.forEach((v, y) => {
@@ -763,19 +872,23 @@ export const TYPEN = {
           { name: "umfang", text: "Oktaven", min: 1, max: 4, wert: 2, schritt: 1, setze: (v) => (w.umfang = v) },
           { name: "gate", text: "Länge", min: 0.05, max: 1, wert: 0.4, setze: (v) => (w.gate = v) },
           { name: "schritte", text: "Leben", min: 0, max: 6, wert: 2, schritt: 1, setze: (v) => (w.schritte = v) },
+          { name: "stab", text: "Stab", min: 0, max: 1, wert: 0.5, setze: (v) => (w.stab = v) },
         ],
         wahl: [
           { name: "teilung", text: "Noten", optionen: [["4", "Viertel"], ["8", "Achtel"], ["16", "Sechzehntel"]], wert: "8", setze: (v) => (w.teilung = Number(v)) },
           { name: "leiter", text: "Tonleiter", optionen: [["penta", "pentatonisch"], ["moll", "Moll"], ["dur", "Dur"], ["chromatisch", "chromatisch"]], wert: "penta", setze: (v) => (w.leiter = v) },
           { name: "wesen", text: "Wesen", optionen: [["0", "Orbium"], ["2", "Gyrorbium"], ["3", "Scutium"], ["6", "Paraptera"]], wert: "0", setze: (v) => { w.wesen = Number(v); regelnSetzen(); } },
           { name: "wild", text: "Wildwuchs", optionen: [["neu", "neu anfangen"], ["lassen", "wuchern lassen"]], wert: "neu", setze: (v) => (w.wild = v) },
+          { name: "lesekopf", text: "Lesekopf", optionen: [["wandert", "wandert"], ["steht", "steht (Stab)"]], wert: "wandert", setze: (v) => (w.lesekopf = v) },
         ],
+        klasse: "breit",
         extra: async (el) => {
           const leinwand = document.createElement("canvas");
           leinwand.width = leinwand.height = 256;
           leinwand.className = "schirm";
           const knoepfe = document.createElement("div");
-          knoepfe.className = "schritte";
+          knoepfe.className = "steuerung knopf-reihe"; // vorher „schritte“: das Raster des Sequenzers, 8 schmale Spalten
+          leinwand.style.maxWidth = "20rem"; // im breiten Fenster sonst riesig
           const neu = document.createElement("button"), leer = document.createElement("button");
           neu.type = leer.type = "button";
           neu.textContent = "Wesen dazu";
@@ -808,42 +921,115 @@ export const TYPEN = {
     },
   },
 
-  // Spektrum: die Fourier-Transformation des Eingangs (AnalyserNode), als Spektrogramm, das nach links wandert.
-  // Senkrecht logarithmisch (wie man hört): Zeile y ↔ Frequenz 30 Hz · (16000 / 30)^(1 − y / H).
+  // Spektrum (Runde 21 neu): oben die Kurve (wie laut jede Frequenz gerade ist), unten das Spektrogramm (dieselbe
+  // Kurve über die Zeit, neue Zeile oben, ältere rutschen nach unten). Beide mit derselben Achse: waagrecht die
+  // Frequenz logarithmisch von 20 Hz bis 20 kHz (jede Oktave gleich breit, wie man hört), Linien bei 100, 1k, 10k.
+  // Senkrecht bzw. hell: Pegel in Dezibel zwischen „Boden“ und „Decke“.
+  // Warum die alte Fassung nicht ging: sie las Bytes (getByteFrequencyData) mit dem festen Bereich −100 … −30 dB und
+  // quadrierte sie; ein Sägezahn hat in jeder Oberschwingung mehr als −30 dB, alles wurde gleich weiß. Jetzt kommen
+  // echte dB-Werte (getFloatFrequencyData), und der Bereich ist einstellbar.
+  // Viele Frequenzen in einem Bildpunkt (oben): der lauteste zählt; ein Bildpunkt zwischen zwei Frequenzen (unten,
+  // wo die FFT grob ist: 5,9 Hz Abstand bei 8192 Punkten): dazwischen gemischt.
   spektrum: {
     titel: "Spektrum",
     gruppe: "Ausgang und Bild",
     baue(ctx, { bild }) {
       const a = ctx.createAnalyser();
-      a.fftSize = 4096;
-      a.smoothingTimeConstant = 0;
-      const d = new Uint8Array(a.frequencyBinCount);
-      let leinwand = null, g = null;
+      a.fftSize = 8192;
+      a.smoothingTimeConstant = 0.6;
+      a.minDecibels = -140;
+      a.maxDecibels = 0;
+      const fd = new Float32Array(a.frequencyBinCount);
+      const w = { boden: -96, decke: -12, ansicht: "beides", halten: 1 };
+      const B = 320, H = 220;
+      const pegel = new Float32Array(B), spitzen = new Float32Array(B);
+      let c = null, g = null, zeile = null, farben = null, zuletzt = performance.now();
       const zeichne = () => {
-        if (!g) return;
-        const B = leinwand.width, H = leinwand.height;
-        g.drawImage(leinwand, -2, 0);
-        a.getByteFrequencyData(d);
-        const nyquist = ctx.sampleRate / 2;
-        for (let y = 0; y < H; y++) {
-          const f = 30 * (16000 / 30) ** (1 - y / H);
-          const v = d[Math.min(d.length - 1, Math.round((f / nyquist) * d.length))] / 255;
-          g.fillStyle = `rgba(221, 221, 221, ${v * v})`;
-          g.clearRect(B - 2, y, 2, 1);
-          g.fillRect(B - 2, y, 2, 1);
+        if (!g || c.offsetParent === null) return;
+        const jetzt = performance.now(), dt = Math.min(0.1, (jetzt - zuletzt) / 1000);
+        zuletzt = jetzt;
+        a.getFloatFrequencyData(fd);
+        const proBin = ctx.sampleRate / a.fftSize;
+        for (let x = 0; x < B; x++) {
+          const f0 = 20 * 1000 ** (x / B), f1 = 20 * 1000 ** ((x + 1) / B);
+          const k0 = f0 / proBin, k1 = f1 / proBin;
+          let db;
+          if (Math.floor(k1) > Math.floor(k0)) {
+            db = -Infinity;
+            for (let k = Math.ceil(k0); k <= Math.min(fd.length - 1, Math.floor(k1)); k++) db = Math.max(db, fd[k]);
+          } else {
+            const k = Math.min(fd.length - 2, Math.floor(k0)), t = k0 - k;
+            db = fd[k] * (1 - t) + fd[k + 1] * t;
+          }
+          const v = Math.max(0, Math.min(1, (db - w.boden) / (w.decke - w.boden)));
+          pegel[x] = v;
+          spitzen[x] = Math.max(v, spitzen[x] - dt * 0.25 / Math.max(0.05, w.halten)); // Spitzen fallen langsam
+        }
+        const oben = w.ansicht === "spektrogramm" ? 0 : w.ansicht === "kurve" ? H : 120;
+        if (!farben) {
+          const lies = (farbe) => farbe.match(/\d+/g).slice(0, 3).map(Number);
+          farben = { text: lies(getComputedStyle(c).color), bg: lies(getComputedStyle(c).backgroundColor) };
+        }
+        const strich = `rgb(${farben.text.join(",")})`;
+        // Kurve
+        if (oben > 0) {
+          g.clearRect(0, 0, B, oben);
+          g.fillStyle = g.strokeStyle = strich;
+          g.globalAlpha = 0.35;
+          for (const f of [100, 1000, 10000]) g.fillRect(Math.round((Math.log(f / 20) / Math.log(1000)) * B), 0, 1, oben);
+          g.font = "9px monospace";
+          g.fillText("100", (Math.log(5) / Math.log(1000)) * B + 3, 10);
+          g.fillText("1k", (Math.log(50) / Math.log(1000)) * B + 3, 10);
+          g.fillText("10k", (Math.log(500) / Math.log(1000)) * B + 3, 10);
+          g.globalAlpha = 0.2;
+          g.beginPath();
+          g.moveTo(0, oben);
+          for (let x = 0; x < B; x++) g.lineTo(x, oben - pegel[x] * (oben - 4));
+          g.lineTo(B, oben);
+          g.fill();
+          g.globalAlpha = 1;
+          g.lineWidth = 1.5;
+          g.beginPath();
+          for (let x = 0; x < B; x++) x ? g.lineTo(x, oben - pegel[x] * (oben - 4)) : g.moveTo(x, oben - pegel[x] * (oben - 4));
+          g.stroke();
+          if (w.halten > 0) {
+            g.globalAlpha = 0.6;
+            for (let x = 0; x < B; x += 2) g.fillRect(x, oben - spitzen[x] * (oben - 4), 2, 1);
+            g.globalAlpha = 1;
+          }
+        }
+        // Spektrogramm: alles eine Zeile nach unten, neue Zeile oben (zwischen den zwei Farben gemischt)
+        if (oben < H) {
+          if (oben > 0) g.fillRect(0, oben, B, 1); // Trennlinie
+          const y0 = oben + (oben > 0 ? 1 : 0);
+          g.drawImage(c, 0, y0, B, H - y0 - 1, 0, y0 + 1, B, H - y0 - 1);
+          for (let x = 0; x < B; x++) {
+            const v = pegel[x] ** 1.5;
+            for (let k = 0; k < 3; k++) zeile.data[x * 4 + k] = farben.bg[k] + (farben.text[k] - farben.bg[k]) * v;
+            zeile.data[x * 4 + 3] = 255;
+          }
+          g.putImageData(zeile, 0, y0);
         }
       };
+      const leeren = () => g?.clearRect(0, 0, B, H);
       return {
         ein: { ein: { art: "ton", ziel: a } },
         aus: {},
-        regler: [],
+        regler: [
+          { name: "boden", text: "Boden", min: -140, max: -40, wert: -96, schritt: 1, einheit: "dB", setze: (v) => (w.boden = v) },
+          { name: "decke", text: "Decke", min: -60, max: 0, wert: -12, schritt: 1, einheit: "dB", setze: (v) => (w.decke = Math.max(v, w.boden + 6)) },
+          { name: "glatt", text: "Glätten", min: 0, max: 0.95, wert: 0.6, setze: (v) => (a.smoothingTimeConstant = v) },
+          { name: "halten", text: "Spitzen", min: 0, max: 5, wert: 1, einheit: "s", setze: (v) => (w.halten = v) },
+        ],
+        wahl: [{ name: "ansicht", text: "Ansicht", optionen: [["beides", "Kurve und Spektrogramm"], ["kurve", "Kurve"], ["spektrogramm", "Spektrogramm"]], wert: "beides", setze: (v) => { w.ansicht = v; leeren(); } }],
         extra: (el) => {
-          leinwand = document.createElement("canvas");
-          leinwand.width = 320;
-          leinwand.height = 200;
-          leinwand.className = "schirm";
-          el.append(leinwand);
-          g = leinwand.getContext("2d");
+          c = document.createElement("canvas");
+          c.width = B;
+          c.height = H;
+          c.className = "schirm";
+          el.append(c);
+          g = c.getContext("2d");
+          zeile = g.createImageData(B, 1);
           bild.add(zeichne);
         },
         weg: () => bild.delete(zeichne),

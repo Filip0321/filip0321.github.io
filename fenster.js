@@ -82,23 +82,16 @@ export function richteFensterEin(buehne) {
   });
 }
 
-// Umschalter XP-Rahmen / schlicht; die Klasse sitzt auf <html>,
-// damit sie später auf jeder Seite mit Fenstern gilt
+// Fensterstil: seit Runde 22 überall schlicht (css/fenster.css). XP-Fenster gibt es nur noch in Foto-Effekte, dort
+// als Rahmen ums Bild. Der Knopf auf der Startseite wird darum entfernt (die Seite selbst bleibt unverändert),
+// und ein alter gespeicherter Wunsch „xp“ wird gelöscht.
 const STIL_SCHLUESSEL = "fenster-stil";
 
 export function richteStilWechselEin(knopf) {
-  const wurzel = document.documentElement;
-
-  const setze = (schlicht) => {
-    wurzel.classList.toggle("schlicht", schlicht);
-    knopf.setAttribute("aria-pressed", schlicht);
-    try {
-      localStorage.setItem(STIL_SCHLUESSEL, schlicht ? "schlicht" : "xp");
-    } catch {}
-    // andere Maße: alle Fenster wieder in die Bühne holen
-    window.dispatchEvent(new Event("resize"));
-  };
-
-  setze(wurzel.classList.contains("schlicht")); // Stand aus dem Kopf-Skript übernehmen
-  knopf.addEventListener("click", () => setze(!wurzel.classList.contains("schlicht")));
+  document.documentElement.classList.add("schlicht");
+  try {
+    localStorage.removeItem(STIL_SCHLUESSEL);
+  } catch {}
+  (knopf?.closest("li") ?? knopf)?.remove();
+  window.dispatchEvent(new Event("resize")); // andere Maße: alle Fenster wieder in die Bühne holen
 }

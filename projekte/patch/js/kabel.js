@@ -2,7 +2,8 @@
 //
 // Verbinden: Ton-Ausgang → Ton-Eingang ruft knoten.connect(ziel) auf (ziel ist ein AudioNode oder ein AudioParam;
 // mehrere Kabel an einem Eingang werden addiert, so wie in einem echten Mischpunkt). Takt → Takt trägt die Funktion
-// des Eingangs bei den Hörern des Ausgangs ein. Ton an Takt geht nicht (das eine sind Zahlen, das andere Ereignisse).
+// des Eingangs bei den Hörern des Ausgangs ein, Noten → Noten genauso. Ton an Takt geht nicht (das eine sind Zahlen,
+// das andere Ereignisse), Takt an Noten auch nicht (einem Takt fehlt die Tonhöhe).
 //
 // Aussehen: ein Kabel hängt durch wie ein echtes. Gezeichnet als kubische Bézierkurve von Buchse zu Buchse, beide
 // Stützpunkte um den Durchhang d nach unten verschoben:
@@ -11,6 +12,10 @@
 // d ist eine gedämpfte Feder (Masse 1), die Bewegung der Enden gibt ihr einen Stoß:
 //   d'' = −k (d − d₀) − c d' ,  k = 60, c = 5   (schwach gedämpft: es schwingt ein-, zweimal und kommt zur Ruhe)
 // Bei „Bewegung reduzieren“ hängt es still.
+//
+// Ausschalten (Runde 22b): ein Modul kann stumm sein. Dann bleiben seine Kabel stecken und gezeichnet (blass), aber
+// im Web-Audio-Graph sind sie getrennt (Ton) bzw. die Hörer ausgetragen (Takt, Noten). Wieder an: neu verbunden.
+// So lässt sich etwas aus- und einschalten, ohne ein Kabel herauszuziehen.
 
 const wenigBewegung = matchMedia("(prefers-reduced-motion: reduce)");
 const K = 60, C = 5;
@@ -21,6 +26,13 @@ const K = 60, C = 5;
 // innen(k): liegt das Kabel ganz in einer zugeklappten Gruppe? Dann wird es nicht gezeichnet
 export function erstelleKabel({ svg, wand, lokal, umleiten = () => null, innen = () => false }) {
   const kabel = new Set(); // { von: {modul, name}, nach: {modul, name}, art, pfad, d, v, alt }
+  // wie viele Kabel an jedem Eingang stecken (Schlüssel: Modul-Id | Name): main.js fragt das in jedem Bild für jeden
+  // Modulations-Eingang, dafür wäre jedes Mal alle Kabel durchzugehen zu langsam
+  const anzahl = new Map();
+  const zaehle = (k, d) => {
+    const s = `${k.nach.modul.id}|${k.nach.name}`;
+    anzahl.set(s, (anzahl.get(s) ?? 0) + d);
+  };
 
   function mitte(el) {
     const r = el.getBoundingClientRect();
@@ -39,12 +51,11 @@ export function erstelleKabel({ svg, wand, lokal, umleiten = () => null, innen =
   function verbinde(von, nach) {
     const a = von.modul.teil.aus[von.name], e = nach.modul.teil.ein[nach.name];
     if (!a || !e) return null;
-    if (a.art !== e.art) throw new Error("Ton und Takt passen nicht zusammen: Ton an Ton, Takt an Takt.");
+    if (a.art !== e.art) throw new Error("Das passt nicht zusammen: Ton an Ton, Takt an Takt, Noten an Noten.");
     for (const k of kabel) if (k.von.modul === von.modul && k.von.name === von.name && k.nach.modul === nach.modul && k.nach.name === nach.name) return k;
-    if (a.art === "ton") a.knoten.connect(e.ziel);
-    else a.knoten.hoerer.add(e.ziel);
+    if (!von.modul.stumm) schliesseAn(a, e);
     const pfad = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    pfad.setAttribute("class", `kabel ${a.art}`);
+    pfad.setAttribute("class", `kabel ${a.art}${von.modul.stumm ? " stumm" : ""}`);
     const griff = document.createElementNS("http://www.w3.org/2000/svg", "path"); // breiter, unsichtbar: zum Anfassen
     griff.setAttribute("class", "kabel-griff");
     const titel = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -68,6 +79,7 @@ export function erstelleKabel({ svg, wand, lokal, umleiten = () => null, innen =
     griff.addEventListener("pointerup", () => clearTimeout(uhr));
     griff.addEventListener("pointerleave", () => clearTimeout(uhr));
     kabel.add(k);
+    zaehle(k, 1);
     markiere();
     return k;
   }
@@ -75,16 +87,37 @@ export function erstelleKabel({ svg, wand, lokal, umleiten = () => null, innen =
   function trenne(k) {
     if (!kabel.has(k)) return;
     const a = k.von.modul.teil.aus[k.von.name], e = k.nach.modul.teil.ein[k.nach.name];
+    if (!k.von.modul.stumm) loese(a, e);
+    k.pfad.remove();
+    k.griff.remove();
+    kabel.delete(k);
+    zaehle(k, -1);
+    markiere();
+  }
+
+  function schliesseAn(a, e) {
+    if (a.art === "ton") a.knoten.connect(e.ziel);
+    else a.knoten.hoerer.add(e.ziel);
+  }
+  function loese(a, e) {
     try {
-      if (k.art === "ton") a.knoten.disconnect(e.ziel);
+      if (a.art === "ton") a.knoten.disconnect(e.ziel);
       else a.knoten.hoerer.delete(e.ziel);
     } catch {
       // schon getrennt (z. B. weil das Modul gerade gelöscht wird)
     }
-    k.pfad.remove();
-    k.griff.remove();
-    kabel.delete(k);
-    markiere();
+  }
+  // alle Kabel, die aus dem Modul hinausgehen, im Graph trennen oder wieder verbinden
+  function setzeStumm(modul, an) {
+    if (Boolean(modul.stumm) === an) return;
+    modul.stumm = an;
+    for (const k of kabel) {
+      if (k.von.modul !== modul) continue;
+      const a = modul.teil.aus[k.von.name], e = k.nach.modul.teil.ein[k.nach.name];
+      if (an) loese(a, e);
+      else schliesseAn(a, e);
+      k.pfad.classList.toggle("stumm", an);
+    }
   }
 
   // belegte Buchsen kennzeichnen (gefüllt), damit man sieht, wo schon etwas steckt
@@ -133,11 +166,13 @@ export function erstelleKabel({ svg, wand, lokal, umleiten = () => null, innen =
   return {
     verbinde,
     trenne,
+    setzeStumm,
     zeichne,
     zeigeZug,
     punktVon,
     alle: () => [...kabel],
     vonModul: (m) => [...kabel].filter((k) => k.von.modul === m || k.nach.modul === m),
+    belegt: (m, name) => (anzahl.get(`${m.id}|${name}`) ?? 0) > 0,
     amEingang: (m, name) => [...kabel].filter((k) => k.nach.modul === m && k.nach.name === name),
   };
 }
