@@ -54,6 +54,12 @@
       </label>
       <button type="button" id="speichern">Patch speichern</button>
       <label class="datei-knopf">Patch laden <input type="file" id="laden" accept=".json,application/json"></label>
+      <label>Audioformat
+        <select id="aufnahme-format">
+          <option value="wav">WAV</option>
+          <option value="mp3">MP3</option>
+        </select>
+      </label>
       <button type="button" id="aufnahme" aria-pressed="false">Aufnehmen</button>
       <button type="button" id="stumm" aria-pressed="false">Pause</button>
     </div>
@@ -72,6 +78,7 @@
         <li>Tonhöhe wie bei echten Modularsystemen: 1,0 pro Oktave. Der Sequenzer gibt Halbtöne / 12 aus.</li>
         <li>Drehknöpfe: senkrecht ziehen, mit Umschalt fein, Doppelklick zurück auf den Anfang.</li>
         <li>Der Patch merkt sich der Browser von allein; „Patch speichern“ schreibt ihn als Datei.</li>
+        <li>Audio: WAV direkt oder MP3. Der MP3-Encoder wird bei Bedarf nachgeladen (lamejs, LGPL-3.0; <a href="https://github.com/zhuker/lamejs">Quelle und Lizenz</a>).</li>
       </ul>
     </details>
   </main>
@@ -85,3 +92,5 @@
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
+
+

@@ -108,6 +108,9 @@ export function richteKopfEin(canvas) {
     }
 
     for (const { strich: s, grenzen, werte } of striche) {
+      // Striche meint die ganze Leseschicht inklusive der Balken/Kurven, nicht nur den weißen Streifen.
+      // Flecken werden in main.js danach separat gezeichnet und bleiben unabhängig davon sichtbar.
+      if (!zeigeStriche) continue;
       const quer = s.senkrecht ? b : h;
       // gelesen wird von anfang bis ende (Lesebreite), gezeigt von sichtAnfang bis sichtEnde (Dicke)
       const lage = (prozent) => {
@@ -135,7 +138,6 @@ export function richteKopfEin(canvas) {
         }
       }
       ctx.globalAlpha = 1;
-      if (!zeigeStriche) continue;
       strichFlaeche(s, sichtAnfang, sichtEnde, s.id === aktiv, deckkraft);
       // eigene Dicke und breiter gelesen als gezeigt: die Lesebreite mit zwei feinen Rändern zeigen
       if (s.dickeWieBreite === false && ende - anfang > 6 * dpr && (anfang < sichtAnfang || ende > sichtEnde)) {
@@ -155,4 +157,6 @@ export function richteKopfEin(canvas) {
 
   return { passeGroesseAn, zeichne };
 }
+
+
 

@@ -279,8 +279,10 @@ richteExportEin({
     merke() { const z = kanal.sichere(); return () => z(); },
   },
   tonFuer: () => musik.tonFuerExport(),
-  liveTon: () => ton.liveTon() ?? musik.liveTon(),
+  liveTon: () => [ton.liveTon(), musik.liveTon()],
 });
 
 requestAnimationFrame(schleife);
 window.windkanal = { kanal, einstellung: e, messung, schritt: (n) => { rechne(n); zeichne(); } }; // zum Ausprobieren in der Konsole
+
+

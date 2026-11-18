@@ -210,6 +210,46 @@ function schleife(jetzt) {
   requestAnimationFrame(schleife);
 }
 
+// Ein fester Zufallsstrom sorgt dafür, dass die Simulation beim Ton-Vordurchlauf und beim Bildexport
+// dieselben Bewegungen macht. Math.random wird nach jedem Durchlauf wiederhergestellt.
+function nutzeExportZufall() {
+  const vorher = Math.random;
+  let zustand = 0x4f1bbcdc;
+  Math.random = () => {
+    zustand = (Math.imul(zustand, 1664525) + 1013904223) >>> 0;
+    return zustand / 4294967296;
+  };
+  return () => { Math.random = vorher; };
+}
+
+let exportZufallZurueck = null;
+
+// Den Klang des Schwarms vorab aus exakt denselben Simulationsbildern rechnen. Das ist unabhängig von
+// der Geschwindigkeit des Video-Renderns und wird anschließend mit einer geladenen Musikdatei gemischt.
+async function rendereSchwarmTon(sekunden) {
+  if (!ton.aktiv()) return null;
+  const fps = 30;
+  const n = Math.max(1, Math.round(sekunden * fps));
+  const zustandZurueck = schwarm.sichere();
+  const falkeAlt = { ...falke };
+  const zufallZurueck = nutzeExportZufall();
+  const zeitplan = [];
+  try {
+    musik.exportStart(n, fps);
+    for (let i = 0; i < n; i++) {
+      musik.exportBild(i);
+      schritt(1 / fps);
+      zeitplan.push(ton.werteFuerExport(schwarm, B, H, e));
+    }
+  } finally {
+    musik.exportEnde();
+    zustandZurueck();
+    Object.assign(falke, falkeAlt);
+    zufallZurueck();
+  }
+  return ton.rendereExport(zeitplan, e, fps);
+}
+
 richteExportEin({
   canvas,
   ziel: document.querySelector(".export"),
@@ -218,14 +258,31 @@ richteExportEin({
   endbild,
   zuschnitt: crtZuschnitt,
   render: {
-    start(n) { exportLaeuft = true; musik.exportStart(n, 30); },
+    start(n) {
+      exportZufallZurueck?.();
+      exportZufallZurueck = nutzeExportZufall();
+      exportLaeuft = true;
+      musik.exportStart(n, 30);
+    },
     bild(i, dt) { musik.exportBild(i); schritt(dt); zeichne(); },
-    ende() { musik.exportEnde(); exportLaeuft = false; },
-    merke() { const z = schwarm.sichere(); return () => z(); },
+    ende() {
+      musik.exportEnde();
+      exportLaeuft = false;
+      exportZufallZurueck?.();
+      exportZufallZurueck = null;
+    },
+    merke() {
+      const z = schwarm.sichere();
+      const f = { ...falke };
+      return () => { z(); Object.assign(falke, f); };
+    },
   },
-  tonFuer: () => musik.tonFuerExport(),
-  liveTon: () => ton.liveTon() ?? musik.liveTon(),
+  ton: () => musik.tonFuerExport(),
+  tonFuer: (sekunden) => rendereSchwarmTon(sekunden),
+  liveTon: () => [ton.liveTon(), musik.liveTon()],
 });
 
 requestAnimationFrame(schleife);
 window.schwarm = { schwarm, einstellung: e }; // zum Ausprobieren in der Konsole
+
+

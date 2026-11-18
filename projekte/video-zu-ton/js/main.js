@@ -291,7 +291,8 @@ function zeichneKopf(mitWerten, fuerExport = false) {
     balkenFarbe: e.balkenFarbe,
     rechteck: fuerExport ? null : rahmenBeimZiehen,
   });
-  if (e.flecken && (fuerExport ? e.exportStriche : e.zeigeStriche)) zeichneFlecken();
+  // Flecken sind eine eigene Bildebene: sie bleiben sichtbar, auch wenn die Lesestriche ausgeblendet sind.
+  if (e.flecken && (!fuerExport || e.exportFlecken !== false)) zeichneFlecken();
 }
 
 // die Flecken als Rahmen mit Nummer über dem Video (in Anteilen des ganzen Bildes; mit Lupe nur, was drin ist)
@@ -542,16 +543,23 @@ richteExportEin({
 });
 
 const videoExport = richteVideoExportEin({
-  lese: (neu) => ({ werte: lese(neu).map((w) => w.slice()), noten: letzteNoten, flecken: letzteFlecken }),
+  lese: (neu) => ({
+    werte: lese(neu).map((w) => w.slice()),
+    noten: letzteNoten.map((n) => ({ ...n })),
+    flecken: letzteFlecken.map((f) => ({ ...f })),
+    grenzen: [...grenzen.entries()].map(([id, g]) => [id, g.slice()]),
+  }),
   vergiss: () => {
     ausloeser.vergiss();
     fleckGedaechtnis = neuesGedaechtnis(); // die Nummern fangen im Video neu an
   },
-  zeichne: (mitWerten) => {
+  zeichne: (mitWerten, flecken, grenzenBild, neu = true) => {
     if (mitWerten) {
       gpu.ladeBild(video);
-      gpu.vorbereite(vorbereitung(), false);
+      gpu.vorbereite(vorbereitung(), neu);
     }
+    if (grenzenBild) grenzen = new Map(grenzenBild.map(([id, g]) => [id, g.slice()]));
+    if (flecken) letzteFlecken = flecken;
     return gesamtBild(mitWerten ?? werte);
   },
   klangDaten: () => ({
@@ -639,4 +647,6 @@ sendeEinstellung();
 zeigeEigene();
 sendeStriche();
 zeigeStriche();
+
+
 

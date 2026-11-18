@@ -941,3 +941,64 @@ class Strecke extends AudioWorkletProcessor {
   }
 }
 registerProcessor("strecke", Strecke);
+
+
+
+// ---------- Aufnahme der gesamten Patch-Ausgabe (WAV/MP3) ----------
+// Dieser Knoten liegt parallel zum Lautsprecher-Ausgang. Er gibt selbst Stille aus, damit der Ton nicht
+// doppelt abgespielt wird, schickt aber während der Aufnahme Stereo-Samples in 4096er-Blöcken an main.js.
+class PatchAufnahme extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.aktiv = false;
+    this.stopNachBlock = false;
+    this.fuell = 0;
+    this.links = new Float32Array(4096);
+    this.rechts = new Float32Array(4096);
+    this.port.onmessage = (e) => {
+      if (e.data?.art === "start") {
+        this.fuell = 0;
+        this.aktiv = true;
+        this.stopNachBlock = false;
+      } else if (e.data?.art === "stop") {
+        this.stopNachBlock = true;
+      }
+    };
+  }
+
+  sendeBlock(laenge = this.fuell) {
+    if (!laenge) return;
+    const links = this.links.slice(0, laenge);
+    const rechts = this.rechts.slice(0, laenge);
+    this.port.postMessage({ art: "block", links, rechts }, [links.buffer, rechts.buffer]);
+    this.links = new Float32Array(4096);
+    this.rechts = new Float32Array(4096);
+    this.fuell = 0;
+  }
+
+  process(eingaenge, ausgaenge) {
+    const eingang = eingaenge[0] ?? [];
+    const ausgang = ausgaenge[0] ?? [];
+    for (const kanal of ausgang) kanal.fill(0); // stiller Ausgang, kein doppelter Ton
+
+    if (this.aktiv && eingang[0]) {
+      const links = eingang[0];
+      const rechts = eingang[1] ?? links;
+      for (let i = 0; i < links.length; i++) {
+        this.links[this.fuell] = links[i];
+        this.rechts[this.fuell] = rechts[i];
+        this.fuell++;
+        if (this.fuell === this.links.length) this.sendeBlock();
+      }
+    }
+
+    if (this.stopNachBlock) {
+      this.sendeBlock();
+      this.aktiv = false;
+      this.stopNachBlock = false;
+      this.port.postMessage({ art: "fertig" });
+    }
+    return true;
+  }
+}
+registerProcessor("patch-aufnahme", PatchAufnahme);

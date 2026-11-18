@@ -30,7 +30,7 @@ const meldung = hole("meldung");
 const SPEICHER = "patch-wand";
 let tempo = 120; // gemeinsames Tempo (BPM): neue Module übernehmen es, „Tempo“ oben stellt alle auf einmal
 
-let ctx = null, uhr = null, lautsprecher = null, aufnahmeZiel = null;
+let ctx = null, uhr = null, lautsprecher = null, aufnahmeNode = null;
 const bild = new Set(); // Funktionen, die in jedem Bild zeichnen (Oszilloskop, Spektrum)
 const module = new Map(); // id → modul
 let naechsteId = 1;
@@ -60,14 +60,26 @@ hole("ton-an").addEventListener("click", async () => {
     // alles, was zu hören ist, geht hier durch: an die Lautsprecher und an die Aufnahme
     lautsprecher = ctx.createGain();
     lautsprecher.connect(ctx.destination);
-    aufnahmeZiel = ctx.createMediaStreamDestination();
-    lautsprecher.connect(aufnahmeZiel);
+    // eigener stiller Abzweig des Master-Ausgangs für die verlustfreie WAV/MP3-Aufnahme
     // eigene Ton-Programme (Saite, Quantisierer, Bitcrusher, Band) laufen im Ton-Faden: einmal laden, bevor ein
     // Modul sie braucht
     try {
       await ctx.audioWorklet.addModule(new URL("./worklets.js", import.meta.url));
+      aufnahmeNode = new AudioWorkletNode(ctx, "patch-aufnahme", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        channelCount: 2,
+        channelCountMode: "explicit",
+        outputChannelCount: [2],
+      });
+      aufnahmeNode.port.addEventListener("message", empfangeAufnahme);
+      aufnahmeNode.port.start();
+      const stille = ctx.createGain();
+      stille.gain.value = 0;
+      lautsprecher.connect(aufnahmeNode);
+      aufnahmeNode.connect(stille).connect(ctx.destination);
     } catch (f) {
-      melde(`Die Ton-Programme ließen sich nicht laden: ${f.message}`);
+      melde(`Die Ton-Programme oder Aufnahme ließen sich nicht laden: ${f.message}`);
     }
     let gespeichert = null;
     try {
@@ -561,24 +573,162 @@ hole("laden").addEventListener("change", async (ev) => {
   ev.target.value = "";
 });
 
-// ---------- Aufnehmen ----------
-// MediaRecorder nimmt den Strom am Ausgang auf (Opus in WebM, in Safari AAC in MP4)
+// ---------- Audio exportieren ----------
+// Die Worklet-Aufnahme erfasst den kompletten Master-Ausgang unabhängig vom Browser-Container.
+// WAV wird direkt geschrieben; MP3 wird bei Bedarf mit lamejs (LGPL-3.0) kodiert.
 let rekorder = null;
-hole("aufnahme").addEventListener("click", (ev) => {
-  if (rekorder) return rekorder.stop();
+let mp3Ladevorgang = null;
+const aufnahmeKnopf = hole("aufnahme");
+const formatFeld = hole("aufnahme-format");
+formatFeld.addEventListener("change", () => {
+  if (formatFeld.value === "mp3") ladeMp3Encoder().catch(() => {}); // Encoder vorladen, damit Stopp sofort exportiert
+});
+
+function sammleSamples(bloecke, gesamt) {
+  const ergebnis = new Float32Array(gesamt);
+  let position = 0;
+  for (const block of bloecke) {
+    ergebnis.set(block, position);
+    position += block.length;
+  }
+  return ergebnis;
+}
+
+function alsWav(links, rechts, rate) {
+  const datenBytes = links.length * 4; // Stereo, 16 Bit pro Kanal
+  const puffer = new ArrayBuffer(44 + datenBytes);
+  const v = new DataView(puffer);
+  const text = (pos, wort) => [...wort].forEach((z, i) => v.setUint8(pos + i, z.charCodeAt(0)));
+  text(0, "RIFF");
+  v.setUint32(4, 36 + datenBytes, true);
+  text(8, "WAVE");
+  text(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 2, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 4, true);
+  v.setUint16(32, 4, true);
+  v.setUint16(34, 16, true);
+  text(36, "data");
+  v.setUint32(40, datenBytes, true);
+  let pos = 44;
+  for (let i = 0; i < links.length; i++) {
+    v.setInt16(pos, Math.max(-32768, Math.min(32767, Math.round(links[i] * 32768))), true);
+    v.setInt16(pos + 2, Math.max(-32768, Math.min(32767, Math.round(rechts[i] * 32768))), true);
+    pos += 4;
+  }
+  return new Blob([puffer], { type: "audio/wav" });
+}
+
+async function ladeMp3Encoder() {
+  if (window.lamejs?.Mp3Encoder) return window.lamejs;
+  if (!mp3Ladevorgang) {
+    mp3Ladevorgang = new Promise((fertig, fehler) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js";
+      script.crossOrigin = "anonymous";
+      script.referrerPolicy = "no-referrer";
+      script.onload = () => window.lamejs?.Mp3Encoder ? fertig(window.lamejs) : fehler(new Error("MP3-Encoder wurde nicht initialisiert."));
+      script.onerror = () => fehler(new Error("Der MP3-Encoder konnte nicht geladen werden. Prüfe die Internetverbindung oder wähle WAV."));
+      document.head.append(script);
+    }).catch((fehler) => {
+      mp3Ladevorgang = null;
+      throw fehler;
+    });
+  }
+  return mp3Ladevorgang;
+}
+
+async function alsMp3(links, rechts, rate) {
+  const lamejs = await ladeMp3Encoder();
+  // LAME arbeitet mit MPEG-Abtastraten bis 48 kHz. Ungewöhnliche Interface-Raten werden beim Kodieren
+  // linear auf die nächstliegende unterstützte Rate umgerechnet; WAV bleibt in der Originalrate.
+  const raten = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000];
+  const mp3Rate = raten.includes(rate) ? rate : raten.reduce((a, b) => Math.abs(b - rate) < Math.abs(a - rate) ? b : a);
+  const encoder = new lamejs.Mp3Encoder(2, mp3Rate, 192);
   const teile = [];
-  rekorder = new MediaRecorder(aufnahmeZiel.stream);
-  rekorder.ondataavailable = (e) => teile.push(e.data);
-  rekorder.onstop = () => {
-    const typ = rekorder.mimeType || "audio/webm";
-    ladeHerunter(new Blob(teile, { type: typ }), `patch-${zeitstempel()}.${typ.includes("mp4") ? "m4a" : "webm"}`);
+  const groesse = 1152;
+  const ausgabeLaenge = Math.ceil(links.length * mp3Rate / rate);
+  for (let start = 0; start < ausgabeLaenge; start += groesse) {
+    const laenge = Math.min(groesse, ausgabeLaenge - start);
+    const l = new Int16Array(laenge), r = new Int16Array(laenge);
+    for (let j = 0; j < laenge; j++) {
+      const quelle = (start + j) * rate / mp3Rate;
+      const i = Math.min(links.length - 1, Math.floor(quelle));
+      const t = quelle - i, k = Math.min(links.length - 1, i + 1);
+      l[j] = Math.max(-32768, Math.min(32767, Math.round((links[i] + (links[k] - links[i]) * t) * 32767)));
+      r[j] = Math.max(-32768, Math.min(32767, Math.round((rechts[i] + (rechts[k] - rechts[i]) * t) * 32767)));
+    }
+    const teil = encoder.encodeBuffer(l, r);
+    if (teil.length) teile.push(teil);
+    // Längere Aufnahmen kodieren, ohne die Bedienoberfläche minutenlang zu blockieren.
+    if (start && start % (groesse * 128) === 0) await new Promise(requestAnimationFrame);
+  }
+  const ende = encoder.flush();
+  if (ende.length) teile.push(ende);
+  return new Blob(teile, { type: "audio/mpeg" });
+}
+
+function empfangeAufnahme(event) {
+  const daten = event.data;
+  if (!rekorder) return;
+  if (daten.art === "block") {
+    rekorder.links.push(daten.links);
+    rekorder.rechts.push(daten.rechts);
+    rekorder.laenge += daten.links.length;
+  } else if (daten.art === "fertig") {
+    rekorder.fertig?.();
+  }
+}
+
+aufnahmeKnopf.addEventListener("click", async () => {
+  if (!aufnahmeNode) return melde("Die Audioaufnahme ist in diesem Browser nicht verfügbar. Lade die Seite neu und starte den Ton erneut.");
+  if (!rekorder) {
+    rekorder = { format: formatFeld.value, links: [], rechts: [], laenge: 0, fertig: null };
+    aufnahmeNode.port.postMessage({ art: "start" });
+    aufnahmeKnopf.textContent = "Aufnahme beenden";
+    aufnahmeKnopf.setAttribute("aria-pressed", "true");
+    return;
+  }
+
+  const aufnahme = rekorder;
+  aufnahmeKnopf.disabled = true;
+  aufnahmeKnopf.textContent = aufnahme.format === "mp3" ? "MP3 wird kodiert …" : "WAV wird gespeichert …";
+  try {
+    if (ctx.state !== "running") await ctx.resume();
+    await new Promise((fertig) => {
+      aufnahme.fertig = fertig;
+      aufnahmeNode.port.postMessage({ art: "stop" });
+    });
+    const links = sammleSamples(aufnahme.links, aufnahme.laenge);
+    const rechts = sammleSamples(aufnahme.rechts, aufnahme.laenge);
+    if (!links.length) throw new Error("Die Aufnahme enthält keine Samples.");
+
+    let blob, format = aufnahme.format;
+    if (format === "mp3") {
+      try {
+        blob = await alsMp3(links, rechts, ctx.sampleRate);
+      } catch (fehler) {
+        console.warn("MP3-Export nicht möglich, speichere WAV:", fehler);
+        blob = alsWav(links, rechts, ctx.sampleRate);
+        format = "wav";
+        melde(`MP3 nicht verfügbar (${fehler.message}). Die Aufnahme wurde als WAV gespeichert.`);
+      }
+    } else {
+      blob = alsWav(links, rechts, ctx.sampleRate);
+    }
+    ladeHerunter(blob, `patch-${zeitstempel()}.${format}`);
+    if (format === aufnahme.format) melde(`${format.toUpperCase()} exportiert.`);
+  } catch (fehler) {
+    console.error(fehler);
+    melde(`Audioexport fehlgeschlagen: ${fehler.message}`);
+  } finally {
     rekorder = null;
-    ev.target.textContent = "Aufnehmen";
-    ev.target.setAttribute("aria-pressed", "false");
-  };
-  rekorder.start();
-  ev.target.textContent = "Aufnahme beenden";
-  ev.target.setAttribute("aria-pressed", "true");
+    aufnahmeKnopf.disabled = false;
+    aufnahmeKnopf.textContent = "Aufnehmen";
+    aufnahmeKnopf.setAttribute("aria-pressed", "false");
+  }
 });
 
 hole("stumm").addEventListener("click", async (ev) => {
@@ -618,3 +768,5 @@ function schleife(jetzt) {
 }
 
 window.patch = { module, kabel, lade, alsDaten, VORLAGEN, KLAENGE, gruppen, ansicht, ctx: () => ctx, klangEinfuegen };
+
+

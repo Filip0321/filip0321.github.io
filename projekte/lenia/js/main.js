@@ -148,10 +148,12 @@ richteExportEin({
     merke() { const z = lenia.sichere(); return () => { z(); zeichne(); }; },
   },
   tonFuer: () => musik.tonFuerExport(),
-  liveTon: () => ton.liveTon() ?? musik.liveTon(), // „Live aufnehmen“: der Ton des Strichs, sonst die Musik
+  liveTon: () => [ton.liveTon(), musik.liveTon()], // „Live aufnehmen“: der Ton des Strichs, sonst die Musik
 });
 
 neueFarben();
 neu();
 requestAnimationFrame(schleife);
 window.lenia = { lenia, einstellung: e, wesenSetzen }; // zum Ausprobieren in der Konsole
+
+

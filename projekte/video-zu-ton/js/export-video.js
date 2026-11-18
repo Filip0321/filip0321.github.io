@@ -44,16 +44,18 @@ export function richteVideoExportEin(s) {
     const daten = s.klangDaten();
     const werte = daten.striche.map((st) => new Float32Array(bilder * st.freq.length));
     const noten = []; // { bild, strich, freq, staerke }
-    const flecken = []; // pro Bild die Flecken-Stimmen
+    const flecken = []; // pro Bild die Flecken-Stimmen (auch ihre Rahmen fürs zweite Bild)
+    const grenzBilder = []; // die durch „Dichte nach Bild“ berechneten Zeilengrenzen dieses Bildes
     s.vergiss(); // Auslösen fängt neu an (sonst zählt das letzte Live-Bild als „vorher“)
     for (let i = 0; i < bilder; i++) {
       await springe((erstes + i) / FPS);
       // beim ersten Bild gibt es kein voriges: zweimal dasselbe, dann ist die Bewegung 0
       if (i === 0) s.lese(true);
-      const { werte: w, noten: neu, flecken: f } = s.lese(i > 0);
+      const { werte: w, noten: neu, flecken: f, grenzen: g } = s.lese(i > 0);
       w.forEach((zeile, j) => werte[j].set(zeile, i * zeile.length));
       for (const n of neu) noten.push({ ...n, bild: i });
       flecken.push(f ?? []);
+      grenzBilder.push(g ?? []);
       if (i % 10 === 0) {
         s.fortschritt(`Lesen … ${Math.round((i / bilder) * 100)} %`);
         await warte();
@@ -71,7 +73,7 @@ export function richteVideoExportEin(s) {
       originalTon: stueck,
       originalton: daten.originalton,
     });
-    return { ton, werte, erstes, bilder };
+    return { ton, werte, flecken, grenzBilder, erstes, bilder };
   }
 
   async function mitPause(aufgabe) {
@@ -108,7 +110,7 @@ export function richteVideoExportEin(s) {
     const einst = await dialog.oeffne({ art: "video", ueberschrift: "Video rendern (Bild für Bild)", zeit: false, bereich: true, laenge: video.duration });
     if (!einst) return;
     await mitPause(async () => {
-      const { ton, werte, erstes, bilder } = await rechneTon(einst.von, einst.bis);
+      const { ton, werte, flecken, grenzBilder, erstes, bilder } = await rechneTon(einst.von, einst.bis);
       const rahmen = document.createElement("canvas");
       const bildMitRahmen = (quelle) => mitRahmen(quelle, einst, rahmen);
       let aufnahme = null;
@@ -120,7 +122,10 @@ export function richteVideoExportEin(s) {
             const zeilen = alle.length / bilder;
             return alle.subarray(i * zeilen, (i + 1) * zeilen);
           });
-          const bild = bildMitRahmen(s.zeichne(w));
+          // Für den ersten Frame wie beim ersten Durchgang zweimal rechnen: einmal als Referenzbild,
+          // dann noch einmal mit identischem Vorbild (Bewegung = 0). Danach läuft Ping-Pong pro Frame weiter.
+          if (i === 0) s.zeichne(w, flecken[i], grenzBilder[i], true);
+          const bild = bildMitRahmen(s.zeichne(w, flecken[i], grenzBilder[i], i > 0));
           const stueck = schneideTon(ton, Math.round((i / FPS) * ton.sampleRate), Math.round(((i + 1) / FPS) * ton.sampleRate));
           await Promise.all([aufnahme.bild(bild, i / FPS, 1 / FPS), stueck && aufnahme.ton(stueck)]);
           if (i % 5 === 0) {
@@ -139,4 +144,6 @@ export function richteVideoExportEin(s) {
 
   return { wav, videoRendern };
 }
+
+
 

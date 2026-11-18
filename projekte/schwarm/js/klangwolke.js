@@ -78,37 +78,113 @@ export function erstelleKlangwolke() {
     rauschPegel.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
   }
 
-  // jedes Bild: schwarm aus schwarm.js, breite/hoehe des Feldes, e die Einstellungen
+  // Gleiche Werte für Live-Ausgabe und Offline-Export. Damit folgen beide exakt derselben Tonhöhen-,
+  // Panorama- und Lautstärkerechnung.
+  function werteFuerExport(schwarm, breite, hoehe, e) {
+    const n = schwarm.n, k = e.tonStimmen;
+    const leiter = LEITERN[e.tonLeiter];
+    const grund = 55 * 2 ** e.tonOktave;
+    const laut = e.tonLaut / Math.sqrt(Math.max(1, k));
+    const stimmenWerte = Array.from({ length: k }, (_, j) => {
+      const i = Math.floor(((j + 0.5) / k) * n);
+      if (i >= n) return { freq: grund, pan: 0, laut: 0 };
+      const hoch = 1 - schwarm.y[i] / hoehe;
+      let oktaven = hoch * e.tonUmfang;
+      if (leiter) {
+        const stufen = leiter.length * e.tonUmfang;
+        const stufe = Math.round(hoch * (stufen - 1));
+        oktaven = Math.floor(stufe / leiter.length) + leiter[stufe % leiter.length] / 12;
+      }
+      const tempo = Math.hypot(schwarm.vx[i], schwarm.vy[i]) / Math.max(1, e.vmax);
+      return {
+        freq: grund * 2 ** oktaven,
+        pan: Math.max(-1, Math.min(1, (schwarm.x[i] / breite) * 2 - 1)),
+        laut: laut * Math.min(1, tempo * tempo),
+      };
+    });
+    const m = schwarm.messe();
+    return {
+      stimmen: stimmenWerte,
+      rauschPegel: e.tonRauschen * Math.min(1, m.tempo / Math.max(1, e.vmax)) ** 2,
+      rauschFrequenz: 400 + 1600 * m.ordnung,
+      hell: e.tonHell,
+      hall: e.tonHall,
+      leiter: Boolean(leiter),
+    };
+  }
+
+  // Jedes Bild: Schwarmpositionen in die gleichen Werte übersetzen wie beim Live-Ton.
   function nachfuehren(schwarm, breite, hoehe, e) {
     if (!ctx || !stimmen.length) return;
     if (stimmen.length !== e.tonStimmen || stimmen[0].osc.type !== e.tonForm) baue(e.tonStimmen, e.tonForm);
-    const t = ctx.currentTime, n = schwarm.n, k = stimmen.length;
-    const leiter = LEITERN[e.tonLeiter];
-    const grund = 55 * 2 ** e.tonOktave;
-    const laut = e.tonLaut / Math.sqrt(k);
+    const t = ctx.currentTime;
+    const werte = werteFuerExport(schwarm, breite, hoehe, e);
     stimmen.forEach((s, j) => {
-      const i = Math.floor(((j + 0.5) / k) * n);
-      if (i >= n) return s.g.gain.setTargetAtTime(0, t, 0.03);
-      const hoch = 1 - schwarm.y[i] / hoehe; // 0 unten, 1 oben
-      let oktaven = hoch * e.tonUmfang;
-      if (leiter) {
-        const stufen = leiter.length * e.tonUmfang, st = Math.round(hoch * (stufen - 1));
-        oktaven = Math.floor(st / leiter.length) + leiter[st % leiter.length] / 12;
-      }
-      const tempo = Math.hypot(schwarm.vx[i], schwarm.vy[i]) / Math.max(1, e.vmax);
-      s.osc.frequency.setTargetAtTime(grund * 2 ** oktaven, t, leiter ? 0.01 : 0.03);
-      s.p.pan.setTargetAtTime(Math.max(-1, Math.min(1, (schwarm.x[i] / breite) * 2 - 1)), t, 0.03);
-      s.g.gain.setTargetAtTime(laut * Math.min(1, tempo * tempo), t, 0.03);
+      const v = werte.stimmen[j];
+      s.osc.frequency.setTargetAtTime(v.freq, t, werte.leiter ? 0.01 : 0.03);
+      s.p.pan.setTargetAtTime(v.pan, t, 0.03);
+      s.g.gain.setTargetAtTime(v.laut, t, 0.03);
     });
-    const m = schwarm.messe();
-    rauschPegel.gain.setTargetAtTime(e.tonRauschen * Math.min(1, m.tempo / Math.max(1, e.vmax)) ** 2, t, 0.05);
-    rauschBand.frequency.setTargetAtTime(400 + 1600 * m.ordnung, t, 0.1); // geordneter Schwarm: helleres Rauschen
-    tief.frequency.setTargetAtTime(e.tonHell, t, 0.05);
-    nass.gain.setTargetAtTime(e.tonHall, t, 0.05);
+    rauschPegel.gain.setTargetAtTime(werte.rauschPegel, t, 0.05);
+    rauschBand.frequency.setTargetAtTime(werte.rauschFrequenz, t, 0.1);
+    tief.frequency.setTargetAtTime(werte.hell, t, 0.05);
+    nass.gain.setTargetAtTime(werte.hall, t, 0.05);
+  }
+
+  // Den Schwarmklang für ein gerendertes Video offline rechnen. Die Werte kommen Bild für Bild aus derselben
+  // Simulation wie das Video; das Audio läuft dadurch auch dann synchron, wenn der Export schneller als Echtzeit ist.
+  async function rendereExport(zeitplan, e, fps = 30) {
+    if (!ctx || !stimmen.length || !zeitplan.length) return null;
+    const rate = ctx.sampleRate;
+    const offline = new OfflineAudioContext(2, Math.max(1, Math.ceil((zeitplan.length / fps) * rate)), rate);
+    const summe = new GainNode(offline);
+    const tief = new BiquadFilterNode(offline, { type: "lowpass", frequency: e.tonHell });
+    const hall = new ConvolverNode(offline, { buffer: hallImpuls(offline, 3) });
+    const nass = new GainNode(offline, { gain: 0.4 });
+    const aus = new GainNode(offline, { gain: 0.8 });
+    summe.connect(tief).connect(aus);
+    tief.connect(hall).connect(nass).connect(aus);
+    aus.connect(offline.destination);
+
+    const stimmenOffline = Array.from({ length: e.tonStimmen }, () => {
+      const osc = new OscillatorNode(offline, { type: e.tonForm, frequency: 220 });
+      const gain = new GainNode(offline, { gain: 0 });
+      const pan = new StereoPannerNode(offline);
+      osc.connect(gain).connect(pan).connect(summe);
+      osc.start();
+      return { osc, gain, pan };
+    });
+
+    const rauschen = offline.createBuffer(1, rate * 2, rate);
+    const rauschenDaten = rauschen.getChannelData(0);
+    for (let i = 0; i < rauschenDaten.length; i++) rauschenDaten[i] = Math.random() * 2 - 1;
+    const quelle = new AudioBufferSourceNode(offline, { buffer: rauschen, loop: true });
+    const band = new BiquadFilterNode(offline, { type: "bandpass", frequency: 900, Q: 0.8 });
+    const pegel = new GainNode(offline, { gain: 0 });
+    quelle.connect(band).connect(pegel).connect(tief);
+    quelle.start();
+
+    zeitplan.forEach((werte, i) => {
+      const t = i / fps;
+      werte.stimmen.forEach((v, j) => {
+        const s = stimmenOffline[j];
+        s.osc.frequency.setTargetAtTime(v.freq, t, werte.leiter ? 0.01 : 0.03);
+        s.pan.pan.setTargetAtTime(v.pan, t, 0.03);
+        s.gain.gain.setTargetAtTime(v.laut, t, 0.03);
+      });
+      pegel.gain.setTargetAtTime(werte.rauschPegel, t, 0.05);
+      band.frequency.setTargetAtTime(werte.rauschFrequenz, t, 0.1);
+      tief.frequency.setTargetAtTime(werte.hell, t, 0.05);
+      nass.gain.setTargetAtTime(werte.hall, t, 0.05);
+    });
+    return offline.startRendering();
   }
 
   return {
-    an, aus: aus_, nachfuehren,
+    an, aus: aus_, nachfuehren, werteFuerExport, rendereExport,
+    aktiv: () => Boolean(ctx && stimmen.length),
     liveTon: () => (ctx && stimmen.length ? { spur: strom.stream.getAudioTracks()[0], kanaele: 2, rate: ctx.sampleRate } : null),
   };
 }
+
+

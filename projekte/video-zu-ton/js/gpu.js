@@ -131,8 +131,11 @@ export function richteGpuEin(canvas) {
   // neu: ein neues Videobild (sonst dasselbe noch einmal, z. B. nach Pause: dann gibt es keine Bewegung)
   function vorbereite(e, neu = true) {
     if (!bearbeitet) return;
-    if (neu) jetzt = 1 - jetzt;
-    const vorher = neu ? 1 - jetzt : jetzt;
+    // Immer Ping-Pong zwischen zwei Texturen. Auch bei demselben Videobild muss das Ergebnis in eine
+    // andere Textur geschrieben werden: aus der gerade beschriebenen Textur zu lesen wäre WebGL-Feedback.
+    // Bei neu=false enthält die vorige Textur dasselbe Bild, die Bewegungsmaske wird damit leer.
+    jetzt = 1 - jetzt;
+    const vorher = 1 - jetzt;
     zeichneIn(hell[jetzt], hellProgramm);
     textur(0, video.textur, hellProgramm.ort.video);
     gl.uniform2f(hellProgramm.ort.aufloesung, arbeit.breite, arbeit.hoehe);
@@ -276,4 +279,6 @@ export function richteGpuEin(canvas) {
   }
   return { ladeBild, vorbereite, lies, zeichne, setzeDrehung, leseBearbeitet };
 }
+
+
 
