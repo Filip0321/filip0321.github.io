@@ -197,7 +197,7 @@ function klangEinfuegen(name, x, y) {
   }
   const g = document.createElement("optgroup");
   g.label = "Klänge (Gruppen)";
-  for (const [name, d] of Object.entries(KLAENGE)) g.append(new Option(d.titel, `klang:${name}`));
+  for (const [name, d] of Object.entries(KLAENGE).filter(([, d]) => !d.versteckt)) g.append(new Option(d.titel, `klang:${name}`));
   wahl.append(g);
 
   // Runde 24: statt der langen Auswahl ein Knopf „Module“ mit aufklappbaren Themen (das Auswahlfeld bleibt
@@ -236,7 +236,7 @@ function klangEinfuegen(name, x, y) {
     return d;
   };
   for (const [gruppe, liste] of Object.entries(gruppen)) feld.append(thema(gruppe, liste.map(([typ, titel]) => eintrag(titel, typ))));
-  feld.append(thema("Klänge (Gruppen)", Object.entries(KLAENGE).map(([name, d]) => {
+  feld.append(thema("Klänge (Gruppen)", Object.entries(KLAENGE).filter(([, d]) => !d.versteckt).map(([name, d]) => {
     const presets = Object.keys(d.gruppe.presets ?? {});
     if (!presets.length) return eintrag(d.titel, `klang:${name}`, d.text);
     const f = thema(d.titel, presets.map((p) => eintrag(p, `klang:${name}/${p}`, `${d.titel} mit Preset ${p}`)));
@@ -279,7 +279,7 @@ wand.addEventListener("dblclick", (ev) => {
   };
   const zeige = () => {
     const q = feld.value.trim().toLowerCase();
-    const alle = [...Object.entries(TYPEN).filter(([, d]) => !d.versteckt), ...Object.entries(KLAENGE).map(([n, d]) => [`klang:${n}`, { titel: `${d.titel} (Gruppe)`, gruppe: "Klänge" }]),
+    const alle = [...Object.entries(TYPEN).filter(([, d]) => !d.versteckt), ...Object.entries(KLAENGE).filter(([, d]) => !d.versteckt).map(([n, d]) => [`klang:${n}`, { titel: `${d.titel} (Gruppe)`, gruppe: "Klänge" }]),
       ...PRESET_SUCHE.map((p) => [`klang:${p.name}/${p.preset}`, { titel: p.titel, gruppe: "Klänge" }])];
     liste.replaceChildren(...alle
       .filter(([typ, d]) => !q || d.titel.toLowerCase().includes(q) || d.gruppe.toLowerCase().includes(q) || typ.includes(q))
@@ -387,7 +387,7 @@ const rueckgaengig = erstelleRueckgaengig({ alsDaten, lade, module, kabel, neues
   const wahl = document.createElement("select");
   wahl.append(new Option("Vorlage wählen …", ""));
   for (const [name, v] of Object.entries(VORLAGEN)) if (name !== "leer") wahl.append(new Option(v.text.split(":")[0], name));
-  for (const [name, d] of Object.entries(KLAENGE)) wahl.append(new Option(`Klang: ${d.titel}`, `klang:${name}`));
+  for (const [name, d] of Object.entries(KLAENGE).filter(([, d]) => !d.versteckt)) wahl.append(new Option(`Klang: ${d.titel}`, `klang:${name}`));
   wahl.addEventListener("change", () => {
     if (!wahl.value) return;
     const w = wand.getBoundingClientRect();

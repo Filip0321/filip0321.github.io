@@ -14,7 +14,7 @@
 
 import { Takt, Noten } from "./takt.js";
 import { verstaerker, LEITER_WAHL, GRUNDTOENE } from "./bausteine.js";
-import { neueRolle, wuerfle } from "./rolle.js";
+import { neueRolle, wuerfle, RASTER } from "./rolle.js";
 
 const geaendert = (el) => el.dispatchEvent(new Event("change", { bubbles: true }));
 
@@ -124,7 +124,7 @@ const clips = {
   baue(ctx, { uhr, bild, tempo, modul }) {
     const noten = Array.from({ length: SPUREN }, () => new Noten());
     const taktAus = new Takt();
-    const w = { modus: "frei", feld: 4, grundton: "0", leiter: "keine", neuTakte: 1 };
+    const w = { modus: "frei", feld: 4, grundton: "0", leiter: "keine", neuTakte: 1, raster: 1 };
     // die Clips stehen in den Werten: so kommen sie mit in den Patch. Eine eigene Kopie (aus einer Vorlage kommt sonst
     // dasselbe Objekt, und Zeichnen würde die Vorlage selbst ändern)
     modul.werte.clips = structuredClone(modul.werte.clips ?? {});
@@ -185,7 +185,8 @@ const clips = {
           continue;
         }
         const laenge = clip.takte * 16, schritt = (((nr - s.start) % laenge) + laenge) % laenge;
-        for (const [a, n, l, vel] of clip.noten) if (a === schritt) noten[sp].an(t, n, vel, l * sechzehntel * 0.96);
+        // auch Noten neben dem Raster: im Sechzehntel, in dem sie liegen, um den Bruchteil später
+        for (const [a, n, l, vel] of clip.noten) if (Math.floor(a) === schritt) noten[sp].an(t + (a - schritt) * sechzehntel, n, vel, l * sechzehntel * 0.96);
         setTimeout(() => (kopf[sp] = spielt[sp] === s ? schritt : -1), Math.max(0, (t - ctx.currentTime) * 1000));
       }
     });
@@ -211,7 +212,7 @@ const clips = {
         const clip = clipVon(gewaehlt), sp = Number(gewaehlt.split(":")[0]);
         return {
           liste: clip ? clip.noten : leer, schritte: (clip?.takte ?? w.neuTakte) * 16, tiefste: clip?.tiefste ?? 48,
-          grundton: w.grundton, leiter: w.leiter, kopf: clip && spielt[sp]?.key === gewaehlt ? kopf[sp] : -1,
+          grundton: w.grundton, leiter: w.leiter, raster: w.raster, kopf: clip && spielt[sp]?.key === gewaehlt ? kopf[sp] : -1,
         };
       },
       geaendert: speichere, hoere, hoehe: 260, zeilen: 25,
@@ -269,6 +270,7 @@ const clips = {
       wahl: [
         { name: "modus", text: "Modus", optionen: [["frei", "frei (klicken)"], ["ablauf", "Ablauf (Zeitleiste)"]], wert: "frei", setze: (v) => { w.modus = v; version++; } },
         { name: "feld", text: "Takte je Feld", optionen: [["1", "1"], ["2", "2"], ["4", "4"], ["8", "8"]], wert: "4", setze: (v) => { w.feld = Number(v); version++; } },
+        { name: "raster", text: "Raster", optionen: RASTER, wert: "1", setze: (v) => (w.raster = Number(v)) },
         { name: "grundton", text: "Tonart", optionen: GRUNDTOENE, wert: "0", setze: (v) => (w.grundton = v) },
         { name: "leiter", text: "Leiter zeigen", optionen: [["keine", "keine"], ...LEITER_WAHL.filter(([k]) => k !== "chromatisch")], wert: "keine", setze: (v) => (w.leiter = v) },
       ],

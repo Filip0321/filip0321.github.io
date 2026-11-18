@@ -106,10 +106,28 @@ Menu Styles
   display: none !important;
 }
 
-/* Runde 24: im Fenster des Zimmers kein Titel der Projektseite; „← Projekte“ nur, wenn man über die Liste kam */
+/* Runde 24: im Fenster des Zimmers kein Titel, keine Tags, keine Beschreibung; „← Projekte“ nur, wenn man über die Liste kam */
 .eingebettet .projekt-kopf h1,
-.eingebettet-ziel .projekt-kopf .zurueck {
+.eingebettet .projekt-kopf .tags,
+.eingebettet main > p,
+.eingebettet .patch-start > p:not(.hinweis),
+.eingebettet-ziel .projekt-kopf .zurueck,
+.eingebettet-ziel .projekt-kopf,
+.eingebettet .projekt-kopf .meta {
   display: none;
+}
+
+/* ohne Kopf oben kein großer Leerraum: der Inhalt beginnt fast am Rand */
+.eingebettet .seite {
+  padding-top: 1rem;
+}
+
+.eingebettet .projekt-kopf {
+  margin-bottom: 1rem;
+}
+
+.eingebettet .projekt-kopf .zurueck {
+  margin-bottom: 0;
 }
 
 .menu-btn {

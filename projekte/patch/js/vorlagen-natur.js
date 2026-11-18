@@ -207,11 +207,6 @@ Object.assign(NATUR_VORLAGEN, {
   ], [["g1.end", "aus", "mi", "1"], ["g2.end", "aus", "mi", "2"], ["g3.end", "aus", "mi", "3"], ["un.end", "aus", "mi", "4"], ["ka.end", "aus", "mi", "4"], ["mi", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]]),
 
   // Instrumente zum Spielen (Runde 23): Tastatur → Instrument-Gruppe → Hall. Preset an der Gruppe wählen.
-  blaeser: ausKlaengen("Bläser (Tastatur): Saxophon, Klarinette, Flöte, Trompete, Oboe als Presets einer Gruppe", [["bl", "blaeser", 430, 40, "Saxophon"]], [
-    { id: "ta", typ: "tastatur", x: 40, y: 40, werte: {} },
-    { id: "ha", typ: "hall", x: 860, y: 40, werte: { zeit: 1.6, mix: 0.22 } },
-    { id: "aus", typ: "ausgang", x: 1250, y: 40, werte: { laut: 0.5 } },
-  ], [["ta", "Noten", "bl.nz", "Noten"], ["bl.end", "aus", "ha", "ein"], ["ha", "aus", "aus", "ein"]]),
   streicher: ausKlaengen("Streicher (Tastatur): Geige, Cello, Pizzicato als Presets einer Gruppe", [["st", "streicher", 430, 40, "Geige"]], [
     { id: "ta", typ: "tastatur", x: 40, y: 40, werte: {} },
     { id: "ha", typ: "hall", x: 860, y: 40, werte: { zeit: 2.5, mix: 0.3 } },

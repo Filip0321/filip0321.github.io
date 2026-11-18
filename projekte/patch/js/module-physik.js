@@ -111,6 +111,7 @@ const wavetable = {
         { name: "frequenz", text: "Frequenz", ...log(20, 4000), wert: 261.63, einheit: "Hz", setze: setze("frequenz") },
         { name: "position", text: "Position", min: 0, max: 1, wert: 0, setze: (v) => { w.position = v; p("position").setTargetAtTime(v, ctx.currentTime, 0.01); } },
         { name: "verstimmen", text: "Unisono", min: 0, max: 50, wert: 0, einheit: "Cent", setze: setze("verstimmen") },
+        { name: "stimmen", text: "Stimmen", min: 1, max: 7, wert: 2, schritt: 1, setze: (v) => p("stimmen").setValueAtTime(Math.round(v), ctx.currentTime) },
         { name: "pegel", text: "Pegel", min: 0, max: 1, wert: 0.5, setze: (v) => aus.gain.setTargetAtTime(v, ctx.currentTime, 0.02) },
       ],
       extra: bildchen.extra,
@@ -122,4 +123,5 @@ const wavetable = {
   },
 };
 
+blasrohr.versteckt = true; // Runde 25: vorerst aus der Auswahl (klingt noch nicht); alte Patches laden weiter
 export const PHYSIK_MODULE = { blasrohr, bogen, wavetable };

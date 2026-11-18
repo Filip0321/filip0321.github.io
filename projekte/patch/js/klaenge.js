@@ -336,6 +336,10 @@ const BLAESER = k("Bläser", "Bläser: Klarinette, Saxophon, Flöte, Oboe, Tromp
     f2: { typ: "peaking", grenze: 1200, resonanz: 1.2, mod: 0 }, f1: { typ: "lowpass", grenze: 3500, resonanz: 1.5, mod: 0 } } },
 });
 
+// Runde 25: Bläser vorerst aus Menü und Suche (klingen noch nicht; später ein Sampler-Instrument aus eigenen
+// Saxophon-Aufnahmen). Die Gruppe bleibt, damit gespeicherte Patches weiter laden.
+BLAESER.versteckt = true;
+
 // Streicher (Runde 24: physikalisch). Die Quelle ist ein Bogen auf einer Saite (worklets.js): Haften und Rutschen,
 // daraus die Helmholtz-Bewegung (ein Sägezahn, aber einer, der lebt: er braucht beim Anstrich einen Moment, rauscht
 // am Bogen, kratzt bei zu viel Druck). Die Hüllkurve ist die Bogengeschwindigkeit. Danach der Korpus: drei
@@ -456,22 +460,25 @@ function wtStimme(i) {
 }
 const wst = [1, 2, 3, 4].map(wtStimme);
 const wtJede = (wt, h) => Object.assign({}, ...[1, 2, 3, 4].map((i) => ({ [`w${i}`]: wt, [`h${i}`]: h })));
-const WAVETABLE = k("Wavetable-Synth", "Wavetable-Synth (vierstimmig): Fläche, Lead, Bass, Pluck, Glas, Stimme", [
+const WAVETABLE = k("Wavetable-Synth", "Wavetable-Synth (vierstimmig): Fläche, Lead, Bass, Pluck, Supersaw, Glas, Stimme", [
   m("vt", "verteiler"), m("lp", "lfo", { form: "triangle" }), m("lf", "lfo", { form: "sine" }), ...wst.flatMap((x) => x.module),
   m("fi", "filter"), m("ch", "chorus"), m("end", "verstaerker", { pegel: 0.5 }),
 ], [...wst.flatMap((x) => x.kabel), ["lf", "aus", "fi", "Grenze"], ["fi", "aus", "ch", "ein"], ["ch", "aus", "end", "ein"]],
 ["end", ["vt", "Noten", "ein", "noten"]], [["w1", "position"], ["fi", "grenze"], ["lp", "tiefe"], ["h1", "r"]], {
-  "Fläche": { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 0.3, verstimmen: 18 }, { a: 1.2, d: 1, s: 0.8, r: 2.5 }), lp: { tempo: 0.07, tiefe: 0.25 }, lf: { tempo: 0.11, tiefe: 0.3 },
+  "Fläche": { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 0.3, verstimmen: 18, stimmen: 2 }, { a: 1.2, d: 1, s: 0.8, r: 2.5 }), lp: { tempo: 0.07, tiefe: 0.25 }, lf: { tempo: 0.11, tiefe: 0.3 },
     fi: { typ: "lowpass", grenze: 1800, resonanz: 1, mod: 1 }, ch: { mix: 0.5 } } },
-  Lead: { werte: { end: { pegel: 0.6 }, ...wtJede({ frequenz: 261.63, position: 0.28, verstimmen: 8 }, { a: 0.005, d: 0.3, s: 0.7, r: 0.2 }), lp: { tempo: 5, tiefe: 0.02 }, lf: { tempo: 0.5, tiefe: 0 },
+  Lead: { werte: { end: { pegel: 0.6 }, ...wtJede({ frequenz: 261.63, position: 0.28, verstimmen: 8, stimmen: 2 }, { a: 0.005, d: 0.3, s: 0.7, r: 0.2 }), lp: { tempo: 5, tiefe: 0.02 }, lf: { tempo: 0.5, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 4000, resonanz: 3, mod: 1 }, ch: { mix: 0.2 } } },
-  Bass: { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 0.43, verstimmen: 4 }, { a: 0.003, d: 0.4, s: 0.5, r: 0.1 }), lp: { tempo: 0.2, tiefe: 0 }, lf: { tempo: 0.2, tiefe: 0 },
+  Bass: { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 0.43, verstimmen: 4, stimmen: 2 }, { a: 0.003, d: 0.4, s: 0.5, r: 0.1 }), lp: { tempo: 0.2, tiefe: 0 }, lf: { tempo: 0.2, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 700, resonanz: 4, mod: 1 }, ch: { mix: 0 } } },
-  Pluck: { werte: { end: { pegel: 1 }, ...wtJede({ frequenz: 261.63, position: 0.6, verstimmen: 5 }, { a: 0.002, d: 0.35, s: 0, r: 0.3 }), lp: { tempo: 0.3, tiefe: 0.1 }, lf: { tempo: 0.2, tiefe: 0 },
+  Pluck: { werte: { end: { pegel: 1 }, ...wtJede({ frequenz: 261.63, position: 0.6, verstimmen: 5, stimmen: 2 }, { a: 0.002, d: 0.35, s: 0, r: 0.3 }), lp: { tempo: 0.3, tiefe: 0.1 }, lf: { tempo: 0.2, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 3000, resonanz: 2, mod: 1 }, ch: { mix: 0.3 } } },
-  Glas: { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 1, verstimmen: 6 }, { a: 0.01, d: 1.5, s: 0.2, r: 2 }), lp: { tempo: 0.1, tiefe: 0.05 }, lf: { tempo: 0.2, tiefe: 0 },
+  // Supersaw: sieben Sägezähne, ±30 Cent (die Trance-Fläche der späten 90er)
+  Supersaw: { werte: { end: { pegel: 0.45 }, ...wtJede({ frequenz: 261.63, position: 0.2857, verstimmen: 30, stimmen: 7 }, { a: 0.02, d: 0.5, s: 0.85, r: 0.6 }), lp: { tempo: 0.1, tiefe: 0 }, lf: { tempo: 0.15, tiefe: 0.15 },
+    fi: { typ: "lowpass", grenze: 6000, resonanz: 0.8, mod: 1 }, ch: { mix: 0.4 } } },
+  Glas: { werte: { end: { pegel: 0.5 }, ...wtJede({ frequenz: 261.63, position: 1, verstimmen: 6, stimmen: 2 }, { a: 0.01, d: 1.5, s: 0.2, r: 2 }), lp: { tempo: 0.1, tiefe: 0.05 }, lf: { tempo: 0.2, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 8000, resonanz: 0.7, mod: 1 }, ch: { mix: 0.4 } } },
-  Stimme: { werte: { end: { pegel: 1 }, ...wtJede({ frequenz: 261.63, position: 0.78, verstimmen: 10 }, { a: 0.3, d: 0.5, s: 0.8, r: 1 }), lp: { tempo: 0.15, tiefe: 0.08 }, lf: { tempo: 0.2, tiefe: 0 },
+  Stimme: { werte: { end: { pegel: 1 }, ...wtJede({ frequenz: 261.63, position: 0.78, verstimmen: 10, stimmen: 2 }, { a: 0.3, d: 0.5, s: 0.8, r: 1 }), lp: { tempo: 0.15, tiefe: 0.08 }, lf: { tempo: 0.2, tiefe: 0 },
     fi: { typ: "lowpass", grenze: 3500, resonanz: 0.7, mod: 1 }, ch: { mix: 0.4 } } },
 });
 
@@ -510,4 +517,4 @@ export const KLAENGE = {
 };
 
 // Suche nach einem Preset-Namen („Amsel“) findet die Gruppe mit diesem Preset
-export const PRESET_SUCHE = Object.entries(KLAENGE).flatMap(([name, d]) => Object.keys(d.gruppe.presets ?? {}).map((p) => ({ name, preset: p, titel: `${d.titel}: ${p}` })));
+export const PRESET_SUCHE = Object.entries(KLAENGE).filter(([, d]) => !d.versteckt).flatMap(([name, d]) => Object.keys(d.gruppe.presets ?? {}).map((p) => ({ name, preset: p, titel: `${d.titel}: ${p}` })));

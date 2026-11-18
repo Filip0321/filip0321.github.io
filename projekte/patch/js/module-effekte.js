@@ -289,4 +289,63 @@ const panorama = {
   },
 };
 
-export const EFFEKTE = { verzerrung, bitcrusher, band, hall, chorus, kompressor, mehrband, panorama };
+// ---------- Runde 25: Limiter und EQ ----------
+// Limiter: ein Kompressor mit Verhältnis 20 : 1, ganz hartem Knick und sehr schnellem Attack. Was über die Decke will,
+// wird fast ganz zurückgedrückt. Davor „Gain“ (lauter machen), danach die Decke selbst als Ausgangspegel.
+const limiter = {
+  titel: "Limiter",
+  gruppe: "Bearbeiten",
+  baue(ctx) {
+    const vor = verstaerker(ctx, 1), k = ctx.createDynamicsCompressor(), nach = verstaerker(ctx, 1);
+    k.ratio.value = 20;
+    k.knee.value = 0;
+    k.attack.value = 0.001;
+    vor.connect(k).connect(nach);
+    const db = (v) => 10 ** (v / 20);
+    return {
+      ein: { ein: { art: "ton", ziel: vor } },
+      aus: { aus: { art: "ton", knoten: nach } },
+      regler: [
+        { name: "gain", text: "Gain", min: 0, max: 24, wert: 0, einheit: "dB", setze: (v) => vor.gain.setTargetAtTime(db(v), ctx.currentTime, 0.02) },
+        { name: "decke", text: "Decke", min: -24, max: 0, wert: -1, einheit: "dB", setze: (v) => (k.threshold.value = v) },
+        { name: "release", text: "Release", ...log(0.01, 1), wert: 0.1, einheit: "s", setze: (v) => (k.release.value = v) },
+      ],
+    };
+  },
+};
+
+// EQ (wie EQ Eight, hier mit vier Bändern): tief (Kuhschwanz/Shelf), zwei Glocken, hoch (Shelf). Jedes Band hebt oder
+// senkt um bis zu ±18 dB. Ein Glocken-Filter hebt nur ein Band um seine Frequenz an; die Güte sagt, wie schmal.
+const eq = {
+  titel: "EQ",
+  gruppe: "Bearbeiten",
+  baue(ctx) {
+    const b = [["lowshelf", 120], ["peaking", 500], ["peaking", 2500], ["highshelf", 8000]].map(([typ, f]) => {
+      const x = ctx.createBiquadFilter();
+      x.type = typ;
+      x.frequency.value = f;
+      x.Q.value = 1;
+      return x;
+    });
+    b.reduce((a, c) => (a.connect(c), c));
+    const setze = (x, prm) => (v) => x[prm].setTargetAtTime(v, ctx.currentTime, 0.02);
+    return {
+      ein: { ein: { art: "ton", ziel: b[0] } },
+      aus: { aus: { art: "ton", knoten: b[3] } },
+      regler: [
+        { name: "tief", text: "Tief", min: -18, max: 18, wert: 0, einheit: "dB", setze: setze(b[0], "gain") },
+        { name: "f1", text: "Tief Hz", ...log(30, 500), wert: 120, einheit: "Hz", setze: setze(b[0], "frequency") },
+        { name: "mitte1", text: "Mitte 1", min: -18, max: 18, wert: 0, einheit: "dB", setze: setze(b[1], "gain") },
+        { name: "f2", text: "M1 Hz", ...log(100, 3000), wert: 500, einheit: "Hz", setze: setze(b[1], "frequency") },
+        { name: "q2", text: "M1 Güte", ...log(0.3, 10), wert: 1, setze: setze(b[1], "Q") },
+        { name: "mitte2", text: "Mitte 2", min: -18, max: 18, wert: 0, einheit: "dB", setze: setze(b[2], "gain") },
+        { name: "f3", text: "M2 Hz", ...log(500, 10000), wert: 2500, einheit: "Hz", setze: setze(b[2], "frequency") },
+        { name: "q3", text: "M2 Güte", ...log(0.3, 10), wert: 1, setze: setze(b[2], "Q") },
+        { name: "hoch", text: "Hoch", min: -18, max: 18, wert: 0, einheit: "dB", setze: setze(b[3], "gain") },
+        { name: "f4", text: "Hoch Hz", ...log(2000, 16000), wert: 8000, einheit: "Hz", setze: setze(b[3], "frequency") },
+      ],
+    };
+  },
+};
+
+export const EFFEKTE = { verzerrung, bitcrusher, band, hall, chorus, kompressor, limiter, eq, mehrband, panorama };

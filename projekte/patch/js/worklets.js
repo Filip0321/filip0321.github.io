@@ -795,12 +795,13 @@ class Wavetable extends AudioWorkletProcessor {
       { name: "tonhoehe", defaultValue: 0 },
       { name: "position", defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: "verstimmen", defaultValue: 0, minValue: 0, maxValue: 50 },
+      { name: "stimmen", defaultValue: 2, minValue: 1, maxValue: 7, automationRate: "k-rate" },
     ];
   }
   constructor(o) {
     super();
     this.t = o.processorOptions.tabellen; // [Frame][Stufe] → Float32Array(2048)
-    this.ph = [0, 0.37];
+    this.ph = Array.from({ length: 7 }, () => Math.random()); // freie Phasen: sonst starten alle gleich und „wischen“
   }
   process(_, [aus], p) {
     const k = aus[0], n = k.length, L = 2048, F = this.t.length;
@@ -809,16 +810,19 @@ class Wavetable extends AudioWorkletProcessor {
       const pos = begrenze(wert(p.position, i), 0, 1) * (F - 1), a = Math.min(F - 2, Math.floor(pos)), r = pos - a;
       const stufe = f < 300 ? 0 : f < 1200 ? 1 : 2; // 64, 16 oder 4 Obertöne
       const ta = this.t[a][stufe], tb = this.t[a + 1][stufe];
-      const cent = wert(p.verstimmen, i);
+      // Runde 25: bis zu 7 Stimmen (Supersaw, Roland JP-8000, 1996: sieben Sägezähne, gegeneinander verstimmt).
+      // Die Verstimmung verteilt sich gleichmäßig von −Unisono/2 bis +Unisono/2 Cent.
+      const cent = wert(p.verstimmen, i), N = Math.round(p.stimmen[0]);
       let y = 0;
-      for (let v = 0; v < 2; v++) {
-        const fv = f * 2 ** (((v ? 1 : -1) * cent) / 2400);
+      for (let v = 0; v < N; v++) {
+        const lage = N === 1 ? 0 : (v / (N - 1)) * 2 - 1;
+        const fv = f * 2 ** ((lage * cent) / 2400);
         this.ph[v] = (this.ph[v] + fv / sampleRate) % 1;
         const x = this.ph[v] * L, j = Math.floor(x), q = x - j, j2 = (j + 1) & (L - 1);
         const sa = ta[j] + (ta[j2] - ta[j]) * q, sb = tb[j] + (tb[j2] - tb[j]) * q;
         y += sa + (sb - sa) * r;
       }
-      k[i] = 0.5 * y;
+      k[i] = y / Math.sqrt(N * 2); // mehr Stimmen: lauter wie Rauschen (√N), nicht wie gleiche Töne (N)
     }
     for (let c = 1; c < aus.length; c++) aus[c].set(k);
     return true;

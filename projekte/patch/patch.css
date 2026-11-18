@@ -939,3 +939,13 @@ canvas.malbar {
   background: transparent;
   color: var(--text);
 }
+
+/* ABC: Noten als Text (Runde 25) */
+.abc-feld {
+  width: 100%;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid currentColor;
+}

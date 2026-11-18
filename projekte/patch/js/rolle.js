@@ -8,6 +8,8 @@
 // Noten als Liste [Schritt, Note, Länge, Anschlag]. Die Rolle besitzt die Liste nicht: stand() sagt ihr bei jedem
 // Zeichnen und Klicken, welche Liste, wie viele Schritte, welcher Ausschnitt gilt. So kann der Clip-Player die Rolle
 // auf einen anderen Clip zeigen lassen, ohne sie neu zu bauen. Nach jeder Änderung ruft sie geaendert().
+// Runde 25: Raster (stand().raster): 1 = Sechzehntel, 0.5 = Zweiunddreißigstel, 1/3·… = Triolen, 0 = frei (ohne
+// Raster, „off grid“). Schritt und Länge sind dann Kommazahlen; die Spieler setzen die Note um den Bruchteil später.
 
 import { LEITERN } from "./bausteine.js";
 
@@ -25,6 +27,14 @@ export function neueRolle({ stand, geaendert, hoere, breite = 640, hoehe = 312, 
   c.className = "rolle";
   const g = c.getContext("2d");
   let letzteLaenge = 2;
+  const runde = (x) => {
+    const r = stand().raster ?? 1;
+    return r > 0 ? Math.round(x / r) * r : Math.round(x * 100) / 100;
+  };
+  const ab = (x) => {
+    const r = stand().raster ?? 1;
+    return r > 0 ? Math.floor(x / r) * r : Math.round(x * 100) / 100;
+  };
 
   const zeichne = () => {
     if (c.offsetParent === null) return;
@@ -106,7 +116,7 @@ export function neueRolle({ stand, geaendert, hoere, breite = 640, hoehe = 312, 
       const randNah = (t[0] + t[2] - o.s) * o.sb < Math.max(6, o.sb * 0.35);
       griff = randNah ? { art: "laenge", note: t } : { art: "ziehen", note: t, ds: o.s - t[0] };
     } else {
-      const s = Math.floor(o.s);
+      const s = ab(o.s);
       if (s >= schritte || o.n < tiefste || o.n >= tiefste + ZEILEN) return;
       const neu = [s, o.n, Math.min(letzteLaenge, schritte - s), 0.8];
       liste.push(neu);
@@ -120,10 +130,11 @@ export function neueRolle({ stand, geaendert, hoere, breite = 640, hoehe = 312, 
     const { schritte, tiefste } = stand();
     const o = ort(ev), note = griff.note;
     if (griff.art === "laenge") {
-      note[2] = Math.max(1, Math.min(schritte - note[0], Math.round(o.s - note[0] + 0.5)));
+      const min = (stand().raster ?? 1) || 0.1;
+      note[2] = Math.max(min, Math.min(schritte - note[0], runde(o.s - note[0] + min / 2)));
       letzteLaenge = note[2];
     } else {
-      const s = Math.max(0, Math.min(schritte - note[2], Math.round(o.s - griff.ds)));
+      const s = Math.max(0, Math.min(schritte - note[2], runde(o.s - griff.ds)));
       const n = Math.max(tiefste, Math.min(tiefste + ZEILEN - 1, o.n));
       if (n !== note[1]) hoere(n, note[3]);
       note[0] = s;
@@ -161,3 +172,6 @@ export function wuerfle({ schritte, tiefste, grundton, leiter: lname }, zeilen =
   }
   return liste;
 }
+
+// Auswahl für das Raster (Pianoroll, Clips): Wert = Länge eines Rasterschritts in Sechzehnteln
+export const RASTER = [["1", "1/16"], ["0.5", "1/32"], ["0.6666666666666666", "1/16 Triole"], ["0.3333333333333333", "1/32 Triole"], ["0", "frei (off grid)"]];

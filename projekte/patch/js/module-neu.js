@@ -11,5 +11,6 @@ import { STIMME_MODULE } from "./module-stimme.js"; // Runde 22: die Stimme aus 
 import { BAUKASTEN_MODULE } from "./module-baukasten.js"; // Runde 22b: Salve, Kurve, Shaper, Pling
 import { SPUREN_MODULE } from "./module-spuren.js"; // Runde 23b: Kanal und Clips
 import { PHYSIK_MODULE } from "./module-physik.js"; // Runde 24: Blasrohr und Bogen (Wellenleiter)
+import { ABC_MODULE } from "./module-abc.js"; // Runde 25: Noten als Text (ABC-Notation)
 
-export const NEUE_MODULE = { ...KLANG, ...STEUERUNG, ...EFFEKTE, ...NOTEN_MODULE, ...WERKZEUG_MODULE, ...NATUR_MODULE, ...SAMPLER_MODULE, ...STIMME_MODULE, ...BAUKASTEN_MODULE, ...SPUREN_MODULE, ...PHYSIK_MODULE };
+export const NEUE_MODULE = { ...KLANG, ...STEUERUNG, ...EFFEKTE, ...NOTEN_MODULE, ...WERKZEUG_MODULE, ...NATUR_MODULE, ...SAMPLER_MODULE, ...STIMME_MODULE, ...BAUKASTEN_MODULE, ...SPUREN_MODULE, ...PHYSIK_MODULE, ...ABC_MODULE };

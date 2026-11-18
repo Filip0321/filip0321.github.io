@@ -15,7 +15,7 @@
 import { Takt, Noten } from "./takt.js";
 import { log, konstante, verstaerker, filter, LEITERN, LEITER_WAHL, GRUNDTOENE } from "./bausteine.js";
 import { huellkurvenBild } from "./anzeigen.js";
-import { neueRolle, wuerfle } from "./rolle.js";
+import { neueRolle, wuerfle, RASTER } from "./rolle.js";
 
 const NAMEN = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "As", "A", "B", "H"];
 export const notenName = (n) => `${NAMEN[((Math.round(n) % 12) + 12) % 12]}${Math.floor(Math.round(n) / 12) - 1}`;
@@ -749,7 +749,7 @@ const pianoroll = {
   baue(ctx, { uhr, bild }) {
     const noten = new Noten(), takt = new Takt();
     const ton = konstante(ctx, 0);
-    const w = { tempo: 120, takte: 2, tiefste: 48, swing: 0, grundton: "0", leiter: "keine", vorhoeren: "an" };
+    const w = { tempo: 120, takte: 2, tiefste: 48, swing: 0, grundton: "0", leiter: "keine", vorhoeren: "an", raster: 1 };
     let liste = [], modulRef = null, kopf = -1, start = 0;
     const schritte = () => w.takte * 16;
 
@@ -759,8 +759,8 @@ const pianoroll = {
       const versatz = s % 2 === 1 ? w.swing * sechzehntel : 0;
       let hoechste = null;
       for (const [schritt, n, laenge, vel] of liste) {
-        if (schritt !== s) continue;
-        noten.an(t + versatz, n, vel, laenge * sechzehntel * 0.96);
+        if (Math.floor(schritt) !== s) continue;
+        noten.an(t + versatz + (schritt - s) * sechzehntel, n, vel, laenge * sechzehntel * 0.96);
         if (hoechste === null || n > hoechste[0]) hoechste = [n, laenge * sechzehntel * 0.96];
       }
       if (hoechste) {
@@ -781,7 +781,7 @@ const pianoroll = {
     };
     const hoere = (n, vel) => w.vorhoeren === "an" && noten.an(ctx.currentTime + 0.01, n, vel, 0.2);
     const rolle = neueRolle({
-      stand: () => ({ liste, schritte: schritte(), tiefste: w.tiefste, grundton: w.grundton, leiter: w.leiter, kopf }),
+      stand: () => ({ liste, schritte: schritte(), tiefste: w.tiefste, grundton: w.grundton, leiter: w.leiter, raster: w.raster, kopf }),
       geaendert: speichere, hoere,
     });
     const zeichne = rolle.zeichne;
@@ -796,6 +796,7 @@ const pianoroll = {
       ],
       wahl: [
         { name: "takte", text: "Takte", optionen: [["1", "1"], ["2", "2"], ["4", "4"]], wert: "2", setze: (v) => (w.takte = Number(v)) },
+        { name: "raster", text: "Raster", optionen: RASTER, wert: "1", setze: (v) => (w.raster = Number(v)) },
         { name: "grundton", text: "Tonart", optionen: GRUNDTOENE, wert: "0", setze: (v) => (w.grundton = v) },
         { name: "leiter", text: "Leiter zeigen", optionen: [["keine", "keine"], ...LEITER_WAHL.filter(([k]) => k !== "chromatisch")], wert: "keine", setze: (v) => (w.leiter = v) },
         { name: "vorhoeren", text: "Vorhören", optionen: [["an", "an"], ["aus", "aus"]], wert: "an", setze: (v) => (w.vorhoeren = v) },
