@@ -27,7 +27,7 @@ const TONLEITERN = {
 // lenia: aus lenia.js; e: die Einstellungen der Seite (regler.js), Namen ton…; knopf: „Ton an“
 export function richteLeniaTonEin(lenia, e, knopf) {
   let ac = null, ausgang = null, strom = null, laeuft = false, uhr = null;
-  let start = 0, k = 0, tempoVorher = 0;
+  let start = 0, k = 0, tempoVorher = 0, standZeit = 0, letzterStand = null;
 
   const waagerecht = () => e.tonRichtung === "waagerecht";
   // Lage des Strichs bei Schritt k: Stelle i von „tonSpalten“, als Zelle und als Anteil (0 … 1) für das Bild
@@ -36,6 +36,12 @@ export function richteLeniaTonEin(lenia, e, knopf) {
     const anteil = (i + 0.5) / s;
     // waagerecht von oben nach unten: Zeile 0 der Textur ist unten
     return { zelle: Math.floor((waagerecht() ? 1 - anteil : anteil) * n), anteil: waagerecht() ? 1 - anteil : anteil };
+  }
+
+  function lageFest() {
+    const n = lenia.n;
+    const anteil = Math.max(0, Math.min(1, Number(e.tonLage ?? 0.5)));
+    return { zelle: Math.floor((waagerecht() ? 1 - anteil : anteil) * n), anteil };
   }
 
   const grundHz = () => 440 * 2 ** ((12 * (e.tonOktave + 1) + Number(e.tonGrundton) - 69) / 12);
@@ -77,6 +83,18 @@ export function richteLeniaTonEin(lenia, e, knopf) {
   }
 
   function plane() {
+    if (e.tonArt === "steht") {
+      // Wie im Game of Life gibt die Simulation den Takt vor; der Lesestrich bleibt an seiner Stelle.
+      if (ac.currentTime - standZeit >= 0.1) {
+        standZeit = ac.currentTime;
+        const { zelle, anteil } = lageFest();
+        const jetzt = lenia.spalte(zelle, waagerecht());
+        const an = e.tonSpielt === "alle" ? jetzt : jetzt.map((v, i) => (v >= e.tonSchwelle && !(letzterStand?.[i] >= e.tonSchwelle) ? v : 0));
+        for (const note of noten(an, anteil)) spiele(note, ac.currentTime + 0.01);
+        letzterStand = jetzt.slice();
+      }
+      return;
+    }
     if (e.tonTempo !== tempoVorher) {
       start = ac.currentTime - k / e.tonTempo + 1 / e.tonTempo; // neues Tempo ab dem nächsten Schritt
       tempoVorher = e.tonTempo;
@@ -115,6 +133,7 @@ export function richteLeniaTonEin(lenia, e, knopf) {
     // der Strich fürs Bild: was man gerade hört (um die Ausgabe-Latenz verzögert), oder null
     kopf() {
       if (!laeuft || !ac) return null;
+      if (e.tonArt === "steht") return { lage: lageFest().anteil, zeile: waagerecht() };
       const t = ac.currentTime - (ac.outputLatency || 0) - start;
       if (t < 0) return null;
       return { lage: lage(Math.floor(t * tempoVorher)).anteil, zeile: waagerecht() };
@@ -122,3 +141,4 @@ export function richteLeniaTonEin(lenia, e, knopf) {
     liveTon: () => (laeuft && strom ? { spur: strom.stream.getAudioTracks()[0], kanaele: 2, rate: ac.sampleRate } : null),
   };
 }
+

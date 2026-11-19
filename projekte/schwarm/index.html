@@ -48,7 +48,7 @@
         <div class="steuerung">
           <button type="button" id="neu">neu verteilen</button>
           <button type="button" id="pause">Pause</button>
-          <label>Anzahl <input type="range" data-wert="anzahl" min="50" max="8000" step="50" value="1500"><output></output></label>
+          <label>Anzahl <input type="range" data-wert="anzahl" min="50" max="50000" step="250" value="2500"><output></output></label>
           <label>Zeit <input type="range" data-wert="zeit" min="0.1" max="2" step="0.05" value="1"><output></output></label>
           <label>Rand
             <select data-wert="rand">
@@ -59,7 +59,7 @@
           <label><input type="checkbox" data-wert="falke"> Falke</label>
         </div>
         <div class="presets">
-          <button type="button" data-setze='{"sicht": 60, "abstand": 18, "trennung": 1.5, "ausrichtung": 1, "zusammenhalt": 0.6, "vmax": 160, "vmin": 90, "kraft": 220, "blick": 300, "topologisch": true, "k": 7, "zittern": 0}'>Stare</button>
+          <button type="button" data-setze='{"sicht": 85, "abstand": 12, "trennung": 1.6, "ausrichtung": 1.6, "zusammenhalt": 0.45, "vmax": 220, "vmin": 135, "kraft": 300, "blick": 360, "topologisch": true, "k": 7, "zittern": 0.025, "rand": "torus"}'>Stare</button>
           <button type="button" data-setze='{"sicht": 50, "abstand": 14, "trennung": 1.4, "ausrichtung": 0.4, "zusammenhalt": 1.6, "vmax": 120, "vmin": 100, "kraft": 160, "blick": 240, "topologisch": false, "zittern": 0, "rand": "wand"}'>Fischkreisel</button>
           <button type="button" data-setze='{"sicht": 40, "abstand": 10, "trennung": 1, "ausrichtung": 0.05, "zusammenhalt": 0.9, "vmax": 140, "vmin": 0, "kraft": 400, "blick": 360, "topologisch": false, "zittern": 1}'>Mücken</button>
           <button type="button" data-setze='{"sicht": 70, "abstand": 22, "trennung": 2, "ausrichtung": 1.5, "zusammenhalt": 0.3, "vmax": 50, "vmin": 10, "kraft": 60, "blick": 300, "topologisch": false, "zittern": 0.1}'>Herde</button>
@@ -70,16 +70,16 @@
       <details class="abschnitt" open>
         <summary>Regeln</summary>
         <div class="steuerung">
-          <label>Trennung <input type="range" data-wert="trennung" min="0" max="4" step="0.05" value="1.5"><output></output></label>
-          <label>Ausrichtung <input type="range" data-wert="ausrichtung" min="0" max="3" step="0.05" value="1"><output></output></label>
-          <label>Zusammenhalt <input type="range" data-wert="zusammenhalt" min="0" max="3" step="0.05" value="0.6"><output></output></label>
-          <label>Sichtweite <input type="range" data-wert="sicht" min="10" max="150" step="1" value="60"><output></output></label>
-          <label>Abstand <input type="range" data-wert="abstand" min="4" max="60" step="1" value="18"><output></output></label>
-          <label>Blickwinkel (°) <input type="range" data-wert="blick" min="60" max="360" step="5" value="300"><output></output></label>
-          <label>Höchsttempo <input type="range" data-wert="vmax" min="20" max="400" step="5" value="160"><output></output></label>
-          <label>Mindesttempo <input type="range" data-wert="vmin" min="0" max="300" step="5" value="90"><output></output></label>
-          <label>Kraft (Wendigkeit) <input type="range" data-wert="kraft" min="20" max="800" step="10" value="220"><output></output></label>
-          <label>Zittern <input type="range" data-wert="zittern" min="0" max="2" step="0.05" value="0"><output></output></label>
+          <label>Trennung <input type="range" data-wert="trennung" min="0" max="4" step="0.05" value="1.6"><output></output></label>
+          <label>Ausrichtung <input type="range" data-wert="ausrichtung" min="0" max="3" step="0.05" value="1.6"><output></output></label>
+          <label>Zusammenhalt <input type="range" data-wert="zusammenhalt" min="0" max="3" step="0.05" value="0.45"><output></output></label>
+          <label>Sichtweite <input type="range" data-wert="sicht" min="10" max="180" step="1" value="85"><output></output></label>
+          <label>Abstand <input type="range" data-wert="abstand" min="4" max="60" step="1" value="12"><output></output></label>
+          <label>Blickwinkel (°) <input type="range" data-wert="blick" min="60" max="360" step="5" value="360"><output></output></label>
+          <label>Höchsttempo <input type="range" data-wert="vmax" min="20" max="400" step="5" value="220"><output></output></label>
+          <label>Mindesttempo <input type="range" data-wert="vmin" min="0" max="300" step="5" value="135"><output></output></label>
+          <label>Kraft (Wendigkeit) <input type="range" data-wert="kraft" min="20" max="800" step="10" value="300"><output></output></label>
+          <label>Zittern <input type="range" data-wert="zittern" min="0" max="2" step="0.005" value="0.025"><output></output></label>
           <label><input type="checkbox" data-wert="topologisch" checked> topologisch (die k nächsten statt alle in Sichtweite)</label>
           <label data-nur="topologisch=true">k Nachbarn <input type="range" data-wert="k" min="1" max="20" step="1" value="7"><output></output></label>
         </div>
@@ -105,16 +105,43 @@
         <div class="steuerung">
           <label>Form
             <select data-wert="form">
-              <option value="dreieck" selected>Dreieck</option>
+              <option value="vogel" selected>Vogel-Silhouette</option>
+              <option value="dreieck">Dreieck</option>
               <option value="strich">Strich</option>
               <option value="punkt">Punkt</option>
             </select>
           </label>
-          <label>Größe <input type="range" data-wert="groesse" min="1" max="8" step="0.5" value="3"><output></output></label>
+          <label>Größe <input type="range" data-wert="groesse" min="0.25" max="8" step="0.25" value="1.5"><output></output></label>
           <label>Spuren <input type="range" data-wert="spuren" min="0" max="0.97" step="0.01" value="0.6"><output></output></label>
           <label>Hell <input type="color" data-wert="hell" value="#dddddd"></label>
           <label>Dunkel <input type="color" data-wert="dunkel" value="#111111"></label>
+          <label>Färbung
+            <select data-wert="farbmodus"><option value="einfarbig" selected>Einfarbig</option><option value="tempo">Tempo</option><option value="dichte">Lokale Dichte (kontinuierlich)</option><option value="hoehe">Position (unten → oben)</option></select>
+          </label>
+          <label>Farbskala
+            <select data-wert="farbskala"><option value="glut">Glut</option><option value="viridis" selected>Viridis</option><option value="eis">Eis</option><option value="grau">Schwarz → Weiß</option></select>
+          </label>
+          <label><input type="checkbox" data-wert="farbInvertiert"> Skala umkehren</label>
+          <button type="button" id="schwarzWeiss">Schwarz auf Weiß</button>
         </div>
+      </details>
+
+      <details class="abschnitt" open>
+        <summary>Hintergrund / Overlay</summary>
+        <div class="steuerung">
+          <label class="datei-knopf">Bild oder Video laden <input type="file" id="hintergrundDatei" accept="image/*,video/*"></label>
+          <button type="button" id="hintergrundEntfernen">Hintergrund entfernen</button>
+          <label>Anpassung
+            <select id="hintergrundAnpassung">
+              <option value="cover" selected>Fläche füllen (beschneiden)</option>
+              <option value="einpassen">Ganzes Bild zeigen</option>
+              <option value="strecken">Auf Canvas strecken</option>
+            </select>
+          </label>
+          <label>Hintergrund-Deckkraft <input type="range" id="hintergrundDeckkraft" min="0" max="1" step="0.05" value="1"><output id="hintergrundDeckkraftWert">100 %</output></label>
+          <button type="button" id="feldGross">Canvas vergrößern</button>
+        </div>
+        <p class="hinweis" id="hintergrundMeldung">Ein Bild oder Video liegt hinter dem Schwarm. Videos laufen stumm in Schleife und werden beim Video-Export bildweise synchronisiert.</p>
       </details>
 
       <details class="abschnitt">
@@ -193,3 +220,4 @@
   <script type="module" src="/lib/effekt-schicht.js"></script>
 </body>
 </html>
+

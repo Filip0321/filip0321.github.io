@@ -137,6 +137,7 @@
           </label>
           <label>Schritte pro Sekunde <input type="range" data-wert="tonTempo" min="1" max="32" step="1" value="8"><output></output></label>
           <label>Schwelle <input type="range" data-wert="tonSchwelle" min="0.05" max="0.95" step="0.05" value="0.3"><output></output></label>
+          <label data-nur="tonArt=steht">Spielen <select data-wert="tonSpielt"><option value="alle">Alle aktiven Zellen</option><option value="neu" selected>Nur neu aktive Zellen</option></select></label>
           <label>Tonleiter
             <select data-wert="tonLeiter">
               <option value="pentatonik-moll" selected>Pentatonik Moll</option>
@@ -168,7 +169,7 @@
           <label>Abklingen (s) <input type="range" data-wert="tonAbklingen" min="0.05" max="1.5" step="0.05" value="0.4"><output></output></label>
           <label>Lautstärke <input type="range" data-wert="tonLaut" min="0" max="1" step="0.01" value="0.3"><output></output></label>
         </div>
-        <p class="hinweis">Ein Strich wandert über die Welt wie im Game of Life. Zellen über der Schwelle spielen, unten tief, oben hoch, auf die Tonleiter gerastet. Wie hell eine Zelle ist, macht die Note laut oder leise. Weil die Wesen wandern, wandert die Melodie mit. Ins Video kommt der Ton mit „Live aufnehmen“.</p>
+        <p class="hinweis">Der Strich wandert über die Welt oder bleibt an einer Stelle stehen wie im Game of Life. Im Stand-Modus kannst du ihn direkt ins Feld setzen. Zellen über der Schwelle spielen, unten tief, oben hoch, auf die Tonleiter gerastet. Wie hell eine Zelle ist, macht die Note laut oder leise. Weil die Wesen wandern, wandert die Melodie mit. Ins Video kommt der Ton mit „Live aufnehmen“.</p>
       </details>
 
       <details class="abschnitt" id="musik">
@@ -216,3 +217,4 @@
   <script type="module" src="/lib/effekt-schicht.js"></script>
 </body>
 </html>
+

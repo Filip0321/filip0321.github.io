@@ -280,19 +280,19 @@ let rahmenBeimZiehen = null; // Ausschnitt, solange er aufgezogen wird
 // kein Rahmen beim Aufziehen und kein heller „aktiver“ Strich
 function zeichneKopf(mitWerten, fuerExport = false) {
   const e = einstellung;
-  const mitSkala = fuerExport ? e.exportSkala : e.skala;
+  const mitSkala = e.skala;
   kopf.zeichne({
     striche: striche.map((s, i) => ({ strich: s, grenzen: grenzen.get(s.id), werte: mitWerten[i] ?? null })),
     aktiv: fuerExport ? null : aktiv,
     skala: mitSkala ? { tief: e.tief, hoch: e.hoch, zeilen: e.zeilen } : null,
-    balken: fuerExport ? e.exportBalken : e.balken,
-    zeigeStriche: fuerExport ? e.exportStriche : e.zeigeStriche,
+    balken: e.balken,
+    zeigeStriche: e.zeigeStriche,
     deckkraft: e.deckkraft,
     balkenFarbe: e.balkenFarbe,
     rechteck: fuerExport ? null : rahmenBeimZiehen,
   });
   // Flecken sind eine eigene Bildebene: sie bleiben sichtbar, auch wenn die Lesestriche ausgeblendet sind.
-  if (e.flecken && (!fuerExport || e.exportFlecken !== false)) zeichneFlecken();
+  if (e.flecken) zeichneFlecken();
 }
 
 // die Flecken als Rahmen mit Nummer über dem Video (in Anteilen des ganzen Bildes; mit Lupe nur, was drin ist)

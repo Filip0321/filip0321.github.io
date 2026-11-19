@@ -87,6 +87,13 @@ const lage = (ev) => {
 };
 canvas.addEventListener("pointerdown", (ev) => {
   canvas.setPointerCapture(ev.pointerId);
+  if (e.tonArt === "steht" && !ev.shiftKey && ev.button === 0) {
+    const r = canvas.getBoundingClientRect();
+    const anteil = e.tonRichtung === "waagerecht" ? 1 - (ev.clientY - r.top) / r.height : (ev.clientX - r.left) / r.width;
+    const feld = document.querySelector('[data-wert="tonLage"]');
+    if (feld) { feld.value = String(Math.max(0, Math.min(1, anteil))); feld.dispatchEvent(new Event("input", { bubbles: true })); }
+    return;
+  }
   const weg = ev.shiftKey || ev.button === 2 || e.werkzeug === "radieren";
   if (e.werkzeug === "wesen" && !weg) {
     const [x, y] = lage(ev);

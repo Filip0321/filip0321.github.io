@@ -52,11 +52,14 @@ export function richteKopfEin(canvas) {
     }
     const rand = Math.max(1, Math.round(dpr));
     const flaeche = (von, bis) => (s.senkrecht ? ctx.fillRect(von, 0, bis - von, h) : ctx.fillRect(0, von, b, bis - von));
+    ctx.save();
+    ctx.globalAlpha = deckkraft;
     ctx.fillStyle = RAND;
     flaeche(anfang - rand, anfang);
     flaeche(ende, ende + rand);
-    ctx.fillStyle = `rgba(255, 255, 255, ${aktiv ? deckkraft : deckkraft * 0.6})`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${aktiv ? 1 : 0.6})`;
     flaeche(anfang, ende);
+    ctx.restore();
   }
 
   // Wellenform: die gelesene Schwingung als Kurve neben dem Strich (wie auf einem Oszilloskop)
@@ -122,7 +125,7 @@ export function richteKopfEin(canvas) {
       // was der Strich gerade liest: pro Zeile ein Balken daneben (außen an der Fläche), so lang wie hell
       const aussen0 = Math.min(anfang, sichtAnfang);
       const aussen1 = Math.max(ende, sichtEnde);
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = deckkraft * 0.75;
       if (werte && balken && s.art === "welle") kurve(s, grenzen, werte, aussen0, aussen1, balkenFarbe);
       else if (werte && balken) {
         ctx.fillStyle = balkenFarbe;
