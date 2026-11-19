@@ -52,36 +52,43 @@
           <label>Zeit <input type="range" data-wert="zeit" min="0.1" max="2" step="0.05" value="1"><output></output></label>
           <label>Rand
             <select data-wert="rand">
-              <option value="torus" selected>Torus (rechts hinaus, links herein)</option>
-              <option value="wand">umkehren</option>
+              <option value="torus">Torus (rechts hinaus, links herein)</option>
+              <option value="wand" selected>umkehren</option>
             </select>
           </label>
           <label><input type="checkbox" data-wert="falke"> Falke</label>
         </div>
         <div class="presets">
-          <button type="button" data-setze='{"sicht": 85, "abstand": 12, "trennung": 1.6, "ausrichtung": 1.6, "zusammenhalt": 0.45, "vmax": 220, "vmin": 135, "kraft": 300, "blick": 360, "topologisch": true, "k": 7, "zittern": 0.025, "rand": "torus"}'>Stare</button>
-          <button type="button" data-setze='{"sicht": 50, "abstand": 14, "trennung": 1.4, "ausrichtung": 0.4, "zusammenhalt": 1.6, "vmax": 120, "vmin": 100, "kraft": 160, "blick": 240, "topologisch": false, "zittern": 0, "rand": "wand"}'>Fischkreisel</button>
-          <button type="button" data-setze='{"sicht": 40, "abstand": 10, "trennung": 1, "ausrichtung": 0.05, "zusammenhalt": 0.9, "vmax": 140, "vmin": 0, "kraft": 400, "blick": 360, "topologisch": false, "zittern": 1}'>Mücken</button>
-          <button type="button" data-setze='{"sicht": 70, "abstand": 22, "trennung": 2, "ausrichtung": 1.5, "zusammenhalt": 0.3, "vmax": 50, "vmin": 10, "kraft": 60, "blick": 300, "topologisch": false, "zittern": 0.1}'>Herde</button>
+          <button type="button" data-setze='{"sicht": 170, "abstand": 8, "trennung": 1.35, "ausrichtung": 1.6, "zusammenhalt": 1.3, "vmax": 165, "vmin": 110, "kraft": 170, "blick": 360, "topologisch": true, "k": 12, "zittern": 0.025, "wirbel": 0.35, "rand": "wand", "modell": "stare"}'>Stare</button>
+          <button type="button" data-setze='{"sicht": 50, "abstand": 14, "trennung": 1.4, "ausrichtung": 0.4, "zusammenhalt": 1.6, "vmax": 120, "vmin": 100, "kraft": 160, "blick": 240, "topologisch": false, "zittern": 0, "wirbel": 0, "rand": "wand", "modell": "boids"}'>Fischkreisel</button>
+          <button type="button" data-setze='{"sicht": 40, "abstand": 10, "trennung": 1, "ausrichtung": 0.05, "zusammenhalt": 0.9, "vmax": 140, "vmin": 0, "kraft": 400, "blick": 360, "topologisch": false, "zittern": 1, "wirbel": 0, "modell": "boids"}'>Mücken</button>
+          <button type="button" data-setze='{"sicht": 70, "abstand": 22, "trennung": 2, "ausrichtung": 1.5, "zusammenhalt": 0.3, "vmax": 50, "vmin": 10, "kraft": 60, "blick": 300, "topologisch": false, "zittern": 0.1, "wirbel": 0, "modell": "boids"}'>Herde</button>
         </div>
-        <p class="hinweis">Kein Vogel kennt den Schwarm. Jeder sieht nur seine Nachbarn und folgt drei Regeln: nicht zu nah, in dieselbe Richtung, zur Mitte hin. Die Form des Ganzen entsteht von selbst.</p>
+        <p class="hinweis">Der Starenmodus arbeitet mit drei Zonen: Abstand halten, Flugrichtung der nächsten Nachbarn übernehmen und sich an der lokalen Gruppe orientieren. Die Nachbarsuche ist auf die echte Sichtweite begrenzt – weit entfernte Gruppen ziehen sich nicht gegenseitig durchs Bild.</p>
       </details>
 
       <details class="abschnitt" open>
         <summary>Regeln</summary>
         <div class="steuerung">
-          <label>Trennung <input type="range" data-wert="trennung" min="0" max="4" step="0.05" value="1.6"><output></output></label>
+          <label>Bewegungsmodell
+            <select data-wert="modell">
+              <option value="stare" selected>Starenschwarm (Zonenmodell)</option>
+              <option value="boids">Klassische Boids</option>
+            </select>
+          </label>
+          <label>Trennung <input type="range" data-wert="trennung" min="0" max="4" step="0.05" value="1.35"><output></output></label>
           <label>Ausrichtung <input type="range" data-wert="ausrichtung" min="0" max="3" step="0.05" value="1.6"><output></output></label>
-          <label>Zusammenhalt <input type="range" data-wert="zusammenhalt" min="0" max="3" step="0.05" value="0.45"><output></output></label>
-          <label>Sichtweite <input type="range" data-wert="sicht" min="10" max="180" step="1" value="85"><output></output></label>
-          <label>Abstand <input type="range" data-wert="abstand" min="4" max="60" step="1" value="12"><output></output></label>
+          <label>Zusammenhalt <input type="range" data-wert="zusammenhalt" min="0" max="3" step="0.05" value="1.3"><output></output></label>
+          <label>Sichtweite <input type="range" data-wert="sicht" min="10" max="180" step="1" value="170"><output></output></label>
+          <label>Abstand <input type="range" data-wert="abstand" min="4" max="60" step="1" value="8"><output></output></label>
           <label>Blickwinkel (°) <input type="range" data-wert="blick" min="60" max="360" step="5" value="360"><output></output></label>
-          <label>Höchsttempo <input type="range" data-wert="vmax" min="20" max="400" step="5" value="220"><output></output></label>
-          <label>Mindesttempo <input type="range" data-wert="vmin" min="0" max="300" step="5" value="135"><output></output></label>
-          <label>Kraft (Wendigkeit) <input type="range" data-wert="kraft" min="20" max="800" step="10" value="300"><output></output></label>
+          <label>Höchsttempo <input type="range" data-wert="vmax" min="20" max="400" step="5" value="165"><output></output></label>
+          <label>Mindesttempo <input type="range" data-wert="vmin" min="0" max="300" step="5" value="110"><output></output></label>
+          <label>Kraft (Wendigkeit) <input type="range" data-wert="kraft" min="20" max="800" step="10" value="170"><output></output></label>
           <label>Zittern <input type="range" data-wert="zittern" min="0" max="2" step="0.005" value="0.025"><output></output></label>
-          <label><input type="checkbox" data-wert="topologisch" checked> topologisch (die k nächsten statt alle in Sichtweite)</label>
-          <label data-nur="topologisch=true">k Nachbarn <input type="range" data-wert="k" min="1" max="20" step="1" value="7"><output></output></label>
+          <label data-nur="modell=stare">Wirbel / Flügelbewegung <input type="range" data-wert="wirbel" min="0" max="0.8" step="0.01" value="0.35"><output></output></label>
+          <label data-nur="modell=boids"><input type="checkbox" data-wert="topologisch" checked> topologische Nachbarn statt Radius-Suche</label>
+          <label>Nachbarn k (Starenmodus / topologische Boids) <input type="range" data-wert="k" min="1" max="20" step="1" value="12"><output></output></label>
         </div>
       </details>
 

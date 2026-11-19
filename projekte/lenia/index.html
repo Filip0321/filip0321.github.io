@@ -121,6 +121,13 @@
         <summary>Ton</summary>
         <div class="steuerung">
           <button type="button" id="tonAn" aria-pressed="false">Ton an</button>
+          <label>Tonstab
+            <select data-wert="tonArt">
+              <option value="wandert" selected>wandert</option>
+              <option value="steht">steht (wie im Game of Life)</option>
+            </select>
+          </label>
+          <label data-nur="tonArt=steht">Position <input type="range" data-wert="tonLage" min="0" max="1" step="0.005" value="0.5"><output></output></label>
           <label>Strich
             <select data-wert="tonRichtung">
               <option value="senkrecht" selected>senkrecht (wandert nach rechts, unten tief)</option>

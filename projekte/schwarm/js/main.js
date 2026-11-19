@@ -34,7 +34,7 @@ let videoStatusVorExport = null;
 
 const { einstellung: e } = richteReglerEin({
   beiAenderung: () => aktualisiereFarben(),
-  extra: { anzahl: () => neu(), farbskala: () => aktualisiereFarben(), farbInvertiert: () => aktualisiereFarben() },
+  extra: { anzahl: () => neu(), modell: () => neu(), farbskala: () => aktualisiereFarben(), farbInvertiert: () => aktualisiereFarben() },
 });
 function aktualisiereFarben() {
   const anker = skalaAnker(e.farbskala || "viridis");
@@ -70,7 +70,8 @@ function passeAn() {
   spuren.clearRect(0, 0, spurenLeinwand.width, spurenLeinwand.height);
 }
 function neu() {
-  schwarm.neu(e.anzahl, B, H);
+  if (e.modell === "stare") schwarm.neuPulk(e.anzahl, B, H, Math.max(e.vmin, e.vmax * 0.82));
+  else schwarm.neu(e.anzahl, B, H);
   falke.x = B / 2;
   falke.y = H / 2;
 }
@@ -231,7 +232,9 @@ function regeln() {
     sicht: e.sicht, abstand: e.abstand, trennung: e.trennung, ausrichtung: e.ausrichtung,
     zusammenhalt: e.zusammenhalt * (1 + 2 * (w.zusammenhalt ?? 0)),
     vmax: e.vmax * (1 + 0.6 * (w.tempo ?? 0)), vmin: e.vmin, kraft: e.kraft, blick: e.blick,
-    topologisch: e.topologisch, k: e.k, torus: e.rand === "torus", zittern: e.zittern,
+    // Im Starenmodus immer die begrenzten k nächsten Nachbarn nutzen; Radius-Suche bleibt für Boids.
+    topologisch: e.modell === "stare" ? true : e.topologisch, k: e.k, torus: e.rand === "torus", zittern: e.zittern,
+    modell: e.modell || "boids", wirbel: e.wirbel || 0,
   };
 }
 function stoerer() {
@@ -246,11 +249,13 @@ function stoerer() {
   return s;
 }
 function schritt(dt) {
-  // in Teilschritten, damit schnelle Vögel bei großem dt nicht durch Wände springen
-  const teile = Math.max(1, Math.ceil(dt / 0.02));
+  // Bei normalem Tempo reicht ein Schritt pro Bild (auch beim 30-fps-Export).
+  // Nur bei stark beschleunigter Simulation wird unterteilt. Das spart besonders bei 20.000 Vögeln viel Arbeit.
+  const gesamt = dt * e.zeit;
+  const teile = Math.max(1, Math.ceil(gesamt / 0.033));
   for (let k = 0; k < teile; k++) {
-    if (e.falke) falkeSchritt(dt / teile);
-    schwarm.schritt((dt / teile) * e.zeit, regeln(), stoerer(), waende);
+    if (e.falke) falkeSchritt(gesamt / teile);
+    schwarm.schritt(gesamt / teile, regeln(), stoerer(), waende);
   }
 }
 
@@ -430,31 +435,10 @@ async function stelleHintergrundVideoZeit(frameZeit) {
   });
 }
 
-// Den Klang des Schwarms vorab aus exakt denselben Simulationsbildern rechnen. Das ist unabhängig von
-// der Geschwindigkeit des Video-Renderns und wird anschließend mit einer geladenen Musikdatei gemischt.
-async function rendereSchwarmTon(sekunden) {
-  if (!ton.aktiv()) return null;
-  const fps = 30;
-  const n = Math.max(1, Math.round(sekunden * fps));
-  const zustandZurueck = schwarm.sichere();
-  const falkeAlt = { ...falke };
-  const zufallZurueck = nutzeExportZufall();
-  const zeitplan = [];
-  try {
-    musik.exportStart(n, fps);
-    for (let i = 0; i < n; i++) {
-      musik.exportBild(i);
-      schritt(1 / fps);
-      zeitplan.push(ton.werteFuerExport(schwarm, B, H, e));
-    }
-  } finally {
-    musik.exportEnde();
-    zustandZurueck();
-    Object.assign(falke, falkeAlt);
-    zufallZurueck();
-  }
-  return ton.rendereExport(zeitplan, e, fps);
-}
+// Die Tonsteuerdaten werden während desselben Durchlaufs wie die Videobilder gesammelt.
+// Damit muss ein großer Schwarm nicht ein zweites Mal komplett simuliert werden.
+const tonZeitplan = [];
+
 
 richteExportEin({
   canvas,
@@ -473,10 +457,26 @@ richteExportEin({
         videoHintergrund.pause();
       }
       musik.exportStart(n, 30);
+      tonZeitplan.length = 0;
     },
     async bild(i, dt) {
       await stelleHintergrundVideoZeit(i / 30);
-      musik.exportBild(i); schritt(dt); zeichne();
+      musik.exportBild(i);
+      schritt(dt);
+      zeichne();
+      if (ton.aktiv()) tonZeitplan.push(ton.werteFuerExport(schwarm, B, H, e));
+    },
+    tonInfo(musikPuffer) {
+      const live = ton.aktiv() ? ton.liveTon() : null;
+      if (!live) return null;
+      // Bei zusätzlicher Musik mischt lib/export.js beide Quellen auf Stereo/48 kHz.
+      return musikPuffer ? { kanaele: 2, rate: 48000 } : { kanaele: live.kanaele, rate: live.rate };
+    },
+    async tonFertig() {
+      if (!tonZeitplan.length) return null;
+      const puffer = await ton.rendereExport(tonZeitplan, e, 30);
+      tonZeitplan.length = 0;
+      return puffer;
     },
     ende() {
       musik.exportEnde();
@@ -488,6 +488,7 @@ richteExportEin({
         if (videoStatusVorExport.spielte) videoHintergrund.play().catch(() => {});
       }
       videoStatusVorExport = null;
+      tonZeitplan.length = 0;
     },
     merke() {
       const z = schwarm.sichere();
@@ -496,7 +497,6 @@ richteExportEin({
     },
   },
   ton: () => musik.tonFuerExport(),
-  tonFuer: (sekunden) => rendereSchwarmTon(sekunden),
   liveTon: () => [ton.liveTon(), musik.liveTon()],
 });
 

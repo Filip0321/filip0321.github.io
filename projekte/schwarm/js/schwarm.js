@@ -14,6 +14,12 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
   const links = new Int32Array(maxAnzahl), rechts = new Int32Array(maxAnzahl);
   const achse = new Uint8Array(maxAnzahl);
   const heapDistanz = new Float64Array(64), heapIndex = new Int32Array(64);
+  // Im Starenmodus wird die topologische Nachbarschaft einen Schritt lang wiederverwendet.
+  // Die echten Positionen werden trotzdem in jedem Schritt neu berechnet; nur die Indexliste ist eine Annäherung.
+  const NACHBAR_STRIDE = 64;
+  const nachbarn = new Int32Array(maxAnzahl * NACHBAR_STRIDE);
+  const nachbarAnzahl = new Uint8Array(maxAnzahl);
+  let cacheFrische = 0;
   let heapAnzahl = 0;
   let wurzel = -1;
   let n = 0, B = 1, H = 1;
@@ -63,12 +69,13 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
   // Die zirkuläre Distanz wird berücksichtigt, wenn der Randmodus Torus aktiv ist.
   function abstandIntervall(q, lo, hi, laenge, torus) {
     if (q >= lo && q <= hi) return 0;
-    let a = Math.abs(q - lo), b = Math.abs(q - hi);
+    // Abstand zum Intervall, einmal normal und einmal über den Torusrand.
+    // Wichtig: laenge - (lo - q) wäre nicht der periodische Abstand zum linken Rand.
+    let d = q < lo ? lo - q : q - hi;
     if (torus) {
-      a = Math.min(a, laenge - a);
-      b = Math.min(b, laenge - b);
+      const ueberRand = q < lo ? q + (laenge - lo) : (laenge - q) + hi;
+      d = Math.min(d, ueberRand);
     }
-    const d = Math.min(a, b);
     return d * d;
   }
 
@@ -108,6 +115,7 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
   let qx = 0, qy = 0, qrx = 1, qry = 0, qIndex = -1;
   let suchK = 7, suchTorus = true, suchBlickCos = -1, suchRadius2 = 0;
   let treffer = 0, sumX = 0, sumY = 0, sumVx = 0, sumVy = 0, sumTrennungX = 0, sumTrennungY = 0, sumDistanz = 0;
+  let stareGewicht = 0, stareX = 0, stareY = 0, stareVx = 0, stareVy = 0, stareAbstX = 0, stareAbstY = 0;
 
   function pruefeBlick(dx, dy, d2) {
     if (d2 <= 1e-6 || suchBlickCos <= -1) return true;
@@ -118,9 +126,21 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
     treffer++;
     sumVx += vx[j]; sumVy += vy[j];
     sumX += dx; sumY += dy;
-    sumDistanz += Math.sqrt(d2);
-    const abstand2 = aktivesRegelwerk.abstand * aktivesRegelwerk.abstand;
-    if (d2 < abstand2 && d2 > 1e-6) {
+    const distanz = Math.sqrt(d2);
+    sumDistanz += distanz;
+
+    // Für Stare werden die drei Zonen getrennt gewichtet:
+    // Nahzone = Abstand, mittlere/äußere Zone = Orientierung und lokale Anziehung.
+    const sicht = Math.max(1, aktivesRegelwerk.sicht);
+    const gewicht = 0.35 + 0.65 * (1 - Math.min(1, distanz / sicht));
+    stareGewicht += gewicht;
+    stareX += dx * gewicht; stareY += dy * gewicht;
+    stareVx += vx[j] * gewicht; stareVy += vy[j] * gewicht;
+    const abstand = Math.max(1, aktivesRegelwerk.abstand);
+    if (distanz < abstand && distanz > 1e-6) {
+      const druck = (1 - distanz / abstand) / distanz;
+      stareAbstX -= dx * druck;
+      stareAbstY -= dy * druck;
       sumTrennungX -= dx / d2;
       sumTrennungY -= dy / d2;
     }
@@ -132,7 +152,9 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
     if (j !== qIndex) {
       const dx = wickel(x[j] - qx, B, suchTorus), dy = wickel(y[j] - qy, H, suchTorus);
       const d2 = dx * dx + dy * dy;
-      if (pruefeBlick(dx, dy, d2)) heapEinfuegen(j, d2, suchK);
+      // Topologische Nachbarn sind nur die k nächsten INNERHALB der Sichtweite.
+      // Ohne diese Grenze wurden selbst Vögel auf der gegenüberliegenden Seite verbunden.
+      if (d2 <= suchRadius2 && pruefeBlick(dx, dy, d2)) heapEinfuegen(j, d2, suchK);
     }
 
     const a = achse[knoten], split = wert(j, a);
@@ -144,14 +166,14 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
     const l = links[knoten], r = rechts[knoten];
     const ld = l < 0 ? Infinity : rechteckAbstand(qx, qy, lLoX, lHiX, lLoY, lHiY, suchTorus);
     const rd = r < 0 ? Infinity : rechteckAbstand(qx, qy, rLoX, rHiX, rLoY, rHiY, suchTorus);
-    let grenze = heapAnzahl < suchK ? Infinity : heapDistanz[0];
+    let grenze = heapAnzahl < suchK ? suchRadius2 : Math.min(heapDistanz[0], suchRadius2);
     if (ld <= rd) {
       if (ld <= grenze) sucheKNearest(l, lLoX, lHiX, lLoY, lHiY);
-      grenze = heapAnzahl < suchK ? Infinity : heapDistanz[0];
+      grenze = heapAnzahl < suchK ? suchRadius2 : Math.min(heapDistanz[0], suchRadius2);
       if (rd <= grenze) sucheKNearest(r, rLoX, rHiX, rLoY, rHiY);
     } else {
       if (rd <= grenze) sucheKNearest(r, rLoX, rHiX, rLoY, rHiY);
-      grenze = heapAnzahl < suchK ? Infinity : heapDistanz[0];
+      grenze = heapAnzahl < suchK ? suchRadius2 : Math.min(heapDistanz[0], suchRadius2);
       if (ld <= grenze) sucheKNearest(l, lLoX, lHiX, lLoY, lHiY);
     }
   }
@@ -180,12 +202,44 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
   function neu(anzahl, breite, hoehe, zufall = Math.random) {
     n = Math.max(1, Math.min(Math.floor(anzahl), maxAnzahl));
     B = breite; H = hoehe;
+    cacheFrische = 0;
+    nachbarAnzahl.fill(0, 0, n);
     for (let i = 0; i < n; i++) {
       x[i] = zufall() * B;
       y[i] = zufall() * H;
       const w = zufall() * Math.PI * 2;
       vx[i] = Math.cos(w) * 60;
       vy[i] = Math.sin(w) * 60;
+      lokaleDichte[i] = 0;
+    }
+  }
+
+  function neuPulk(anzahl, breite, hoehe, tempo = 150, zufall = Math.random) {
+    n = Math.max(1, Math.min(Math.floor(anzahl), maxAnzahl));
+    B = breite; H = hoehe;
+    cacheFrische = 0;
+    nachbarAnzahl.fill(0, 0, n);
+    const mitteX = B * (0.5 + (zufall() - 0.5) * 0.08);
+    const mitteY = H * (0.5 + (zufall() - 0.5) * 0.08);
+    const richtung = zufall() * Math.PI * 2;
+    const streuX = Math.max(16, B * 0.075), streuY = Math.max(16, H * 0.085);
+    const lappen = [[-0.75, -0.35, -0.12], [0.72, -0.05, 0.10], [0.02, 0.72, 0.02]];
+    const normal = () => {
+      const u = Math.max(1e-6, zufall()), v = zufall();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+    for (let i = 0; i < n; i++) {
+      const l = lappen[i % lappen.length];
+      const ox = (normal() + l[0]) * streuX, oy = (normal() + l[1]) * streuY;
+      x[i] = Math.max(2, Math.min(B - 2, mitteX + ox));
+      y[i] = Math.max(2, Math.min(H - 2, mitteY + oy));
+      // Drei überlappende Teilwolken mit leicht versetzter Richtung verschmelzen zu einem Verband.
+      const tangente = Math.atan2(oy / streuY, ox / streuX) + Math.PI / 2;
+      const winkel = richtung + l[2] + normal() * 0.22 + (zufall() - 0.5) * 0.12;
+      const wirbel = 0.10 * Math.sin(tangente - richtung);
+      const flug = tempo * (0.84 + zufall() * 0.22);
+      vx[i] = Math.cos(winkel) * flug + Math.cos(tangente) * tempo * wirbel;
+      vy[i] = Math.sin(winkel) * flug + Math.sin(tangente) * tempo * wirbel;
       lokaleDichte[i] = 0;
     }
   }
@@ -208,7 +262,13 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
   function schritt(dt, r, stoerer = [], waende = []) {
     if (!n) return;
     aktivesRegelwerk = r;
-    baueBaum();
+    const cacheVerwenden = r.modell === "stare" && r.topologisch && cacheFrische > 0;
+    if (!cacheVerwenden) {
+      baueBaum();
+      cacheFrische = r.modell === "stare" && r.topologisch ? 1 : 0;
+    } else {
+      cacheFrische = 0;
+    }
     ax.fill(0, 0, n); ay.fill(0, 0, n);
     const sicht2 = r.sicht * r.sicht;
     suchTorus = !!r.torus;
@@ -223,13 +283,29 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
       qx = x[i]; qy = y[i]; qIndex = i;
       treffer = 0; sumX = 0; sumY = 0; sumVx = 0; sumVy = 0;
       sumTrennungX = 0; sumTrennungY = 0; sumDistanz = 0;
+      stareGewicht = 0; stareX = 0; stareY = 0; stareVx = 0; stareVy = 0; stareAbstX = 0; stareAbstY = 0;
 
       if (r.topologisch) {
-        heapAnzahl = 0;
-        sucheKNearest(wurzel, 0, B, 0, H);
-        for (let k = 0; k < heapAnzahl; k++) {
-          const j = heapIndex[k], dx = wickel(x[j] - qx, B, suchTorus), dy = wickel(y[j] - qy, H, suchTorus);
-          zaehleNachbar(j, dx, dy, heapDistanz[k]);
+        if (cacheVerwenden) {
+          const anzahl = nachbarAnzahl[i], offset = i * NACHBAR_STRIDE;
+          for (let k = 0; k < anzahl; k++) {
+            const j = nachbarn[offset + k];
+            const dx = wickel(x[j] - qx, B, suchTorus), dy = wickel(y[j] - qy, H, suchTorus);
+            const d2 = dx * dx + dy * dy;
+            // Eine gecachte Beziehung darf nur weiterwirken, solange der Vogel noch sichtbar ist.
+            if (d2 <= suchRadius2 && pruefeBlick(dx, dy, d2)) zaehleNachbar(j, dx, dy, d2);
+          }
+        } else {
+          heapAnzahl = 0;
+          sucheKNearest(wurzel, 0, B, 0, H);
+          const offset = i * NACHBAR_STRIDE;
+          nachbarAnzahl[i] = heapAnzahl;
+          for (let k = 0; k < heapAnzahl; k++) {
+            const j = heapIndex[k];
+            nachbarn[offset + k] = j;
+            const dx = wickel(x[j] - qx, B, suchTorus), dy = wickel(y[j] - qy, H, suchTorus);
+            zaehleNachbar(j, dx, dy, heapDistanz[k]);
+          }
         }
       } else {
         sucheImRadius(wurzel, 0, B, 0, H);
@@ -238,9 +314,23 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
       const dichte = treffer ? treffer / (sumDistanz / treffer + 1) : 0;
       lokaleDichte[i] = dichte;
       if (treffer) {
-        lenke(sumTrennungX, sumTrennungY, r.trennung);
-        lenke(sumVx / treffer, sumVy / treffer, r.ausrichtung);
-        lenke(sumX / treffer, sumY / treffer, r.zusammenhalt);
+        if (r.modell === "stare") {
+          // Zone 1: stark ausweichen, bevor sich die Silhouetten überlagern.
+          if (stareAbstX || stareAbstY) lenke(stareAbstX, stareAbstY, r.trennung * 1.8);
+          // Zone 2: die lokale Flugrichtung übernehmen; Nähe gewichtet stärker als Ferne.
+          if (stareGewicht > 0) {
+            lenke(stareVx / stareGewicht, stareVy / stareGewicht, r.ausrichtung);
+            // Zone 3: in Richtung des lokalen Verbandes, nicht zu einem globalen Ziel.
+            const cx = stareX / stareGewicht, cy = stareY / stareGewicht;
+            lenke(cx, cy, r.zusammenhalt);
+            // Ein kleiner tangentialer Anteil lässt den Verband rollen und sich verformen.
+            if (r.wirbel) lenke(-cy, cx, r.wirbel);
+          }
+        } else {
+          lenke(sumTrennungX, sumTrennungY, r.trennung);
+          lenke(sumVx / treffer, sumVy / treffer, r.ausrichtung);
+          lenke(sumX / treffer, sumY / treffer, r.zusammenhalt);
+        }
       }
 
       for (const s of stoerer) {
@@ -283,8 +373,10 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
         x[i] = ((x[i] % B) + B) % B;
         y[i] = ((y[i] % H) + H) % H;
       } else {
-        x[i] = Math.min(B, Math.max(0, x[i]));
-        y[i] = Math.min(H, Math.max(0, y[i]));
+        if (x[i] < 0) { x[i] = 0; vx[i] = Math.abs(vx[i]) * 0.72; }
+        else if (x[i] > B) { x[i] = B; vx[i] = -Math.abs(vx[i]) * 0.72; }
+        if (y[i] < 0) { y[i] = 0; vy[i] = Math.abs(vy[i]) * 0.72; }
+        else if (y[i] > H) { y[i] = H; vy[i] = -Math.abs(vy[i]) * 0.72; }
       }
     }
   }
@@ -305,16 +397,17 @@ export function erstelleSchwarm(maxAnzahl = 50000) {
     return () => {
       ({ n, B, H } = alt);
       [x, y, vx, vy, lokaleDichte].forEach((a, i) => a.set(kopie[i]));
+      cacheFrische = 0; // Beim Fortsetzen nach dem Export die Nachbarn sicher neu bestimmen.
     };
   }
 
   return {
-    neu, schritt, messe, sichere, x, y, vx, vy, lokaleDichte,
+    neu, neuPulk, schritt, messe, sichere, x, y, vx, vy, lokaleDichte,
     get n() { return n; },
     groesse(b, h) {
       if (!B || !H) { B = b; H = h; return; }
       for (let i = 0; i < n; i++) { x[i] *= b / B; y[i] *= h / H; }
-      B = b; H = h;
+      B = b; H = h; cacheFrische = 0;
     },
   };
 }
